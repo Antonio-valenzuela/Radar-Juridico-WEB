@@ -14,10 +14,9 @@
     "jsx": "react-jsx",
     "incremental": true,
     "plugins": [
-      {
-        "name": "next"
-      }
+      { "name": "next" }
     ],
+    "baseUrl": ".",
     "paths": {
       "@/*": ["./*"]
     }
@@ -32,3 +31,4 @@
   ],
   "exclude": ["node_modules"]
 }
+

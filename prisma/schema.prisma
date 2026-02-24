@@ -1,0 +1,57 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Item {
+  id        String   @id @default(cuid())
+  source    String
+  title     String
+  url       String   @unique
+  published DateTime
+  summary   String?
+  createdAt DateTime @default(now())
+  impacto   String?
+  tema      String?
+  tipo      String?
+
+  @@index([source, published])
+  @@index([impacto, tema, published])
+}
+
+model Source {
+  id                 String      @id @default(cuid())
+  nombre             String
+  url                String      @unique
+  tipo               String      @default("federal")
+  metodo_extraccion  String      @default("html")
+  activo             Boolean     @default(true)
+  frecuencia_minutos Int         @default(60)
+  last_error         String?
+  error_count        Int         @default(0)
+  ultima_revision    DateTime?
+  createdAt          DateTime    @default(now())
+  updatedAt          DateTime    @updatedAt
+  ingestRuns         IngestRun[]
+}
+
+model IngestRun {
+  id          String    @id @default(cuid())
+  sourceId    String?
+  sourceName  String    @map("source")
+  startedAt   DateTime  @default(now())
+  finishedAt  DateTime?
+  status      String    @default("running")
+  scanned     Int       @default(0)
+  inserted    Int       @default(0)
+  updated     Int       @default(0)
+  errorsCount Int       @default(0)
+  lastError   String?
+  source      Source?   @relation(fields: [sourceId], references: [id])
+
+  @@index([sourceName, startedAt])
+}

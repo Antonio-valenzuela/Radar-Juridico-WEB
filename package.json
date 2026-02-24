@@ -4,14 +4,23 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "npx prisma generate && next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "postinstall": "prisma generate",
+    "worker": "tsx worker/ingestWorker.ts",
+    "backfill": "tsx scripts/backfillClassify.ts"
   },
   "dependencies": {
+    "@prisma/client": "^6.19.2",
+    "@types/diff": "^7.0.2",
+    "bullmq": "^5.67.1",
+    "diff": "^8.0.3",
+    "ioredis": "^5.9.2",
     "next": "16.1.4",
     "react": "19.2.3",
-    "react-dom": "19.2.3"
+    "react-dom": "19.2.3",
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
@@ -20,7 +29,9 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.1.4",
+    "prisma": "^6.19.2",
     "tailwindcss": "^4",
+    "tsx": "^4.21.0",
     "typescript": "^5"
   }
 }
