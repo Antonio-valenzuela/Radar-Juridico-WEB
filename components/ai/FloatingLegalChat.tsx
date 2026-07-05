@@ -1,12 +1,13 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import Link from 'next/link';
 
 interface Citation {
-  id: string;
+  id?: string;
   title: string;
-  url: string;
+  url: string | null;
+  fuente: string;
+  materia: string;
 }
 
 interface ActionBtn {
@@ -22,6 +23,8 @@ interface Message {
   usedLocalData?: boolean;
   citations?: Citation[];
   actions?: ActionBtn[];
+  followUpQuestions?: string[];
+  isError?: boolean;
 }
 
 export default function FloatingLegalChat() {
@@ -29,10 +32,14 @@ export default function FloatingLegalChat() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
-  const [mode, setMode] = useState<'general' | 'empty_search_assistant' | 'rag'>('general');
+  const [loadingText, setLoadingText] = useState('Analizando documentos...');
+  const [mode, setMode] = useState<
+    'Asistencia General' | 'Estrategia Procesal' | 'Resumen de Documento' | 'Análisis de Reforma' | 'Borrador Jurídico'
+  >('Asistencia General');
   const [context, setContext] = useState<any>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   // Restore history from sessionStorage on load
   useEffect(() => {
@@ -50,10 +57,9 @@ export default function FloatingLegalChat() {
       setIsOpen(true);
       if (e.detail) {
         const { mode: newMode, query, filters, resultCount, documentId } = e.detail;
-        setMode(newMode || 'general');
+        if (newMode) setMode(newMode);
         setContext(e.detail);
 
-        // Add auto prompt helper if empty search
         if (newMode === 'empty_search_assistant') {
           const introMsg: Message = {
             role: 'assistant',
@@ -97,15 +103,29 @@ export default function FloatingLegalChat() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isOpen]);
 
-  const handleSend = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!input.trim() || loading) return;
+  const handleSend = async (e?: React.FormEvent, customInput?: string) => {
+    if (e) e.preventDefault();
+    const textToSend = customInput || input;
+    if (!textToSend.trim() || loading) return;
 
-    const userMsg: Message = { role: 'user', content: input.trim() };
+    const userMsg: Message = { role: 'user', content: textToSend.trim() };
     const newMessages = [...messages, userMsg];
     setMessages(newMessages);
     setInput('');
     setLoading(true);
+    setLoadingText('Analizando documentos...');
+
+    const statusInterval = setInterval(() => {
+      setLoadingText('Preparando respuesta...');
+    }, 2000);
+
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
+    // Timeout de 30 segundos
+    const timeoutId = setTimeout(() => {
+      controller.abort();
+    }, 30000);
 
     try {
       const currentPath = typeof window !== 'undefined' ? window.location.pathname : '';
@@ -117,6 +137,7 @@ export default function FloatingLegalChat() {
           'Content-Type': 'application/json',
           'x-admin-token': token,
         },
+        signal: controller.signal,
         body: JSON.stringify({
           message: userMsg.content,
           currentPath,
@@ -128,56 +149,54 @@ export default function FloatingLegalChat() {
         }),
       });
 
+      clearTimeout(timeoutId);
+      clearInterval(statusInterval);
+
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.error || 'Failed to get answer');
+        throw new Error(data.friendlyMessage || data.error || 'No se pudo generar la respuesta.');
       }
 
-      // Prepare assistant message with user‑friendly content
-      let content = data.displayAnswer ?? data.answer ?? '';
-      // If the content looks like raw JSON (legacy), try to parse and build a readable string
-      if (typeof content === 'string' && content.trim().startsWith('{')) {
-        try {
-          const parsed = JSON.parse(content);
-          const parts: string[] = [];
-          if (parsed.summary) parts.push(parsed.summary);
-          if (parsed.legalImpact) parts.push(parsed.legalImpact);
-          if (parsed.attentionPoints && Array.isArray(parsed.attentionPoints)) {
-            parts.push('Puntos de atención:');
-            parts.push(...parsed.attentionPoints.map((p: string) => `- ${p}`));
-          }
-          if (parsed.expandedTerms && Array.isArray(parsed.expandedTerms)) {
-            parts.push('Términos relacionados:');
-            parts.push(...parsed.expandedTerms.map((t: string) => `- ${t}`));
-          }
-          if (parsed.dateRange) parts.push(`Periodo revisado: ${parsed.dateRange}`);
-          if (parsed.resultCount !== undefined) parts.push(`Resultados encontrados: ${parsed.resultCount}`);
-          content = parts.join('\n');
-        } catch {
-          // If parsing fails, keep original content
-        }
-      }
       const assistantMsg: Message = {
         role: 'assistant',
-        content,
-        provider: data.provider,
+        content: data.answer ?? '',
+        provider: data.technical?.provider || 'IA',
         usedLocalData: data.usedLocalData,
-        citations: data.citations,
-        actions: data.actions,
+        citations: data.sources || [],
+        actions: data.actions || [],
+        followUpQuestions: data.followUpQuestions || []
       };
 
       const updated = [...newMessages, assistantMsg];
       setMessages(updated);
       sessionStorage.setItem('juridico_chat_history', JSON.stringify(updated));
     } catch (err: any) {
+      clearTimeout(timeoutId);
+      clearInterval(statusInterval);
+
+      let errorMsgText = 'No pude generar la respuesta en este momento. Intenta reformular tu pregunta o verifica tu conexión.';
+      if (err.name === 'AbortError') {
+        errorMsgText = 'La consulta excedió el tiempo límite de espera (30s). ¿Deseas reintentar?';
+      } else if (err.message) {
+        errorMsgText = err.message;
+      }
+
       const errorMsg: Message = {
         role: 'assistant',
-        content: `Lo siento, ocurrió un problema al procesar tu solicitud: ${err.message || 'Error de conexión.'}`,
-        provider: 'Sistema'
+        content: errorMsgText,
+        provider: 'Sistema',
+        isError: true
       };
       setMessages((prev) => [...prev, errorMsg]);
     } finally {
       setLoading(false);
+      abortControllerRef.current = null;
+    }
+  };
+
+  const handleCancel = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
     }
   };
 
@@ -220,9 +239,68 @@ export default function FloatingLegalChat() {
   const handleClearHistory = () => {
     setMessages([]);
     setContext(null);
-    setMode('general');
+    setMode('Asistencia General');
     sessionStorage.removeItem('juridico_chat_history');
   };
+
+  function renderMarkdown(text: string) {
+    if (!text) return '';
+    const lines = text.split('\n');
+    return lines.map((line, idx) => {
+      const trimmed = line.trim();
+      
+      if (trimmed.startsWith('**') && trimmed.endsWith('**')) {
+        return (
+          <h5 key={idx} style={{ margin: '0.75rem 0 0.25rem 0', color: '#c5a880', fontWeight: '700', fontSize: '0.92rem' }}>
+            {trimmed.slice(2, -2)}
+          </h5>
+        );
+      }
+      if (trimmed.startsWith('- ')) {
+        return (
+          <li key={idx} style={{ marginLeft: '1.25rem', listStyleType: 'disc', marginBottom: '0.2rem' }}>
+            {renderInlineMarkdown(trimmed.slice(2))}
+          </li>
+        );
+      }
+      const listMatch = trimmed.match(/^(\d+)\.\s+(.*)$/);
+      if (listMatch) {
+        return (
+          <li key={idx} style={{ marginLeft: '1.25rem', listStyleType: 'decimal', marginBottom: '0.2rem' }}>
+            {renderInlineMarkdown(listMatch[2])}
+          </li>
+        );
+      }
+      if (!trimmed) {
+        return <div key={idx} style={{ height: '0.5rem' }} />;
+      }
+      return (
+        <p key={idx} style={{ margin: '0 0 0.5rem 0' }}>
+          {renderInlineMarkdown(line)}
+        </p>
+      );
+    });
+  }
+
+  function renderInlineMarkdown(text: string) {
+    const parts = [];
+    let remaining = text;
+    while (remaining.includes('**')) {
+      const startIdx = remaining.indexOf('**');
+      const endIdx = remaining.indexOf('**', startIdx + 2);
+      if (endIdx === -1) break;
+
+      if (startIdx > 0) {
+        parts.push(remaining.substring(0, startIdx));
+      }
+      parts.push(<strong key={startIdx} style={{ color: '#ffffff' }}>{remaining.substring(startIdx + 2, endIdx)}</strong>);
+      remaining = remaining.substring(endIdx + 2);
+    }
+    if (remaining) {
+      parts.push(remaining);
+    }
+    return parts.length > 0 ? parts : text;
+  }
 
   return (
     <div className="floating-chat-root">
@@ -244,7 +322,19 @@ export default function FloatingLegalChat() {
               <span className="status-dot"></span>
               <div>
                 <h4>Asistente Legal IA</h4>
-                <span className="header-mode">Modo: {mode === 'empty_search_assistant' ? 'Búsqueda Vacía' : mode === 'rag' ? 'Consultor RAG' : 'Asistencia General'}</span>
+                <div style={{ marginTop: '0.2rem' }}>
+                  <select
+                    value={mode}
+                    onChange={(e) => setMode(e.target.value as any)}
+                    className="mode-select"
+                  >
+                    <option value="Asistencia General">Asistencia General</option>
+                    <option value="Estrategia Procesal">Estrategia Procesal</option>
+                    <option value="Resumen de Documento">Resumen de Documento</option>
+                    <option value="Análisis de Reforma">Análisis de Reforma</option>
+                    <option value="Borrador Jurídico">Borrador Jurídico</option>
+                  </select>
+                </div>
               </div>
             </div>
             <div className="header-actions">
@@ -258,36 +348,36 @@ export default function FloatingLegalChat() {
               <div className="empty-chat-state">
                 <span className="balance-icon">⚖️</span>
                 <p>Bienvenido al Asistente Jurídico de Jurídico Radar.</p>
-                <p className="empty-sub">Pregúntame sobre normativas, términos alternativos o diagnóstico de ingestas.</p>
+                <p className="empty-sub">Pregúntame sobre normativas, amparos, reformas o borradores.</p>
               </div>
             ) : (
               messages.map((msg, i) => (
                 <div key={i} className={`message-row ${msg.role}`}>
                   <div className="message-bubble">
-                    {/* Local DB query meta badge */}
-                    {msg.role === 'assistant' && msg.usedLocalData !== undefined && (
-                      <span className={`db-badge ${msg.usedLocalData ? 'success' : 'warning'}`}>
-                        {msg.usedLocalData ? '🔍 Conexión Local: Datos Encontrados' : 'ℹ️ Información General / IA'}
-                      </span>
-                    )}
-
-                    <div className="message-content" style={{ whiteSpace: 'pre-wrap' }}>
-                      {msg.content}
+                    <div className="message-content">
+                      {renderMarkdown(msg.content)}
                     </div>
 
-                    {/* Citations List */}
+                    {/* Citations List as Discrete Cards */}
                     {msg.citations && msg.citations.length > 0 && (
                       <div className="citations-container">
-                        <strong className="citations-title">Documentos citados:</strong>
-                        <ul className="citations-list">
+                        <strong className="citations-title">Documentos consultados:</strong>
+                        <div className="citations-grid">
                           {msg.citations.map((cit, idx) => (
-                            <li key={idx}>
-                              <a href={cit.url || '#'} target="_blank" rel="noopener noreferrer" className="citation-link">
-                                📄 {cit.title}
-                              </a>
-                            </li>
+                            <div key={idx} className="citation-card">
+                              <div className="cit-header">
+                                <span className="cit-source">{cit.fuente}</span>
+                                <span className="cit-matter">{cit.materia}</span>
+                              </div>
+                              <div className="cit-title">{cit.title}</div>
+                              {cit.url && (
+                                <a href={cit.url} target="_blank" rel="noopener noreferrer" className="cit-link">
+                                  Ver Oficial &rarr;
+                                </a>
+                              )}
+                            </div>
                           ))}
-                        </ul>
+                        </div>
                       </div>
                     )}
 
@@ -302,8 +392,19 @@ export default function FloatingLegalChat() {
                       </div>
                     )}
 
-                    {msg.provider && (
-                      <span className="message-provider">Respondido por: {msg.provider}</span>
+                    {/* Follow-up suggestion buttons */}
+                    {msg.followUpQuestions && msg.followUpQuestions.length > 0 && (
+                      <div className="followups-container">
+                        {msg.followUpQuestions.map((q, idx) => (
+                          <button
+                            key={idx}
+                            className="followup-button"
+                            onClick={() => handleSend(undefined, q)}
+                          >
+                            💬 {q}
+                          </button>
+                        ))}
+                      </div>
                     )}
                   </div>
                 </div>
@@ -312,6 +413,9 @@ export default function FloatingLegalChat() {
             {loading && (
               <div className="message-row assistant">
                 <div className="message-bubble loading-bubble">
+                  <div style={{ fontSize: '0.78rem', color: '#94a3b8', marginBottom: '0.4rem', fontWeight: '500' }}>
+                    {loadingText}
+                  </div>
                   <div className="loading-dots">
                     <span></span><span></span><span></span>
                   </div>
@@ -322,12 +426,10 @@ export default function FloatingLegalChat() {
           </div>
 
           <div className="disclaimer-area">
-            Respuesta generada por IA; verifica con fuentes oficiales.
-            <br />
-            <small>Estoy usando una revisión local de la información indexada en Jurídico Radar. La respuesta puede ser limitada porque no hay conexión activa con proveedores externos de IA.</small>
+            Respuesta generada con apoyo de IA. Contrasta con la fuente oficial y el caso concreto.
           </div>
 
-          <form onSubmit={handleSend} className="chat-input-form">
+          <form onSubmit={(e) => handleSend(e)} className="chat-input-form">
             <input
               type="text"
               placeholder="Escribe tu consulta jurídica aquí..."
@@ -337,9 +439,15 @@ export default function FloatingLegalChat() {
               disabled={loading}
               required
             />
-            <button type="submit" className="chat-send-btn" disabled={loading}>
-              Enviar
-            </button>
+            {loading ? (
+              <button type="button" className="chat-cancel-btn" onClick={handleCancel}>
+                ✕
+              </button>
+            ) : (
+              <button type="submit" className="chat-send-btn">
+                Enviar
+              </button>
+            )}
           </form>
         </div>
       )}
@@ -353,7 +461,6 @@ export default function FloatingLegalChat() {
           font-family: 'Outfit', sans-serif;
         }
 
-        /* Toggle Button */
         .chat-toggle-btn {
           width: 56px;
           height: 56px;
@@ -389,10 +496,9 @@ export default function FloatingLegalChat() {
           100% { transform: scale(1.4); opacity: 0; }
         }
 
-        /* Chat Panel */
         .chat-panel {
-          width: 400px;
-          height: 550px;
+          width: 420px;
+          height: 580px;
           border-radius: 16px;
           background: rgba(15, 23, 42, 0.95);
           border: 1px solid rgba(197, 168, 128, 0.25);
@@ -409,9 +515,8 @@ export default function FloatingLegalChat() {
           to { transform: translateY(0); opacity: 1; }
         }
 
-        /* Header */
         .chat-header {
-          padding: 1rem;
+          padding: 0.85rem 1rem;
           background: rgba(9, 13, 22, 0.8);
           border-bottom: 1px solid rgba(197, 168, 128, 0.15);
           display: flex;
@@ -440,10 +545,15 @@ export default function FloatingLegalChat() {
           color: #ffffff;
         }
 
-        .header-mode {
+        .mode-select {
+          background: #1e293b;
+          color: #ffffff;
+          border: 1px solid rgba(197, 168, 128, 0.3);
+          border-radius: 4px;
+          padding: 0.2rem 0.4rem;
           font-size: 0.75rem;
-          color: var(--lawyer-gold, #c5a880);
-          font-weight: 500;
+          outline: none;
+          cursor: pointer;
         }
 
         .header-actions {
@@ -464,14 +574,13 @@ export default function FloatingLegalChat() {
         .clear-btn:hover { color: #ef4444; }
         .close-btn:hover { color: #ffffff; }
 
-        /* Messages Area */
         .chat-messages {
           flex: 1;
           padding: 1rem;
           overflow-y: auto;
           display: flex;
           flex-direction: column;
-          gap: 1rem;
+          gap: 1.25rem;
         }
 
         .empty-chat-state {
@@ -516,11 +625,11 @@ export default function FloatingLegalChat() {
         }
 
         .message-bubble {
-          max-width: 85%;
-          padding: 0.75rem 1rem;
+          max-width: 88%;
+          padding: 0.85rem 1rem;
           border-radius: 12px;
-          font-size: 0.9rem;
-          line-height: 1.4;
+          font-size: 0.88rem;
+          line-height: 1.45;
           position: relative;
         }
 
@@ -533,112 +642,135 @@ export default function FloatingLegalChat() {
 
         .message-row.assistant .message-bubble {
           background: #1e293b;
-          color: #e2e8f0;
+          color: #cbd5e1;
           border-bottom-left-radius: 2px;
           border: 1px solid rgba(255, 255, 255, 0.05);
         }
 
-        /* local query badge */
-        .db-badge {
-          display: inline-block;
-          font-size: 0.68rem;
-          font-weight: 700;
-          letter-spacing: 0.05em;
-          text-transform: uppercase;
-          padding: 0.15rem 0.45rem;
-          border-radius: 4px;
-          margin-bottom: 0.5rem;
-        }
-        
-        .db-badge.success {
-          background: rgba(16, 185, 129, 0.15);
-          color: #34d399;
-          border: 1px solid rgba(16, 185, 129, 0.25);
-        }
-
-        .db-badge.warning {
-          background: rgba(245, 158, 11, 0.12);
-          color: #f59e0b;
-          border: 1px solid rgba(245, 158, 11, 0.2);
-        }
-
-        .message-provider {
-          display: block;
-          font-size: 0.68rem;
-          color: #64748b;
-          margin-top: 0.5rem;
-          text-align: right;
-          font-weight: 600;
-        }
-
-        /* Citations design */
+        /* Citations grid as discrete cards */
         .citations-container {
-          margin-top: 0.75rem;
-          border-top: 1px solid rgba(255, 255, 255, 0.05);
-          padding-top: 0.5rem;
+          margin-top: 1rem;
+          border-top: 1px solid rgba(255, 255, 255, 0.06);
+          padding-top: 0.75rem;
         }
 
         .citations-title {
-          font-size: 0.75rem;
+          font-size: 0.72rem;
           color: #c5a880;
           text-transform: uppercase;
           font-weight: 700;
           display: block;
+          margin-bottom: 0.4rem;
+        }
+
+        .citations-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+          gap: 0.5rem;
+        }
+
+        .citation-card {
+          background: rgba(255, 255, 255, 0.02);
+          border: 1px solid rgba(197, 168, 128, 0.2);
+          border-radius: 8px;
+          padding: 0.6rem;
+          font-size: 0.75rem;
+          display: flex;
+          flex-direction: column;
+          justify-content: space-between;
+        }
+
+        .cit-header {
+          display: flex;
+          justify-content: space-between;
+          font-size: 0.62rem;
           margin-bottom: 0.25rem;
         }
 
-        .citations-list {
-          list-style: none;
-          padding: 0;
-          margin: 0;
-          display: flex;
-          flex-direction: column;
-          gap: 0.35rem;
+        .cit-source {
+          color: #c5a880;
+          font-weight: 700;
         }
 
-        .citation-link {
-          font-size: 0.8rem;
+        .cit-matter {
+          color: #64748b;
+        }
+
+        .cit-title {
+          color: #f1f5f9;
+          font-weight: 600;
+          line-height: 1.25;
+          margin-bottom: 0.5rem;
+          display: -webkit-box;
+          -webkit-line-clamp: 2;
+          -webkit-box-orient: vertical;
+          overflow: hidden;
+        }
+
+        .cit-link {
           color: #38bdf8;
           text-decoration: none;
-          display: inline-block;
-          transition: color 0.2s;
+          font-weight: 700;
+          font-size: 0.7rem;
         }
 
-        .citation-link:hover {
-          color: #7dd3fc;
+        .cit-link:hover {
           text-decoration: underline;
+        }
+
+        /* Follow-ups buttons */
+        .followups-container {
+          display: flex;
+          flex-direction: column;
+          gap: 0.4rem;
+          margin-top: 1rem;
+          border-top: 1px solid rgba(255, 255, 255, 0.06);
+          padding-top: 0.75rem;
+        }
+
+        .followup-button {
+          width: 100%;
+          text-align: left;
+          background: rgba(255, 255, 255, 0.02);
+          border: 1px solid rgba(197, 168, 128, 0.25);
+          color: #f8fafc;
+          padding: 0.5rem 0.75rem;
+          border-radius: 6px;
+          font-size: 0.78rem;
+          font-weight: 600;
+          cursor: pointer;
+          transition: background 0.2s, border-color 0.2s;
+        }
+
+        .followup-button:hover {
+          background: rgba(197, 168, 128, 0.08);
+          border-color: #c5a880;
         }
 
         /* Actions container */
         .actions-container {
           display: flex;
           flex-direction: column;
-          gap: 0.45rem;
-          margin-top: 0.85rem;
+          gap: 0.4rem;
+          margin-top: 0.75rem;
         }
 
         .action-button {
           width: 100%;
           text-align: left;
-          background: rgba(255, 255, 255, 0.02);
-          border: 1px solid rgba(197, 168, 128, 0.3);
+          background: rgba(197, 168, 128, 0.1);
+          border: 1px solid #c5a880;
           color: #ffffff;
-          padding: 0.55rem 0.85rem;
+          padding: 0.5rem 0.75rem;
           border-radius: 6px;
-          font-size: 0.82rem;
+          font-size: 0.78rem;
           font-weight: 600;
           cursor: pointer;
-          transition: background 0.2s, border-color 0.2s;
         }
 
-        .action-button:hover {
-          background: rgba(197, 168, 128, 0.1);
-          border-color: #c5a880;
-        }
-
-        /* Loading animation */
+        /* Loading bubble */
         .loading-bubble {
-          padding: 0.6rem 1rem;
+          padding: 0.75rem 1rem;
         }
 
         .loading-dots {
@@ -662,18 +794,17 @@ export default function FloatingLegalChat() {
           40% { transform: scale(1); }
         }
 
-        /* Disclaimer Area */
         .disclaimer-area {
-          font-size: 0.7rem;
+          font-size: 0.72rem;
           color: #64748b;
           text-align: center;
-          padding: 0.4rem;
-          background: rgba(9, 13, 22, 0.5);
+          padding: 0.6rem;
+          background: rgba(9, 13, 22, 0.6);
           border-top: 1px solid rgba(255, 255, 255, 0.03);
-          font-weight: 500;
+          font-weight: 600;
+          line-height: 1.3;
         }
 
-        /* Input Form */
         .chat-input-form {
           display: flex;
           padding: 0.75rem;
@@ -709,13 +840,28 @@ export default function FloatingLegalChat() {
           transition: background 0.2s;
         }
 
-        .chat-send-btn:hover:not(:disabled) {
+        .chat-send-btn:hover {
           background: #b3956b;
         }
 
-        .chat-send-btn:disabled {
-          opacity: 0.5;
-          cursor: not-allowed;
+        .chat-cancel-btn {
+          background: #334155;
+          color: #ffffff;
+          border: none;
+          width: 38px;
+          height: 38px;
+          border-radius: 8px;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 0.95rem;
+          font-weight: 700;
+          transition: background 0.2s;
+        }
+
+        .chat-cancel-btn:hover {
+          background: #475569;
         }
       `}</style>
     </div>
