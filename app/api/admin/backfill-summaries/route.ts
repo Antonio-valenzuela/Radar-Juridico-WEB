@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { stripHtml, isBadGenericSidofTitle } from "@/lib/sidofParse";
 import { classifyItem } from "@/lib/classifier";
+import { requireAdmin } from "@/lib/security/adminAuth";
 
 export const dynamic = "force-dynamic";
 
@@ -9,7 +10,9 @@ export const dynamic = "force-dynamic";
  * Endpoint de mantenimiento para arreglar registros viejos.
  * GET /api/admin/backfill-summaries?limit=200
  */
-export async function GET(req: Request) {
+export async function POST(req: Request) {
+  const auth = requireAdmin(req);
+  if (!auth.ok) return auth.response;
     const { searchParams } = new URL(req.url);
     const limit = parseInt(searchParams.get("limit") || "100", 10);
 
@@ -62,3 +65,4 @@ export async function GET(req: Request) {
         return NextResponse.json({ ok: false, error: e.message }, { status: 500 });
     }
 }
+

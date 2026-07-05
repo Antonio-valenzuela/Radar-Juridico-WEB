@@ -1,7 +1,7 @@
 services:
-  db:
-    image: postgres:16
-    container_name: juridico_db
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: juridico_postgres
     environment:
       POSTGRES_USER: app
       POSTGRES_PASSWORD: apppass
@@ -9,13 +9,180 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - juridico_db_data:/var/lib/postgresql/data
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U app -d juridico"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   redis:
     image: redis:7
     container_name: juridico_redis
     ports:
       - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  frontend:
+    image: node:22-bookworm
+    container_name: juridico_frontend
+    working_dir: /app
+    command: sh -c "mkdir -p .next/dev/logs .next/dev/static && npm install && npm run dev -- --hostname 0.0.0.0 --port 3000"
+    environment:
+      NODE_ENV: development
+      NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:${FRONTEND_PORT:-3100}}
+      DATABASE_URL: postgresql://app:apppass@postgres:5432/juridico?schema=public
+      REDIS_URL: redis://redis:6379
+      ADMIN_TOKEN: ${ADMIN_TOKEN:-dev-admin-token}
+      NOTIFY_TEST_EMAIL: ${NOTIFY_TEST_EMAIL:-}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      FROM_EMAIL: ${FROM_EMAIL:-alerts@juridico-radar.local}
+      SIDOF_BASE_URL: ${SIDOF_BASE_URL:-https://sidof.segob.gob.mx/dof/sidof}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:-}
+      SJF_START_ID: ${SJF_START_ID:-2033000}
+      NEXT_DIST_DIR: ${NEXT_DIST_DIR:-.next}
+      LLM_PROVIDER: ${LLM_PROVIDER:-gemini}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.5-flash}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      GROQ_MODEL: ${GROQ_MODEL:-llama-3.1-8b-instant}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      OPENROUTER_MODEL: ${OPENROUTER_MODEL:-openai/gpt-oss-20b:free}
+      TAVILY_API_KEY: ${TAVILY_API_KEY:-}
+      LEGAL_RADAR_LOOKBACK_DAYS: ${LEGAL_RADAR_LOOKBACK_DAYS:-7}
+    ports:
+      - "${FRONTEND_PORT:-3100}:3000"
+    volumes:
+      - .:/app
+      - frontend_node_modules:/app/node_modules
+      - frontend_next:/app/.next
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  backend:
+    image: node:22-bookworm
+    container_name: juridico_backend
+    working_dir: /app
+    command: sh -c "mkdir -p .next-backend/dev/logs .next-backend/dev/static && npm install && npm run dev -- --hostname 0.0.0.0 --port 3001"
+    environment:
+      NODE_ENV: development
+      NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:${FRONTEND_PORT:-3100}}
+      DATABASE_URL: postgresql://app:apppass@postgres:5432/juridico?schema=public
+      REDIS_URL: redis://redis:6379
+      ADMIN_TOKEN: ${ADMIN_TOKEN:-dev-admin-token}
+      NOTIFY_TEST_EMAIL: ${NOTIFY_TEST_EMAIL:-}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      FROM_EMAIL: ${FROM_EMAIL:-alerts@juridico-radar.local}
+      SIDOF_BASE_URL: ${SIDOF_BASE_URL:-https://sidof.segob.gob.mx/dof/sidof}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:-}
+      SJF_START_ID: ${SJF_START_ID:-2033000}
+      NEXT_DIST_DIR: .next-backend
+      LLM_PROVIDER: ${LLM_PROVIDER:-gemini}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.5-flash}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      GROQ_MODEL: ${GROQ_MODEL:-llama-3.1-8b-instant}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      OPENROUTER_MODEL: ${OPENROUTER_MODEL:-openai/gpt-oss-20b:free}
+      TAVILY_API_KEY: ${TAVILY_API_KEY:-}
+      LEGAL_RADAR_LOOKBACK_DAYS: ${LEGAL_RADAR_LOOKBACK_DAYS:-7}
+    ports:
+      - "3001:3001"
+    volumes:
+      - .:/app
+      - backend_node_modules:/app/node_modules
+      - backend_next:/app/.next-backend
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  worker:
+    image: node:22-bookworm
+    container_name: juridico_worker
+    working_dir: /app
+    command: sh -c "npm install && npm run worker"
+    environment:
+      NODE_ENV: development
+      DATABASE_URL: postgresql://app:apppass@postgres:5432/juridico?schema=public
+      REDIS_URL: redis://redis:6379
+      SIDOF_BASE_URL: ${SIDOF_BASE_URL:-https://sidof.segob.gob.mx/dof/sidof}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:-}
+      SJF_START_ID: ${SJF_START_ID:-2033000}
+    volumes:
+      - .:/app
+      - worker_node_modules:/app/node_modules
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  dashboard-ws:
+    image: node:22-bookworm
+    container_name: juridico_dashboard_ws
+    working_dir: /app
+    command: sh -c "npm install && npm run dashboard"
+    environment:
+      NODE_ENV: development
+      DATABASE_URL: postgresql://app:apppass@postgres:5432/juridico?schema=public
+      REDIS_URL: redis://redis:6379
+      WEBSOCKET_PORT: 3002
+    ports:
+      - "3002:3002"
+    volumes:
+      - .:/app
+      - dashboard_node_modules:/app/node_modules
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  worker-legal-reports:
+    image: node:22-bookworm
+    container_name: juridico_worker_legal_reports
+    working_dir: /app
+    command: sh -c "npm install && npm run worker:legal-reports"
+    environment:
+      NODE_ENV: development
+      DATABASE_URL: postgresql://app:apppass@postgres:5432/juridico?schema=public
+      REDIS_URL: redis://redis:6379
+      LLM_PROVIDER: ${LLM_PROVIDER:-gemini}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.5-flash}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      GROQ_MODEL: ${GROQ_MODEL:-llama-3.1-8b-instant}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      OPENROUTER_MODEL: ${OPENROUTER_MODEL:-openai/gpt-oss-20b:free}
+      TAVILY_API_KEY: ${TAVILY_API_KEY:-}
+    restart: always
+    volumes:
+      - .:/app
+      - worker_legal_reports_node_modules:/app/node_modules
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
 
 volumes:
-  juridico_db_data:
+  pgdata:
+  frontend_node_modules:
+  backend_node_modules:
+  worker_node_modules:
+  dashboard_node_modules:
+  worker_legal_reports_node_modules:
+  frontend_next:
+  backend_next:

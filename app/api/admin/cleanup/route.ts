@@ -1,7 +1,10 @@
-﻿import { NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { requireAdmin } from "@/lib/security/adminAuth";
 
-export async function POST() {
+export async function POST(req: Request) {
+  const auth = requireAdmin(req);
+  if (!auth.ok) return auth.response;
   const deleted = await prisma.item.deleteMany({
     where: {
       OR: [
@@ -15,3 +18,4 @@ export async function POST() {
 
   return NextResponse.json({ ok: true, deleted: deleted.count });
 }
+

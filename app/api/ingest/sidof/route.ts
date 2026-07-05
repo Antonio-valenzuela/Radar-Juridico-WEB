@@ -1,38 +1,28 @@
-﻿/**
- * POST /api/ingest/sidof
- * Quick SIDOF-only ingestion for today (or a specific date).
- * Uses the real JSON API parser from lib/ingest/sidof.ts.
- */
 import { NextResponse } from "next/server";
-import { ingestSidofByDate } from "@/lib/ingest/sidof";
+import { runSidofIngest } from "@/lib/ingest/sidof";
+import { requireAdmin } from "@/lib/security/adminAuth";
 
 export const dynamic = "force-dynamic";
 
+/**
+ * GET /api/ingest/sidof?date=DD-MM-YYYY
+ * Si no mandas date, usa la fecha CDMX de hoy.
+ */
 export async function POST(req: Request) {
-  const token = req.headers.get("x-admin-token");
-  if (token !== process.env.ADMIN_TOKEN) {
-    return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
-  }
-
+  const auth = requireAdmin(req);
+  if (!auth.ok) return auth.response;
   try {
-    const body = await req.json().catch(() => ({}));
-    const date = body?.date; // optional DD-MM-YYYY
+    const url = new URL(req.url);
+    const date = url.searchParams.get("date") || undefined;
+    const result = await runSidofIngest(date);
 
-    const result = await ingestSidofByDate(date);
-
-    return NextResponse.json({
-      ok: result.ok,
-      date: result.date,
-      found: result.found,
-      saved: result.saved,
-      sample: result.sample,
-      error: result.error,
-    });
-  } catch (e: any) {
-    console.error("POST /api/ingest/sidof error:", e);
+    return NextResponse.json(result, { status: result.ok ? 200 : 502 });
+  } catch (err: unknown) {
+    console.error("ingest sidof error", err);
     return NextResponse.json(
-      { ok: false, error: e?.message || "Unknown error" },
+      { ok: false, error: "Fallo en ingesta SIDOF" },
       { status: 500 }
     );
   }
 }
+

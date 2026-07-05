@@ -81,7 +81,7 @@ export async function ingestScjnComunicados(startId: number, count = 30): Promis
             if (!data) continue;
 
             const { title, published, summary } = data;
-            const { impacto, tipo, tema } = classifyItem(title, summary);
+            const { impacto, tipo, tema, keywordsHit } = classifyItem(title, summary);
 
             await prisma.item.upsert({
                 where: { url },
@@ -92,7 +92,8 @@ export async function ingestScjnComunicados(startId: number, count = 30): Promis
                     summary: summary.slice(0, 500),
                     impacto,
                     tipo,
-                    tema
+                    tema,
+                    keywordsHit: keywordsHit.length > 0 ? keywordsHit.join(",") : null,
                 },
                 create: {
                     source: "scjn",
@@ -102,7 +103,8 @@ export async function ingestScjnComunicados(startId: number, count = 30): Promis
                     summary: summary.slice(0, 500),
                     impacto,
                     tipo,
-                    tema
+                    tema,
+                    keywordsHit: keywordsHit.length > 0 ? keywordsHit.join(",") : null,
                 }
             });
 

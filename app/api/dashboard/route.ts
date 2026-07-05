@@ -14,8 +14,13 @@ export async function GET(req: Request) {
   const impacto = url.searchParams.get("impacto") || undefined;
   const tipo = url.searchParams.get("tipo") || undefined;
   const tema = url.searchParams.get("tema") || undefined;
+  const rangeParam = url.searchParams.get("range");
+  const range = rangeParam === "today" || rangeParam === "week" || rangeParam === "all"
+    ? rangeParam
+    : undefined;
+  const includeNoise = url.searchParams.get("includeNoise") === "true";
 
-  const data = await getDashboardData({ q, source, impacto, tipo, tema });
+  const data = await getDashboardData({ q, source, impacto, tipo, tema, range, includeNoise });
 
   return NextResponse.json(data);
 }

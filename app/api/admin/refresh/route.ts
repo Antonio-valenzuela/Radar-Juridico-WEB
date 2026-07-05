@@ -2,17 +2,15 @@ import { NextResponse } from "next/server";
 import { ingestSidofByDate, ingestSidofWeek } from "@/lib/ingest/sidof";
 import { ingestDofWeb } from "@/lib/ingest/dofWeb";
 import { ingestScjnComunicados } from "@/lib/ingest/scjn";
+import { requireAdmin } from "@/lib/security/adminAuth";
 
 export const maxDuration = 300; // 5 minutes logic limits
 export const dynamic = "force-dynamic";
 
 export async function POST(req: Request) {
+  const auth = requireAdmin(req);
+  if (!auth.ok) return auth.response;
     try {
-        const token = req.headers.get("x-admin-token");
-        if (token !== process.env.ADMIN_TOKEN) {
-            return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
-        }
-
         // Ejecutar ingestiones
         const results = [];
 
@@ -71,3 +69,4 @@ export async function POST(req: Request) {
         );
     }
 }
+

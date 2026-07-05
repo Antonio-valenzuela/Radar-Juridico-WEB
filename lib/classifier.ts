@@ -1,97 +1,210 @@
-export interface Classification {
+﻿export interface Classification {
   impacto: "alto" | "medio" | "bajo";
-  tipo: string | null;
+  tipo: string;
   tema: string | null;
+  keywordsHit: string[];
+}
+
+function removeDiacritics(str: string): string {
+  return str.normalize("NFD").replace(/[̀-ͯ]/g, "");
 }
 
 export function classifyItem(title: string, summary?: string | null): Classification {
-  const text = `${title} ${summary || ""}`.toUpperCase();
-  const summaryUpper = (summary || "").toUpperCase();
+  const raw = `${title} ${summary || ""}`;
+  const text = removeDiacritics(raw).toUpperCase();
 
-  const impacto = detectImpact(text);
+  const { impacto, hitHigh, hitMedium } = detectImpact(text);
   const tipo = detectType(text);
-  const tema = detectTema(text, summaryUpper);
+  const { tema, hitTema } = detectTema(text);
 
-  return { impacto, tipo, tema };
+  const keywordsHit = [...hitHigh, ...hitMedium, ...hitTema];
+
+  return { impacto, tipo, tema, keywordsHit };
 }
 
-function detectImpact(text: string): "alto" | "medio" | "bajo" {
-  const highImpactKeywords = [
-    "REFORMA CONSTITUCIONAL", "NUEVA LEY", "NUEVO CÓDIGO",
-    "EXPIDE", "SE EXPIDE", "DECRETO POR EL QUE SE EXPIDE",
-    "ACCIÓN DE INCONSTITUCIONALIDAD", "CONTROVERSIA CONSTITUCIONAL",
-    "REFORMA INTEGRAL", "ABROGACIÓN", "SE ABROGA"
+function detectImpact(text: string): {
+  impacto: "alto" | "medio" | "bajo";
+  hitHigh: string[];
+  hitMedium: string[];
+} {
+  const highKeywords = [
+    "REFORMA CONSTITUCIONAL",
+    "NUEVA LEY",
+    "NUEVO CODIGO",
+    "EXPIDE",
+    "SE EXPIDE",
+    "DECRETO POR EL QUE SE EXPIDE",
+    "ACCION DE INCONSTITUCIONALIDAD",
+    "CONTROVERSIA CONSTITUCIONAL",
+    "REFORMA INTEGRAL",
+    "ABROGACION",
+    "SE ABROGA",
+    "ABROGA",
+    "ENTRA EN VIGOR",
+    "TRANSITORIOS",
   ];
 
-  if (highImpactKeywords.some(k => text.includes(k))) return "alto";
+  const hitHigh = highKeywords.filter((k) => text.includes(k));
+  if (hitHigh.length > 0) return { impacto: "alto", hitHigh, hitMedium: [] };
 
-  const mediumImpactKeywords = [
-    "REFORMA", "REFORMAN", "SE REFORMAN",
-    "ADICIONA", "SE ADICIONAN", "ADICIÓN",
-    "DEROGA", "SE DEROGAN", "DEROGACIÓN",
-    "REGLAMENTO", "ACUERDO GENERAL", "LINEAMIENTOS"
+  const mediumKeywords = [
+    "REFORMA",
+    "REFORMAN",
+    "SE REFORMAN",
+    "ADICIONA",
+    "SE ADICIONAN",
+    "ADICION",
+    "DEROGA",
+    "SE DEROGAN",
+    "DEROGACION",
+    "REGLAMENTO",
+    "ACUERDO GENERAL",
+    "LINEAMIENTOS",
   ];
 
-  if (mediumImpactKeywords.some(k => text.includes(k))) return "medio";
+  const hitMedium = mediumKeywords.filter((k) => text.includes(k));
+  if (hitMedium.length > 0) return { impacto: "medio", hitHigh: [], hitMedium };
 
-  return "bajo";
+  return { impacto: "bajo", hitHigh: [], hitMedium: [] };
 }
 
-function detectType(text: string): string | null {
+function detectType(text: string): string {
   if (text.includes("DECRETO")) return "DECRETO";
-  if (text.includes("LEY") || text.includes("CÓDIGO")) return "LEY";
+  if (text.includes("CODIGO") || text.includes("LEY")) return "LEY";
   if (text.includes("REGLAMENTO")) return "REGLAMENTO";
+  if (text.includes("LINEAMIENTOS")) return "LINEAMIENTOS";
   if (text.includes("ACUERDO")) return "ACUERDO";
   if (text.includes("AVISO")) return "AVISO";
   if (text.includes("CIRCULAR")) return "CIRCULAR";
   if (text.includes("NOM-") || text.includes("NORMA OFICIAL")) return "NOM";
-  if (text.includes("SENTENCIA") || text.includes("TESIS") || text.includes("JURISPRUDENCIA")) return "SENTENCIA";
+  if (text.includes("JURISPRUDENCIA")) return "JURISPRUDENCIA";
+  if (text.includes("TESIS")) return "TESIS";
+  if (text.includes("SENTENCIA")) return "SENTENCIA";
   if (text.includes("COMUNICADO")) return "COMUNICADO";
-
   return "NOTA";
 }
 
-function detectTema(text: string, summary: string): string | null {
-  // 1. PENAL (Prioridad alta)
-  const penalKeywords = [
-    "PENAL", "CÓDIGO PENAL", "PROCEDIMIENTO PENAL", "ACCIÓN PENAL",
-    "PRISIÓN PREVENTIVA", "MINISTERIO PÚBLICO", "FISCALÍA", "DELITO",
-    "HOMICIDIO", "ROBO", "FRAUDE", "SECUESTRO", "VÍCTIMA", "IMPUTADO",
-    "SENTENCIA CONDENATORIA", "ORDEN DE APREHENSIÓN", "VINCULACIÓN A PROCESO",
-    "EXTINCIÓN DE DOMINIO", "DELINCUENCIA ORGANIZADA", "NARCOTRÁFICO",
-    "CÁRCEL", "RECLUSORIO", "SANCIÓN PENAL", "PUNIBLE", "CULPABLE",
-    "PROCESO PENAL", "JUEZ DE CONTROL", "AUTO DE VINCULACIÓN"
+function detectTema(text: string): { tema: string | null; hitTema: string[] } {
+  // Constitucional / Amparo (maxima prioridad)
+  const constitucionalKw = [
+    "REFORMA CONSTITUCIONAL",
+    "ACCION DE INCONSTITUCIONALIDAD",
+    "CONTROVERSIA CONSTITUCIONAL",
+    "AMPARO",
+    "CONSTITUCION POLITICA",
+    "SUPREMA CORTE",
+    "SCJN",
+    "DERECHOS HUMANOS",
+    "GARANTIAS INDIVIDUALES",
   ];
-  if (penalKeywords.some(k => text.includes(k) || summary.includes(k))) return "penal";
+  const constitucionalHit = constitucionalKw.filter((k) => text.includes(k));
+  if (constitucionalHit.length > 0) return { tema: "constitucional", hitTema: constitucionalHit };
 
-  // 2. CIVIL / FAMILIAR
-  const civilKeywords = [
-    "CIVIL", "CÓDIGO CIVIL", "PROCEDIMIENTO CIVIL", "JUZGADO CIVIL",
-    "FAMILIAR", "JUZGADO FAMILIAR", "MATRIMONIO", "DIVORCIO", "SOCIEDAD CONYUGAL",
-    "CONCUBINATO", "ALIMENTOS", "PENSIÓN ALIMENTICIA", "GUARDA Y CUSTODIA",
-    "PATRIA POTESTAD", "ADOPCIÓN", "TUTELA", "SUCESIÓN", "TESTAMENTO", "HERENCIA",
-    "ARRENDAMIENTO", "HIPOTECA", "COMPRAVENTA", "PROPIEDAD", "POSESIÓN",
-    "USUFRUCTO", "SERVIDUMBRE", "DAÑO MORAL", "RESPONSABILIDAD CIVIL",
-    "COMPENSACIÓN ECONÓMICA", "REGISTRO CIVIL", "ACTA DE NACIMIENTO",
-    "OBLIGACIONES", "CONTRATO"
+  // Penal
+  const penalKw = [
+    "PENAL",
+    "CODIGO PENAL",
+    "PROCEDIMIENTO PENAL",
+    "ACCION PENAL",
+    "PRISION PREVENTIVA",
+    "MINISTERIO PUBLICO",
+    "FISCALIA",
+    "DELITO",
+    "HOMICIDIO",
+    "ROBO",
+    "FRAUDE",
+    "SECUESTRO",
+    "VICTIMA",
+    "IMPUTADO",
+    "EXTINCION DE DOMINIO",
+    "DELINCUENCIA ORGANIZADA",
+    "NARCOTRAFICO",
+    "PROCESO PENAL",
+    "JUEZ DE CONTROL",
+    "VINCULACION A PROCESO",
   ];
-  if (civilKeywords.some(k => text.includes(k) || summary.includes(k))) return "civil";
+  const penalHit = penalKw.filter((k) => text.includes(k));
+  if (penalHit.length > 0) return { tema: "penal", hitTema: penalHit };
 
-  // 3. LABORAL
-  const laboralKeywords = [
-    "LABORAL", "TRABAJO", "DESPIDO", "HUELGA", "SINDICATO", "JUNTA DE CONCILIACIÓN",
-    "CONTRATO COLECTIVO", "INDEMNIZACIÓN CONSTITUCIONAL", "SALARIOS CAÍDOS",
-    "PRESTACIONES", "SEGURIDAD SOCIAL"
+  // Civil / Familiar
+  const civilKw = [
+    "CIVIL",
+    "CODIGO CIVIL",
+    "FAMILIAR",
+    "MATRIMONIO",
+    "DIVORCIO",
+    "CONCUBINATO",
+    "ALIMENTOS",
+    "PENSION ALIMENTICIA",
+    "GUARDA Y CUSTODIA",
+    "PATRIA POTESTAD",
+    "ADOPCION",
+    "SUCESION",
+    "TESTAMENTO",
+    "HERENCIA",
+    "ARRENDAMIENTO",
+    "HIPOTECA",
+    "COMPRAVENTA",
+    "RESPONSABILIDAD CIVIL",
+    "REGISTRO CIVIL",
   ];
-  if (laboralKeywords.some(k => text.includes(k) || summary.includes(k))) return "laboral";
+  const civilHit = civilKw.filter((k) => text.includes(k));
+  if (civilHit.length > 0) return { tema: "civil", hitTema: civilHit };
 
-  // 4. FISCAL / ADMINISTRATIVO
-  const fiscalKeywords = [
-    "FISCAL", "IMPUESTO", "SAT", "HACIENDA", "TRIBUTARIO", "ADUANERO",
-    "CFF", "ISR", "IVA", "IEPS", "CONTRIBUCIÓN", "CRÉDITO FISCAL",
-    "PRESUPUESTO", "EGRESOS", "INGRESOS", "AUDITORÍA"
+  // Laboral
+  const laboralKw = [
+    "LABORAL",
+    "TRABAJO",
+    "DESPIDO",
+    "HUELGA",
+    "SINDICATO",
+    "JUNTA DE CONCILIACION",
+    "CONTRATO COLECTIVO",
+    "SALARIOS CAIDOS",
+    "SEGURIDAD SOCIAL",
+    "IMSS",
+    "INFONAVIT",
+    "STPS",
   ];
-  if (fiscalKeywords.some(k => text.includes(k) || summary.includes(k))) return "fiscal";
+  const laboralHit = laboralKw.filter((k) => text.includes(k));
+  if (laboralHit.length > 0) return { tema: "laboral", hitTema: laboralHit };
 
-  return null;
+  // Fiscal
+  const fiscalKw = [
+    "FISCAL",
+    "IMPUESTO",
+    "SAT",
+    "HACIENDA",
+    "TRIBUTARIO",
+    "ADUANERO",
+    "CFF",
+    "ISR",
+    "IVA",
+    "IEPS",
+    "CONTRIBUCION",
+    "CREDITO FISCAL",
+    "PRESUPUESTO DE EGRESOS",
+    "LEY DE INGRESOS",
+    "AUDITORIA FISCAL",
+  ];
+  const fiscalHit = fiscalKw.filter((k) => text.includes(k));
+  if (fiscalHit.length > 0) return { tema: "fiscal", hitTema: fiscalHit };
+
+  // Administrativo
+  const adminKw = [
+    "ADMINISTRATIVO",
+    "LICITACION",
+    "CONTRATACION PUBLICA",
+    "CONCESION",
+    "PERMISO",
+    "AUTORIZACION ADMINISTRATIVA",
+    "SERVICIO PUBLICO",
+    "ORGANISMO DESCENTRALIZADO",
+    "DEPENDENCIA FEDERAL",
+    "FUNCION PUBLICA",
+  ];
+  const adminHit = adminKw.filter((k) => text.includes(k));
+  if (adminHit.length > 0) return { tema: "administrativo", hitTema: adminHit };
+
+  return { tema: null, hitTema: [] };
 }

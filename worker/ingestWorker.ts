@@ -1,401 +1,221 @@
-﻿/**
- * worker/ingestWorker.ts
- * Multi-source monitoring worker with retry, structured logging, and scheduling.
- */
-
 import IORedis from "ioredis";
-import { Worker, Queue } from "bullmq";
-import { PrismaClient } from "@prisma/client";
-import { createHash } from "crypto";
+import { Job, Worker } from "bullmq";
+import { runNotifications } from "@/lib/notifications/run";
+import { computeMetricsDaily } from "@/lib/metrics/compute";
+import {
+  runPriority1Ingest,
+  runSidofIngest,
+  runSidofInitialBackfill,
+  runSidofWeek,
+  runWeeklyRefresh,
+} from "@/lib/ingest/sourceRunners";
+import {
+  QUEUE_NAMES,
+  failedJobsQueue,
+  ingestQueue,
+  notificationsQueue,
+} from "@/lib/queue";
+import { prisma } from "@/lib/prisma";
 
-// Prisma singleton for worker process
-const prisma = new PrismaClient();
-
-const connection = new IORedis(process.env.REDIS_URL!, {
+const connection = new IORedis(process.env.REDIS_URL || "redis://localhost:6379", {
   maxRetriesPerRequest: null,
 });
 
-const ingestQueue = new Queue("ingest", { connection });
+function createTrackedWorker<T>(
+  queueName: string,
+  processor: (job: Job) => Promise<T>
+) {
+  const worker = new Worker(
+    queueName,
+    async (job) => {
+      const startedAt = new Date();
+      const processingJob = await prisma.processingJob
+        .create({
+          data: {
+            queueName,
+            jobName: job.name,
+            jobId: job.id,
+            type: String(job.data?.type || job.name),
+            source: job.data?.source ? String(job.data.source) : null,
+            status: "active",
+            attempt: job.attemptsMade + 1,
+            payload: job.data || {},
+            startedAt,
+          },
+        })
+        .catch(() => null);
 
-// ─── Structured Logger ───
+      console.log(JSON.stringify({ event: "worker.job.start", queueName, job: job.name, id: job.id }));
 
-function log(level: "info" | "warn" | "error", message: string, meta?: Record<string, any>) {
-  const entry = {
-    timestamp: new Date().toISOString(),
-    level,
-    message,
-    ...meta,
+      try {
+        const result = await processor(job);
+        await markProcessingJob(processingJob?.id, "completed", result, null, startedAt);
+        console.log(JSON.stringify({ event: "worker.job.done", queueName, job: job.name, id: job.id, durationMs: Date.now() - startedAt.getTime() }));
+        return result;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        await markProcessingJob(processingJob?.id, "failed", null, message, startedAt);
+        throw error;
+      }
+    },
+    { connection: connection as any }
+  );
+
+  worker.on("failed", (job, error) => {
+    void recordDeadLetter(queueName, job, error);
+  });
+
+  return worker;
+}
+
+createTrackedWorker(QUEUE_NAMES.ingest, async (job) => {
+  const days = Number(job.data?.days || 7);
+
+  if (job.name === "sidof-today" || job.name === "run-now") {
+    return await runSidofIngest();
+  }
+
+  if (job.name === "sidof-week") {
+    return await runSidofWeek(Number(job.data?.days || 7));
+  }
+
+  if (job.name === "ingest-daily" || job.name === "all") {
+    const result = await runPriority1Ingest(days);
+    if (result.saved > 0) await runNotifications({ days: 1 });
+    return result;
+  }
+
+  if (job.name === "ingest-weekly") {
+    const result = await runWeeklyRefresh(days);
+    if (result.saved > 0) await runNotifications({ days: 7 });
+    return result;
+  }
+
+  if (job.name === "notify-daily") {
+    return await runNotifications({ days: Number(job.data?.days || 1) });
+  }
+
+  if (job.name === "compute-metrics") {
+    const date = job.data?.date ? new Date(job.data.date) : new Date();
+    const metrics = await computeMetricsDaily(date);
+    return { ok: true, date: metrics.date.toISOString().slice(0, 10) };
+  }
+
+  throw new Error(`job desconocido: ${job.name}`);
+});
+
+createTrackedWorker(QUEUE_NAMES.pdfProcessing, async (job) => ({
+  ok: true,
+  queue: QUEUE_NAMES.pdfProcessing,
+  job: job.name,
+  message: "PDF processing queue ready for extractor implementation.",
+}));
+
+import { processDocumentIngestion } from "./documentIngestProcessor";
+
+createTrackedWorker(QUEUE_NAMES.documentIngestion, async (job) => {
+  return await processDocumentIngestion(job);
+});
+
+import { processEmbeddingJob } from "./embeddingWorker";
+
+createTrackedWorker(QUEUE_NAMES.embeddings, async (job) => {
+  return await processEmbeddingJob(job);
+});
+
+createTrackedWorker(QUEUE_NAMES.notifications, async (job) => {
+  return await runNotifications({
+    days: Number(job.data?.days || 1),
+    email: job.data?.email ? String(job.data.email) : undefined,
+    orgSlug: job.data?.orgSlug ? String(job.data.orgSlug) : undefined,
+    channels: Array.isArray(job.data?.channels) ? job.data.channels : undefined,
+    dryRun: Boolean(job.data?.dryRun),
+  });
+});
+
+createTrackedWorker(QUEUE_NAMES.failedJobs, async (job) => {
+  console.log(JSON.stringify({ event: "worker.dlq.received", id: job.id, payload: job.data }));
+  return { ok: true, retained: true };
+});
+
+console.log("[worker] workers running");
+console.log("[worker] queues: ingest | pdf-processing | embeddings | notifications | failed-jobs");
+
+void bootstrapWorker();
+
+async function bootstrapWorker() {
+  try {
+    await ingestQueue.upsertJobScheduler(
+      "schedule-ingest-daily",
+      { pattern: "0 7 * * *", tz: "America/Mexico_City" },
+      { name: "ingest-daily", data: { days: 1 } }
+    );
+    await ingestQueue.upsertJobScheduler(
+      "schedule-ingest-weekly",
+      { pattern: "10 7 * * 1", tz: "America/Mexico_City" },
+      { name: "ingest-weekly", data: { days: 7 } }
+    );
+    await notificationsQueue.upsertJobScheduler(
+      "schedule-notify-daily",
+      { pattern: "30 7 * * *", tz: "America/Mexico_City" },
+      { name: "notify-daily", data: { days: 1 } }
+    );
+
+    await runPriority1Ingest(1);
+    const total = await prisma.item.count();
+    if (total === 0) await runSidofInitialBackfill(7);
+  } catch (error) {
+    console.warn("[worker] bootstrap failed", error);
+  }
+}
+
+async function markProcessingJob(
+  id: string | undefined,
+  status: string,
+  result: unknown,
+  error: string | null,
+  startedAt: Date
+) {
+  if (!id) return;
+  await prisma.processingJob
+    .update({
+      where: { id },
+      data: {
+        status,
+        result: result === null ? undefined : JSON.parse(JSON.stringify(result)),
+        error,
+        finishedAt: new Date(),
+      },
+    })
+    .catch(() => {
+      const durationMs = Date.now() - startedAt.getTime();
+      console.warn(JSON.stringify({ event: "worker.processing_job.update_failed", id, status, durationMs }));
+    });
+}
+
+async function recordDeadLetter(queueName: string, job: Job | undefined, error: Error) {
+  if (!job) return;
+  const payload = {
+    queueName,
+    jobName: job.name,
+    jobId: job.id,
+    attemptsMade: job.attemptsMade,
+    payload: job.data || {},
+    error: error.message,
   };
-  if (level === "error") {
-    console.error(JSON.stringify(entry));
-  } else {
-    console.log(JSON.stringify(entry));
-  }
-}
 
-// ─── Text Processing ───
-
-function normalizeText(raw: string): string {
-  return raw
-    .replace(/[\u200B-\u200D\uFEFF\u00AD]/g, "")
-    .normalize("NFC")
-    .replace(/\s+/g, " ")
-    .split("\n").map(l => l.trim()).join("\n")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
-}
-
-function stripHtml(html: string): string {
-  return html
-    .replace(/<script[\s\S]*?<\/script>/gi, "")
-    .replace(/<style[\s\S]*?<\/style>/gi, "")
-    .replace(/<!--[\s\S]*?-->/g, "")
-    .replace(/<\s*(br|p|div|li|tr|h[1-6])[^>]*>/gi, "\n")
-    .replace(/<[^>]+>/g, " ")
-    .replace(/&nbsp;/gi, " ")
-    .replace(/&amp;/gi, "&")
-    .replace(/&lt;/gi, "<")
-    .replace(/&gt;/gi, ">")
-    .replace(/&quot;/gi, '"')
-    .replace(/&#39;/gi, "'");
-}
-
-function computeHash(text: string): string {
-  return createHash("sha256").update(normalizeText(text), "utf8").digest("hex");
-}
-
-// ─── Legal Keywords ───
-
-const LEGAL_KEYWORDS = [
-  "reforma", "reforman", "deroga", "adiciona", "modifica",
-  "sustituye", "transitorio", "abroga", "expide",
-];
-
-function detectKeywords(text: string): string[] {
-  const lower = text.toLowerCase();
-  return LEGAL_KEYWORDS.filter(kw => lower.includes(kw));
-}
-
-function classifyImpact(text: string, changeSize: number): string {
-  const lower = text.toLowerCase();
-  const highKw = ["reforma constitucional", "nueva ley", "se expide", "abrogación"];
-  if (highKw.some(k => lower.includes(k)) || changeSize > 20) return "alto";
-
-  const medKw = ["reforma", "adiciona", "deroga", "modificación"];
-  if (medKw.some(k => lower.includes(k)) || changeSize > 5) return "medio";
-
-  return "bajo";
-}
-
-function classifyChangeType(hasOld: boolean, hasNew: boolean, keywords: string[]): string {
-  if (!hasOld && hasNew) return "nuevo";
-  if (hasOld && !hasNew) return "eliminacion";
-  if (keywords.some(k => ["reforma", "reforman", "deroga", "adiciona", "modifica"].includes(k))) {
-    return "reforma";
-  }
-  return "modificacion_menor";
-}
-
-// ─── Fetch with Retry ───
-
-async function fetchWithRetry(url: string, maxRetries = 3): Promise<string | null> {
-  const delays = [5000, 15000, 30000];
-
-  for (let attempt = 0; attempt < maxRetries; attempt++) {
-    try {
-      const res = await fetch(url, {
-        headers: {
-          "User-Agent": "Mozilla/5.0 (compatible; JuridicoRadar/2.0)",
-          Accept: "text/html, application/json, */*",
-        },
-        signal: AbortSignal.timeout(30000),
-      });
-
-      if (!res.ok) {
-        throw new Error(`HTTP ${res.status}`);
-      }
-
-      return await res.text();
-    } catch (err: any) {
-      log("warn", `Fetch attempt ${attempt + 1}/${maxRetries} failed`, {
-        url, error: err.message,
-      });
-
-      if (attempt < maxRetries - 1) {
-        await new Promise(r => setTimeout(r, delays[attempt]));
-      }
-    }
-  }
-
-  return null;
-}
-
-// ─── Source Processing ───
-
-async function processSource(source: { id: string; nombre: string; url: string; metodo_extraccion: string }) {
-  log("info", `Processing source: ${source.nombre}`, { sourceId: source.id });
-
-  const content = await fetchWithRetry(source.url);
-
-  if (!content) {
-    log("error", `Failed to fetch source after retries`, { sourceId: source.id });
-
-    await prisma.source.update({
-      where: { id: source.id },
+  await Promise.allSettled([
+    failedJobsQueue.add("dead-letter", payload, {
+      jobId: `${queueName}:${job.id || job.name}:${Date.now()}`,
+      attempts: 1,
+    }),
+    prisma.deadLetterJob.create({
       data: {
-        error_count: { increment: 1 },
-        last_error: "Failed to fetch after 3 retries",
-        ultima_revision: new Date(),
+        queueName,
+        jobName: job.name,
+        payload,
+        error: error.message,
       },
-    });
-    return { ok: false, sourceId: source.id };
-  }
-
-  // Extract text based on method
-  let plainText: string;
-  if (source.metodo_extraccion === "html") {
-    plainText = normalizeText(stripHtml(content));
-  } else {
-    plainText = normalizeText(content);
-  }
-
-  const newHash = computeHash(plainText);
-
-  // Find or create document for this source URL
-  let doc = await prisma.document.findUnique({ where: { url: source.url } });
-
-  if (!doc) {
-    // New document — create it
-    doc = await prisma.document.create({
-      data: {
-        sourceId: source.id,
-        titulo: source.nombre,
-        url: source.url,
-        contenido_actual: plainText.slice(0, 50000),
-        hash_actual: newHash,
-        fecha_publicacion: new Date(),
-        impacto: "bajo",
-      },
-    });
-
-    // Create initial version
-    await prisma.documentVersion.create({
-      data: {
-        documentId: doc.id,
-        contenido: plainText.slice(0, 50000),
-        hash: newHash,
-        tipo_cambio: "nuevo",
-      },
-    });
-
-    // Notification
-    await prisma.notification.create({
-      data: {
-        documentId: doc.id,
-        tipo: "nueva_publicacion",
-        descripcion: `Nueva publicación detectada: ${source.nombre}`,
-      },
-    });
-
-    log("info", `New document created`, { sourceId: source.id, docId: doc.id });
-
-    // Reset error count on success
-    await prisma.source.update({
-      where: { id: source.id },
-      data: { error_count: 0, last_error: null, ultima_revision: new Date() },
-    });
-
-    return { ok: true, sourceId: source.id, action: "created", docId: doc.id };
-  }
-
-  // Existing document — compare hashes
-  if (doc.hash_actual === newHash) {
-    log("info", `No changes detected`, { sourceId: source.id, docId: doc.id });
-
-    await prisma.source.update({
-      where: { id: source.id },
-      data: { error_count: 0, last_error: null, ultima_revision: new Date() },
-    });
-
-    return { ok: true, sourceId: source.id, action: "unchanged", docId: doc.id };
-  }
-
-  // Content changed! Save previous version and create new one
-  log("info", `Change detected!`, { sourceId: source.id, docId: doc.id });
-
-  const oldContent = doc.contenido_actual || "";
-  const keywords = detectKeywords(plainText);
-  const changeType = classifyChangeType(!!oldContent, true, keywords);
-  const impact = classifyImpact(plainText, keywords.length);
-
-  // Create new version
-  const version = await prisma.documentVersion.create({
-    data: {
-      documentId: doc.id,
-      contenido: plainText.slice(0, 50000),
-      hash: newHash,
-      tipo_cambio: changeType,
-    },
-  });
-
-  // Create change record with diff details
-  await prisma.change.create({
-    data: {
-      documentVersionId: version.id,
-      texto_anterior: oldContent.slice(0, 20000),
-      texto_nuevo: plainText.slice(0, 20000),
-      tipo_diferencia: changeType === "nuevo" ? "agregado" : "articulo_modificado",
-      palabras_clave_detectadas: keywords.join(", ") || null,
-    },
-  });
-
-  // Update document with new content
-  await prisma.document.update({
-    where: { id: doc.id },
-    data: {
-      contenido_actual: plainText.slice(0, 50000),
-      hash_actual: newHash,
-      impacto: impact,
-      updatedAt: new Date(),
-    },
-  });
-
-  // Create notification
-  await prisma.notification.create({
-    data: {
-      documentId: doc.id,
-      tipo: "cambio_detectado",
-      descripcion: `Cambio detectado en ${source.nombre}: ${changeType}. Keywords: ${keywords.join(", ") || "ninguna"}`,
-    },
-  });
-
-  // Reset error count on success
-  await prisma.source.update({
-    where: { id: source.id },
-    data: { error_count: 0, last_error: null, ultima_revision: new Date() },
-  });
-
-  return { ok: true, sourceId: source.id, action: "changed", docId: doc.id, changeType };
+    }),
+  ]);
 }
-
-// ─── Worker ───
-
-const worker = new Worker(
-  "ingest",
-  async (job) => {
-    log("info", `Job received: ${job.name}`, { jobId: job.id });
-
-    switch (job.name) {
-      case "scan-all": {
-        const sources = await prisma.source.findMany({
-          where: { activo: true },
-        });
-
-        log("info", `Scanning ${sources.length} active sources`);
-
-        const results = [];
-        for (const source of sources) {
-          try {
-            const result = await processSource(source);
-            results.push(result);
-          } catch (err: any) {
-            log("error", `Source processing failed`, {
-              sourceId: source.id,
-              error: err.message,
-            });
-            results.push({ ok: false, sourceId: source.id, error: err.message });
-          }
-
-          // Throttle between sources
-          await new Promise(r => setTimeout(r, 2000));
-        }
-
-        return { ok: true, scanned: sources.length, results };
-      }
-
-      case "scan-source": {
-        const sourceId = job.data?.sourceId;
-        if (!sourceId) return { ok: false, error: "sourceId required" };
-
-        const source = await prisma.source.findUnique({ where: { id: sourceId } });
-        if (!source) return { ok: false, error: "Source not found" };
-
-        return await processSource(source);
-      }
-
-      // Legacy jobs (backward compatibility)
-      case "sidof-today":
-      case "sidof-week":
-      case "scjn-today":
-      case "dof-web-today": {
-        log("info", `Legacy job: ${job.name} — running scan-all instead`);
-        const sources = await prisma.source.findMany({ where: { activo: true } });
-        const results = [];
-        for (const source of sources) {
-          try {
-            results.push(await processSource(source));
-          } catch (err: any) {
-            results.push({ ok: false, sourceId: source.id, error: err.message });
-          }
-          await new Promise(r => setTimeout(r, 2000));
-        }
-        return { ok: true, scanned: sources.length, results };
-      }
-
-      default:
-        log("warn", `Unknown job: ${job.name}`);
-        return { ok: false, error: `Unknown job: ${job.name}` };
-    }
-  },
-  {
-    connection,
-    concurrency: 1,
-    limiter: { max: 1, duration: 5000 },
-  }
-);
-
-worker.on("completed", (job) => {
-  log("info", `Job completed: ${job.name}`, { jobId: job.id });
-});
-
-worker.on("failed", (job, err) => {
-  log("error", `Job failed: ${job?.name}`, { jobId: job?.id, error: err.message });
-});
-
-// ─── Setup Repeatable Jobs (Cron) ───
-
-async function setupSchedule() {
-  // Clean old repeatable jobs
-  const existing = await ingestQueue.getRepeatableJobs();
-  for (const job of existing) {
-    await ingestQueue.removeRepeatableByKey(job.key);
-  }
-
-  // Schedule scan-all every 30 minutes
-  await ingestQueue.add("scan-all", {}, {
-    repeat: { every: 30 * 60 * 1000 },
-    removeOnComplete: { count: 50 },
-    removeOnFail: { count: 20 },
-  });
-
-  log("info", "Scheduled repeatable job: scan-all every 30 minutes");
-}
-
-setupSchedule().catch((err) => {
-  log("error", "Failed to setup schedule", { error: err.message });
-});
-
-log("info", "⚡ Worker v2 running — multi-source monitoring active");
-
-// ─── Graceful Shutdown ───
-
-async function shutdown() {
-  log("info", "Shutting down worker...");
-  await worker.close();
-  await prisma.$disconnect();
-  connection.disconnect();
-  process.exit(0);
-}
-
-process.on("SIGINT", shutdown);
-process.on("SIGTERM", shutdown);

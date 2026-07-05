@@ -104,7 +104,7 @@ export async function ingestSjf(startId: number, count = 20): Promise<IngestResu
             }
 
             // Clasificar
-            const { tema, impacto } = classifyItem(rubro, summary);
+            const { tema, impacto, keywordsHit } = classifyItem(rubro, summary);
 
             // Upsert en DB
             await prisma.item.upsert({
@@ -116,7 +116,8 @@ export async function ingestSjf(startId: number, count = 20): Promise<IngestResu
                     summary,
                     tipo,
                     tema,
-                    impacto: impacto || "alto" // Jurisprudencia es impacto alto por defecto
+                    impacto: impacto || "alto", // Jurisprudencia es impacto alto por defecto
+                    keywordsHit: keywordsHit.length > 0 ? keywordsHit.join(",") : null,
                 },
                 create: {
                     source: "sjf",
@@ -126,7 +127,8 @@ export async function ingestSjf(startId: number, count = 20): Promise<IngestResu
                     summary,
                     tipo,
                     tema,
-                    impacto: impacto || "alto"
+                    impacto: impacto || "alto",
+                    keywordsHit: keywordsHit.length > 0 ? keywordsHit.join(",") : null,
                 }
             });
 

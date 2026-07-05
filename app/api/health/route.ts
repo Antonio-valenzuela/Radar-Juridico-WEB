@@ -1,39 +1,58 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { connection, getQueueSnapshots } from "../../../lib/queue";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-    try {
-        // Test DB connection and tables
-        const itemPromise = prisma.item.count();
-        const sourcePromise = prisma.source.count();
-        const runPromise = prisma.ingestRun.count();
+  const db = await checkDb();
+  const redis = await checkRedis();
+  const [latestIngest, totalItems] = await Promise.all([
+    prisma.ingestRun.findFirst({ orderBy: { startedAt: "desc" } }).catch(() => null),
+    prisma.item.count().catch(() => 0),
+  ]);
+  const queues = await getQueueSnapshots().catch((error) => [
+    {
+      name: "queues",
+      ok: false,
+      error: error instanceof Error ? error.message : String(error),
+    },
+  ]);
 
-        const [itemCount, sourceCount, runCount] = await Promise.all([
-            itemPromise,
-            sourcePromise,
-            runPromise
-        ]);
+  return NextResponse.json({
+    ok: db.ok && redis.ok,
+    service: "juridico-radar",
+    checkedAt: new Date().toISOString(),
+    db,
+    redis,
+    queues,
+    latestIngest: latestIngest
+      ? {
+          source: latestIngest.source,
+          startedAt: latestIngest.startedAt.toISOString(),
+          finishedAt: latestIngest.finishedAt?.toISOString() || null,
+          ok: latestIngest.ok,
+          saved: latestIngest.itemsSaved,
+        }
+      : null,
+    totalItems,
+  });
+}
 
-        return NextResponse.json({
-            ok: true,
-            status: "UP",
-            database: "connected",
-            tables: {
-                item: itemCount,
-                source: sourceCount,
-                ingestRun: runCount
-            },
-            timestamp: new Date().toISOString()
-        });
-    } catch (err: any) {
-        console.error("Health check failed:", err);
-        return NextResponse.json({
-            ok: false,
-            status: "DOWN",
-            error: err.message,
-            timestamp: new Date().toISOString()
-        }, { status: 500 });
-    }
+async function checkDb() {
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+    return { ok: true };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : String(error) };
+  }
+}
+
+async function checkRedis() {
+  try {
+    const pong = await connection.ping();
+    return { ok: pong === "PONG" };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : String(error) };
+  }
 }

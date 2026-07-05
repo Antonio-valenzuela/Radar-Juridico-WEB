@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { ingestDofWeb } from "@/lib/ingest/dofWeb";
+import { requireAdmin } from "@/lib/security/adminAuth";
 
 export const dynamic = "force-dynamic";
 
@@ -7,7 +8,9 @@ export const dynamic = "force-dynamic";
  * GET /api/ingest/dof?date=DD/MM/YYYY
  * Ingesta DOF desde web dof.gob.mx (scrape).
  */
-export async function GET(req: Request) {
+export async function POST(req: Request) {
+  const auth = requireAdmin(req);
+  if (!auth.ok) return auth.response;
     try {
         const url = new URL(req.url);
         const date = url.searchParams.get("date") || undefined; // DD/MM/YYYY
@@ -23,3 +26,4 @@ export async function GET(req: Request) {
         );
     }
 }
+

@@ -1,57 +1,753 @@
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [vector]
 }
 
 model Item {
   id        String   @id @default(cuid())
   source    String
+  sourceId  String?
   title     String
   url       String   @unique
+  canonicalUrl String? @unique
+  hash      String?  @unique
   published DateTime
+  retrievedAt DateTime @default(now())
   summary   String?
+  rawRef    String?
+  raw       Json?
+  
+  // Clasificación
+  impacto     String?  // "alto" | "medio" | "bajo"
+  tipo        String?  // "DECRETO" | "LEY" | "REGLAMENTO" | ...
+  tema        String?  // "civil" | "penal" | "fiscal" | "laboral" | "administrativo" | "constitucional"
+  category    String?  // "normativo" | "administrativo" | "ruido"
+  keywordsHit String?  // comma-separated keywords that triggered classification
+
   createdAt DateTime @default(now())
-  impacto   String?
-  tema      String?
-  tipo      String?
+  normaVersions NormaVersion[]
+  documentVersions DocumentVersion[]
+  notificationLogs NotificationLog[]
+  consultantInsights ConsultantInsight[]
+  aiEnrichment ItemAiEnrichment?
 
   @@index([source, published])
-  @@index([impacto, tema, published])
+  @@index([source, sourceId])
+  @@unique([source, sourceId])
+  @@index([category, published])
+  @@index([impacto, tema, published]) // Nuevo índice para búsquedas rápidas
 }
 
-model Source {
-  id                 String      @id @default(cuid())
-  nombre             String
-  url                String      @unique
-  tipo               String      @default("federal")
-  metodo_extraccion  String      @default("html")
-  activo             Boolean     @default(true)
-  frecuencia_minutos Int         @default(60)
-  last_error         String?
-  error_count        Int         @default(0)
-  ultima_revision    DateTime?
-  createdAt          DateTime    @default(now())
-  updatedAt          DateTime    @updatedAt
-  ingestRuns         IngestRun[]
+model Norma {
+  id        String   @id @default(cuid())
+  nombre    String
+  sigla     String?
+  fuente    String
+  urlBase   String?
+  aliases   Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  versions  NormaVersion[]
+
+  @@unique([fuente, nombre])
+  @@index([sigla])
+}
+
+model NormaVersion {
+  id           String   @id @default(cuid())
+  normaId      String
+  norma        Norma    @relation(fields: [normaId], references: [id], onDelete: Cascade)
+  publishedAt  DateTime
+  hash         String
+  textPath     String?
+  text         String?
+  sourceItemId String?
+  sourceItem   Item?    @relation(fields: [sourceItemId], references: [id], onDelete: SetNull)
+  createdAt    DateTime @default(now())
+  diffsFrom    NormaDiff[] @relation("DiffFrom")
+  diffsTo      NormaDiff[] @relation("DiffTo")
+
+  @@unique([normaId, hash])
+  @@unique([sourceItemId])
+  @@index([normaId, publishedAt])
+}
+
+model NormaDiff {
+  id              String   @id @default(cuid())
+  fromVersionId   String?
+  fromVersion     NormaVersion? @relation("DiffFrom", fields: [fromVersionId], references: [id], onDelete: SetNull)
+  toVersionId     String
+  toVersion       NormaVersion  @relation("DiffTo", fields: [toVersionId], references: [id], onDelete: Cascade)
+  changedArticles Json
+  summaryBullets  Json
+  createdAt       DateTime @default(now())
+  consultantInsights ConsultantInsight[]
+
+  @@unique([toVersionId])
+  @@index([fromVersionId])
+}
+
+model ConsultantInsight {
+  id               String   @id @default(cuid())
+  itemId           String
+  item             Item     @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  diffId           String?
+  diff             NormaDiff? @relation(fields: [diffId], references: [id], onDelete: SetNull)
+  provider         String
+  model            String
+  promptVersion    String
+  inputHash        String
+  executiveSummary String
+  keyChanges       Json
+  affectedParties  Json
+  actionItems      Json
+  riskFlags        Json
+  followUpQuestions Json
+  confidence       String
+  generatedAt      DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@unique([itemId, inputHash, promptVersion])
+  @@index([itemId, generatedAt])
+  @@index([diffId])
+}
+
+model Alert {
+  id        String   @id @default(cuid())
+  email     String
+  keyword   String
+  createdAt DateTime @default(now())
+  active    Boolean  @default(true)
+}
+
+model User {
+  id             String   @id @default(cuid())
+  email          String   @unique
+  onlyHighImpact Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  watchlists     Watchlist[]
+  notifications  NotificationLog[]
+  alertRules     AlertRule[]
+  appNotifications Notification[]
+  auditLogs      AuditLog[]
+  orgRoles       OrgUserRole[]
+  userAlerts     UserAlert[]
+  assignedMatters Matter[] @relation("MatterAssignee")
+}
+
+model Organization {
+  id                     String   @id @default(cuid())
+  name                   String
+  slug                   String   @unique
+  dailyNotificationLimit Int      @default(50)
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+  roles                  OrgUserRole[]
+  watchlists             Watchlist[]
+  notifications          NotificationLog[]
+  alertRules             AlertRule[]
+  appNotifications       Notification[]
+  auditLogs              AuditLog[]
+  clients                Client[]
+  matters                Matter[]
+}
+
+model OrgUserRole {
+  id        String   @id @default(cuid())
+  orgId     String
+  org       Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role      String
+  createdAt DateTime @default(now())
+
+  @@unique([orgId, userId])
+  @@index([userId])
+}
+
+model Watchlist {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orgId     String
+  org       Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  type      String
+  value     String
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  @@unique([orgId, userId, type, value])
+  @@index([type, value])
+  @@index([orgId])
+}
+
+model NotificationLog {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orgId     String
+  org       Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  itemId    String
+  item      Item     @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  channel   String
+  sentAt    DateTime @default(now())
+  status    String
+  error     String?
+
+  @@unique([orgId, userId, itemId, channel])
+  @@index([sentAt])
+  @@index([orgId, sentAt])
 }
 
 model IngestRun {
-  id          String    @id @default(cuid())
-  sourceId    String?
-  sourceName  String    @map("source")
-  startedAt   DateTime  @default(now())
-  finishedAt  DateTime?
-  status      String    @default("running")
-  scanned     Int       @default(0)
-  inserted    Int       @default(0)
-  updated     Int       @default(0)
-  errorsCount Int       @default(0)
-  lastError   String?
-  source      Source?   @relation(fields: [sourceId], references: [id])
+  id         String   @id @default(cuid())
+  source     String
+  startedAt  DateTime @default(now())
+  finishedAt DateTime?
+  ok         Boolean  @default(false)
+  itemsFound Int      @default(0)
+  itemsSaved Int      @default(0)
+  duplicates Int      @default(0)
+  errorsCount Int     @default(0)
+  error      String?
+}
 
-  @@index([sourceName, startedAt])
+model IngestCheckpoint {
+  id              String   @id @default(cuid())
+  source          String   @unique
+  cursor          String?
+  lastPublishedAt DateTime?
+  updatedAt       DateTime @updatedAt
+}
+
+model MetricsDaily {
+  id           String   @id @default(cuid())
+  date         DateTime @unique
+  sourceCounts Json
+  impactCounts Json
+  topicCounts  Json
+  typeCounts   Json
+  topNormas    Json
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([date])
+}
+
+model Document {
+  id                String   @id @default(cuid())
+  source            String
+  jurisdiction      String   @default("MX")
+  documentType      String
+  title             String
+  canonicalKey      String   @unique
+  canonicalUrl      String?  @unique
+  status            String   @default("active")
+  summary           String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  hasVersions       Boolean  @default(false)
+  latestVersionHash String?  // Hash SHA256 para detectar duplicados
+
+  versions DocumentVersion[]
+  metadata DocumentMetadata[]
+  ingestionJobs IngestionJob[]
+
+  @@index([source, documentType])
+  @@index([status, updatedAt])
+}
+
+model DocumentVersion {
+  id            String   @id @default(cuid())
+  documentId    String
+  document      Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  versionLabel  String?
+  publishedAt   DateTime?
+  effectiveFrom DateTime?
+  contentHash   String
+  rawRef        String?
+  rawText       String?
+  diffSummary   Json?
+  sourceItemId  String?
+  sourceItem    Item?    @relation(fields: [sourceItemId], references: [id], onDelete: SetNull)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Campos adicionales requeridos por la Tarea 1:
+  versionNumber Int      @default(1)
+  originalText  String?  @db.Text
+  changes       DocumentChange[]
+
+  chunks        DocumentChunk[]
+  notifications Notification[]
+
+  @@unique([documentId, contentHash])
+  @@unique([documentId, versionNumber])
+  @@index([publishedAt])
+  @@index([sourceItemId])
+}
+
+model DocumentMetadata {
+  id              String   @id @default(cuid())
+  documentId      String
+  document        Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  key             String
+  value           String
+  normalizedValue String?
+  confidence      Float?
+  createdAt       DateTime @default(now())
+
+  @@index([key, normalizedValue])
+  @@index([documentId, key])
+}
+
+model DocumentChunk {
+  id                String   @id @default(cuid())
+  documentVersionId String
+  documentVersion   DocumentVersion @relation(fields: [documentVersionId], references: [id], onDelete: Cascade)
+  chunkIndex        Int
+  sectionPath       String?
+  article           String?
+  text              String
+  tokenCount        Int
+  citationAnchor    String?
+  createdAt         DateTime @default(now())
+
+  embeddings Embedding[]
+
+  @@unique([documentVersionId, chunkIndex])
+  @@index([documentVersionId])
+  @@index([article])
+}
+
+model Embedding {
+  id        String   @id @default(cuid())
+  chunkId   String
+  chunk     DocumentChunk @relation(fields: [chunkId], references: [id], onDelete: Cascade)
+  model     String
+  embedding Unsupported("vector(1536)")?
+  createdAt DateTime @default(now())
+
+  @@unique([chunkId, model])
+  @@index([model])
+}
+
+model AlertRule {
+  id             String   @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  userId         String?
+  user           User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  name           String
+  ruleType       String
+  query          String?
+  filters        Json?
+  frequency      String   @default("daily")
+  enabled        Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  notifications Notification[]
+
+  @@index([organizationId, enabled])
+  @@index([userId])
+}
+
+model Notification {
+  id                String   @id @default(cuid())
+  alertRuleId       String?
+  alertRule         AlertRule? @relation(fields: [alertRuleId], references: [id], onDelete: SetNull)
+  organizationId    String
+  organization      Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  userId            String?
+  user              User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  documentVersionId String?
+  documentVersion   DocumentVersion? @relation(fields: [documentVersionId], references: [id], onDelete: SetNull)
+  channel           String
+  status            String
+  payload           Json?
+  error             String?
+  sentAt            DateTime?
+  createdAt         DateTime @default(now())
+
+  @@index([organizationId, createdAt])
+  @@index([alertRuleId])
+  @@index([status, channel])
+}
+
+model ProcessingJob {
+  id             String   @id @default(cuid())
+  queueName      String
+  jobName        String
+  jobId          String?
+  type           String
+  source         String?
+  status         String
+  attempt        Int      @default(0)
+  payload        Json?
+  result         Json?
+  error          String?
+  startedAt      DateTime?
+  finishedAt     DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  progress       Int      @default(0)
+  stage          String   @default("queued")
+  userId         String?
+  organizationId String?
+  input          Json?
+
+  failed DeadLetterJob?
+
+  @@unique([queueName, jobId])
+  @@index([queueName, status])
+  @@index([type, createdAt])
+}
+
+model DeadLetterJob {
+  id              String   @id @default(cuid())
+  processingJobId String?  @unique
+  processingJob   ProcessingJob? @relation(fields: [processingJobId], references: [id], onDelete: SetNull)
+  queueName       String
+  jobName         String
+  payload         Json?
+  error           String
+  failedAt        DateTime @default(now())
+  replayedAt      DateTime?
+  replayedBy      String?
+
+  @@index([queueName, failedAt])
+}
+
+model AuditLog {
+  id             String   @id @default(cuid())
+  organizationId String?
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  userId         String?
+  user           User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  action         String
+  entityType     String
+  entityId       String?
+  ip             String?
+  userAgent      String?
+  metadata       Json?
+  createdAt      DateTime @default(now())
+
+  @@index([organizationId, createdAt])
+  @@index([userId, createdAt])
+  @@index([entityType, entityId])
+}
+
+model WeeklyDigest {
+  id          String   @id @default(cuid())
+  startDate   DateTime
+  endDate     DateTime
+  content     String
+  createdAt   DateTime @default(now())
+
+  @@unique([startDate, endDate])
+}
+
+model ItemAiEnrichment {
+  id              String   @id @default(cuid())
+  itemId          String   @unique
+  matter          String
+  authority       String?
+  entities        Json
+  affectedSectors Json
+  keywords        Json
+  relatedTopics   Json
+  impactLevel     String
+  executiveSummary String?
+  explanation     String?
+  provider        String
+  confidence      Float
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  item Item @relation(fields: [itemId], references: [id], onDelete: Cascade)
+}
+
+model AiUsageLog {
+  id               String   @id @default(cuid())
+  provider         String
+  model            String?
+  operation        String
+  status           String
+  reasonCategory   String?
+  promptTokens     Int?
+  completionTokens Int?
+  totalTokens      Int?
+  estimatedCostUsd Decimal? @db.Decimal(12, 6)
+  costSource       String?  // provider_metadata | provider_account_endpoint | estimated | unavailable
+  durationMs       Int
+  fallbackUsed     Boolean  @default(false)
+  requestId        String?
+  createdAt        DateTime @default(now())
+
+  // Rate limits normalizados
+  rateLimitLimit     Int?
+  rateLimitRemaining Int?
+  rateLimitResetAt   String?
+  rateLimitSource    String?
+
+  @@index([createdAt])
+  @@index([provider, createdAt])
+  @@index([operation, createdAt])
+  @@index([requestId])
+}
+
+model OfficialSource {
+  id               String   @id @default(cuid())
+  name             String
+  slug             String   @unique
+  baseUrl          String
+  adapter          String   @default("GENERIC_HTML")
+  healthUrl        String?
+  requiresBrowser  Boolean  @default(false)
+  type             String   // dof | sidof | scjn | sjf | diputados | court | congress | government | gazette | custom_official
+  jurisdiction     String   @default("MX")
+  country          String   @default("MX")
+  state            String?
+  matter           String?
+  description      String?
+  isActive         Boolean  @default(true)
+  isOfficial       Boolean  @default(true)
+  trustLevel       String   @default("official") // official | verified | manual_review | untrusted
+  crawlMode        String   @default("api") // rss | sitemap | html | api | manual_url | search_only
+  refreshFrequency String   @default("daily")
+  lastCheckedAt    DateTime?
+  lastSuccessAt    DateTime?
+  lastFailureAt    DateTime?
+  lastErrorCategory String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  fetchLogs        OfficialSourceFetchLog[]
+
+  @@index([type])
+  @@index([isActive])
+  @@index([trustLevel])
+}
+
+model OfficialSourceFetchLog {
+  id             String         @id @default(cuid())
+  sourceId       String
+  source         OfficialSource @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  status         String         // success | failed
+  foundItems     Int            @default(0)
+  savedItems     Int            @default(0)
+  duplicateItems Int            @default(0)
+  errorCategory  String?
+  durationMs     Int            @default(0)
+  createdAt      DateTime       @default(now())
+
+  @@index([sourceId, createdAt])
+  @@index([createdAt])
+}
+
+model IngestionJob {
+  id                 String   @id @default(cuid())
+  source             String   // "DOF", "SCJN", "SJF", etc.
+  documentUrl        String
+  status             String   // PENDIENTE, DESCARGANDO, EXTRAYENDO_TEXTO, GENERANDO_EMBEDDINGS, CLASIFICANDO_CON_IA, COMPLETADO, FALLIDO, REINTENTANDO, EN_DEAD_LETTER_QUEUE
+  attempts           Int      @default(0)
+  maxAttempts        Int      @default(5)
+  lastError          String?
+  lastRetryAt        DateTime?
+  startedAt          DateTime?
+  completedAt        DateTime?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  
+  // Relaciones
+  documentId         String?
+  document           Document? @relation(fields: [documentId], references: [id])
+  logs               IngestionLog[]
+}
+
+model IngestionLog {
+  id              String   @id @default(cuid())
+  ingestionJobId  String
+  ingestionJob    IngestionJob @relation(fields: [ingestionJobId], references: [id], onDelete: Cascade)
+  message         String   @db.Text // "Iniciando descarga", "Error: timeout 30s", etc.
+  level           String   // "INFO", "WARN", "ERROR"
+  timestamp       DateTime @default(now())
+}
+
+model DocumentChange {
+  id                String   @id @default(cuid())
+  documentVersionId String
+  documentVersion   DocumentVersion @relation(fields: [documentVersionId], references: [id], onDelete: Cascade)
+  
+  changeType        String   // "modified", "added", "removed"
+  before            String?  @db.Text // Texto anterior
+  after             String?  @db.Text // Texto nuevo
+  changeDescription String   @db.Text // Descripción legible
+  
+  // Extracción de cambios específicos
+  extractedPlazoDias Int?    // Si es cambio de plazo
+  extractedPorcentaje Float?
+  extractedMontoMX    Float?
+  
+  createdAt         DateTime @default(now())
+}
+
+model UserAlert {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  keywords    String[] // ["ISR", "vacaciones", "reforma laboral"]
+  filters     Json?    // { fuente: ["DOF"], materia: ["Fiscal"] }
+  isActive    Boolean  @default(true)
+  
+  notifications AlertNotification[]
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model AlertNotification {
+  id        String   @id @default(cuid())
+  alertId   String
+  alert     UserAlert @relation(fields: [alertId], references: [id], onDelete: Cascade)
+  
+  documentId String?
+  title     String
+  summary   String   @db.Text
+  relevance Float    // 0 a 1
+  
+  read      Boolean  @default(false)
+  emailSent Boolean  @default(false)
+  sentAt    DateTime?
+  
+  createdAt DateTime @default(now())
+}
+
+// ─── Clientes, Asuntos y Expedientes (Fase 6) ──────────────────────────────────
+
+model Client {
+  id             String   @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name           String
+  rfc            String?
+  email          String?
+  phone          String?
+  notes          String?
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  matters Matter[]
+
+  @@index([organizationId])
+  @@index([organizationId, isActive])
+}
+
+model Matter {
+  id             String   @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  clientId       String?
+  client         Client?  @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  assignedUserId String?
+  assignedUser   User?    @relation("MatterAssignee", fields: [assignedUserId], references: [id], onDelete: SetNull)
+  title          String
+  description    String?
+  status         String   @default("open") // open | closed | archived
+  matter         String?  // fiscal | laboral | civil | etc.
+  reference      String?  // internal reference number
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  caseFiles    CaseFile[]
+  documents    MatterDocument[]
+  notes        MatterNote[]
+
+  @@index([organizationId, status])
+  @@index([clientId])
+  @@index([assignedUserId])
+}
+
+model CaseFile {
+  id        String   @id @default(cuid())
+  matterId  String
+  matter    Matter   @relation(fields: [matterId], references: [id], onDelete: Cascade)
+  title     String
+  fileType  String   @default("general") // court_filing | evidence | contract | correspondence | general
+  url       String?
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([matterId])
+}
+
+model MatterDocument {
+  id        String   @id @default(cuid())
+  matterId  String
+  matter    Matter   @relation(fields: [matterId], references: [id], onDelete: Cascade)
+  itemId    String?
+  title     String
+  url       String?
+  summary   String?
+  addedAt   DateTime @default(now())
+
+  @@index([matterId])
+  @@unique([matterId, itemId])
+}
+
+model MatterNote {
+  id        String   @id @default(cuid())
+  matterId  String
+  matter    Matter   @relation(fields: [matterId], references: [id], onDelete: Cascade)
+  userId    String?
+  content   String   @db.Text
+  createdAt DateTime @default(now())
+
+  @@index([matterId])
+}
+
+model AiUsageEvent {
+  id             String   @id @default(cuid())
+  requestId      String
+  provider       String
+  model          String?
+  strategy       String?
+  fallbackRank   Int?
+  inputTokens    Int?
+  outputTokens   Int?
+  totalTokens    Int?
+  estimatedCost  Decimal? @db.Decimal(12, 6)
+  latencyMs      Int
+  success        Boolean
+  errorCode      String?
+  route          String?
+  mode           String?
+  createdAt      DateTime @default(now())
+
+  @@index([provider, createdAt])
+  @@index([requestId])
+  @@index([mode, createdAt])
+  @@index([createdAt])
+}
+
+model AiProviderHealth {
+  id                  String    @id @default(cuid())
+  provider            String    @unique
+  consecutiveFailures Int       @default(0)
+  lastFailureAt       DateTime?
+  lastSuccessAt       DateTime?
+  lastErrorCode       String?
+  disabledUntil       DateTime?
+  updatedAt           DateTime  @updatedAt
 }

@@ -1,30 +1,30 @@
-import { NextResponse } from "next/server";
-import { ingestSjf } from "@/lib/ingest/sjf";
+import { NextRequest, NextResponse } from "next/server";
+import { runSourceIngest } from "@/lib/ingest/runIngest";
+import { requireAdmin } from "@/lib/security/adminAuth";
 
 export const dynamic = "force-dynamic";
-
-// Permitir hasta 5 minutos de ejecución (Vercel/Nextjs limit)
 export const maxDuration = 300;
 
-export async function GET(req: Request) {
-    try {
-        const { searchParams } = new URL(req.url);
-        // Default startId: Un ID reciente de la Undécima Época.
-        // Los registros digitales actuales (2024-2025) están en el rango 2,028,000 - 2,030,000.
-        const startIdParam = searchParams.get("startId");
-        const countParam = searchParams.get("count");
-
-        const startId = startIdParam ? parseInt(startIdParam) : 2029500;
-        const count = countParam ? parseInt(countParam) : 10; // Reducido default por seguridad anti-bot
-
-        const result = await ingestSjf(startId, count);
-
-        return NextResponse.json(result);
-    } catch (error: any) {
-        return NextResponse.json(
-            { ok: false, error: error.message || String(error) },
-            { status: 500 }
-        );
-    }
+/**
+ * GET /api/ingest/sjf?days=7
+ * GET /api/ingest/sjf?startId=2029500&count=20  (legacy params still supported)
+ *
+ * Ingests SJF tesis/jurisprudencia.
+ * Prefer `days` param; `startId`+`count` remain for manual overrides.
+ */
+export async function POST(req: NextRequest) {
+  const auth = requireAdmin(req);
+  if (!auth.ok) return auth.response;
+  try {
+    const sp = req.nextUrl.searchParams;
+    const daysParam = sp.get("days");
+    const days = parseInt(daysParam || "7");
+    const limit = parseInt(sp.get("count") || sp.get("limit") || "0", 10) || undefined;
+    const result = await runSourceIngest("SCJN_SJF", { days, limit });
+    return NextResponse.json(result);
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    return NextResponse.json({ ok: false, error: message }, { status: 500 });
+  }
 }
 

@@ -1,0 +1,4 @@
+ALTER TABLE "OfficialSource"
+ADD COLUMN "adapter" TEXT NOT NULL DEFAULT 'GENERIC_HTML',
+ADD COLUMN "healthUrl" TEXT,
+ADD COLUMN "requiresBrowser" BOOLEAN NOT NULL DEFAULT false;
