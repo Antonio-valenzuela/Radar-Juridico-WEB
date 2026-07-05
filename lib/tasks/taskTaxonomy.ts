@@ -92,7 +92,7 @@ export const TASK_TAXONOMY: TaskDefinition[] = [
 ];
 
 export const VALID_MATTERS = [
-  "fiscal", "laboral", "salud", "ambiental", "energia",
+  "constitucional", "civil", "mercantil", "fiscal", "laboral", "salud", "ambiental", "energia",
   "financiero", "administrativo", "comercio_exterior",
   "proteccion_datos", "otro"
 ];

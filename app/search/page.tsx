@@ -12,6 +12,9 @@ type TaskDef = {
 
 const MATERIAS = [
   { value: '', label: 'Cualquier materia' },
+  { value: 'constitucional', label: 'Constitucional' },
+  { value: 'civil', label: 'Civil' },
+  { value: 'mercantil', label: 'Mercantil' },
   { value: 'penal', label: 'Penal' },
   { value: 'fiscal', label: 'Fiscal' },
   { value: 'laboral', label: 'Laboral' },

@@ -69,9 +69,11 @@ function classifyIntentRegex(message: string): { intent: string; materia: string
   else if (lower.includes("energia") || lower.includes("cre") || lower.includes("cfe") || lower.includes("petroleo")) materia = "energia";
   else if (lower.includes("financiero") || lower.includes("banco") || lower.includes("cnbv")) materia = "financiero";
   else if (lower.includes("administrativo")) materia = "administrativo";
-  else if (lower.includes("comercio") || lower.includes("importa")) materia = "comercio_exterior";
+  else if (lower.includes("comercio exterior") || lower.includes("importa") || lower.includes("aduana")) materia = "comercio_exterior";
   else if (lower.includes("datos") || lower.includes("privacidad") || lower.includes("inai")) materia = "proteccion_datos";
   else if (lower.includes("constitucional") || lower.includes("amparo")) materia = "constitucional";
+  else if (lower.includes("civil") || lower.includes("arrendamiento") || lower.includes("divorcio") || lower.includes("patria potestad") || lower.includes("herencia")) materia = "civil";
+  else if (lower.includes("mercantil") || lower.includes("codigo de comercio") || lower.includes("pagare") || lower.includes("fideicomiso") || lower.includes("sociedades mercantiles")) materia = "mercantil";
 
   if (lower.includes("esta semana")) relativeDate = "esta semana";
   else if (lower.includes("hoy")) relativeDate = "hoy";
@@ -179,7 +181,7 @@ export async function POST(req: NextRequest) {
 Debes responder ÚNICAMENTE con un objeto JSON válido que contenga:
 {
   "intent": "latest_changes" | "search_help" | "empty_search_assistant" | "document_qa" | "admin_source_diagnostic" | "general_platform_help",
-  "materia": string | null (materia jurídica identificada en minúsculas: penal, fiscal, civil, laboral, salud, ambiental, energia, financiero, administrativo, comercio_exterior, proteccion_datos, constitucional),
+  "materia": string | null (materia jurídica identificada en minúsculas: penal, fiscal, civil, mercantil, laboral, salud, ambiental, energia, financiero, administrativo, comercio_exterior, proteccion_datos, constitucional),
   "tema": string | null (tema o palabra clave específico),
   "relativeDate": string | null ("esta semana", "hoy", "ayer", "reciente" u otro),
   "source": string | null,

@@ -430,11 +430,13 @@ export default function RadarLegalPage() {
                 style={{ padding: '0.5rem 0.75rem', borderRadius: '6px', border: '1px solid var(--card-border)', background: '#0f172a', color: 'white', fontSize: '0.9rem' }}
               >
                 <option value="">Cualquier materia</option>
+                <option value="constitucional">Constitucional</option>
+                <option value="civil">Civil</option>
+                <option value="mercantil">Mercantil</option>
                 <option value="fiscal">Fiscal</option>
                 <option value="laboral">Laboral</option>
                 <option value="familiar">Familiar</option>
                 <option value="penal">Penal</option>
-                <option value="mercantil">Mercantil</option>
                 <option value="administrativo">Administrativo</option>
               </select>
             </div>
