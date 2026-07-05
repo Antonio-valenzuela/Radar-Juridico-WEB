@@ -119,7 +119,8 @@ function lawyerSafeFallback(intent: string, query?: string) {
 }
 
 function sanitizeLawyerFacingAnswer(answer: string, intent: string, query?: string) {
-  const unsafe = /degradad|sin conexión|IA externa|proveedor(?:es)? de IA|base local|base de datos|indexad|documentos locales|local-static|fallback/i;
+  // Solo filtramos errores técnicos evidentes, permitimos "base de datos" o "indexados" que son términos normales.
+  const unsafe = /degradad|sin conexión|IA externa|proveedor(?:es)? de IA|local-static|fallback_error/i;
   if (!answer || unsafe.test(answer)) {
     return lawyerSafeFallback(intent, query);
   }
