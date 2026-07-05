@@ -6,17 +6,77 @@ export const dynamic = 'force-dynamic';
 
 export default async function Home() {
   // Fetch real stats from the database
-  const [documentsCount, alertsCount, rulesCount] = await Promise.all([
+  const [itemCount, canonicalDocumentsCount, alertsCount, rulesCount] = await Promise.all([
     prisma.item.count().catch(() => 0),
+    prisma.document.count().catch(() => 0),
     prisma.notification.count().catch(() => 0),
     prisma.alertRule.count().catch(() => 0),
   ]);
+  const documentsCount = Math.max(itemCount, canonicalDocumentsCount);
 
-  const recentItems = await prisma.item.findMany({
+  const recentDocuments = await prisma.document.findMany({
+    take: 5,
+    orderBy: { updatedAt: "desc" },
+    select: {
+      id: true,
+      title: true,
+      source: true,
+      canonicalUrl: true,
+      updatedAt: true,
+      documentType: true,
+      versions: {
+        orderBy: { createdAt: "desc" },
+        take: 1,
+        select: {
+          publishedAt: true,
+          sourceItem: {
+            select: {
+              id: true,
+              title: true,
+              url: true,
+              source: true,
+              published: true,
+              impacto: true,
+              tema: true,
+            },
+          },
+          chunks: {
+            take: 1,
+            select: {
+              _count: { select: { embeddings: true } },
+            },
+          },
+        },
+      },
+    },
+  }).catch(() => []);
+
+  const fallbackItems = recentDocuments.length > 0 ? [] : await prisma.item.findMany({
     take: 5,
     orderBy: { published: "desc" },
-    select: { id: true, title: true, published: true, impacto: true, source: true },
+    select: { id: true, title: true, url: true, published: true, impacto: true, source: true, tema: true },
   }).catch(() => []);
+
+  const recentItems = recentDocuments.length > 0
+    ? recentDocuments.map((doc) => {
+        const version = doc.versions[0];
+        const sourceItem = version?.sourceItem;
+        const embeddingCount = version?.chunks[0]?._count.embeddings || 0;
+        return {
+          id: sourceItem?.id || doc.id,
+          title: sourceItem?.title || doc.title,
+          url: sourceItem?.url || doc.canonicalUrl || "#",
+          source: sourceItem?.source || doc.source,
+          published: sourceItem?.published || version?.publishedAt || doc.updatedAt,
+          impacto: sourceItem?.impacto || null,
+          tema: sourceItem?.tema || null,
+          embeddingsStatus: embeddingCount > 0 ? "completo" : "pendiente",
+        };
+      })
+    : fallbackItems.map((item) => ({
+        ...item,
+        embeddingsStatus: "pendiente",
+      }));
 
   return (
     <>
@@ -79,15 +139,17 @@ export default async function Home() {
         <section className="glass-card" style={{ marginBottom: '4rem' }}>
           <h2>Últimos Documentos</h2>
           {recentItems.length === 0 ? (
-            <p className="text-muted">No hay documentos recientes. El worker está sincronizando...</p>
+            <p className="text-muted">Aún no hay documentos indexados. Agrega una URL jurídica o ejecuta una ingesta manual.</p>
           ) : (
             <ul className="alert-list">
               {recentItems.map(item => (
                 <li key={item.id} className="alert-item">
                   <div>
-                    <div className="alert-title">{normalizeLegalDisplayText(item.title)}</div>
+                    <Link href={item.url || "#"} className="alert-title" target="_blank" rel="noopener noreferrer">
+                      {normalizeLegalDisplayText(item.title)}
+                    </Link>
                     <div className="alert-meta">
-                      {item.source} • {new Date(item.published || '').toLocaleDateString('es-MX')}
+                      {item.source} • {item.tema || 'materia pendiente'} • {new Date(item.published || '').toLocaleDateString('es-MX')} • embeddings: {item.embeddingsStatus}
                     </div>
                   </div>
                   <div>

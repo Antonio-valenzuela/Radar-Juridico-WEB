@@ -61,3 +61,40 @@ test("Diputados conserva índice y fallback de codificación", () => {
   assert.match(source, /TextDecoder/);
   assert.match(source, /windows-1252|latin1/i);
 });
+
+test("Diputados extrae PDFs relativos y conocidos desde LeyesBiblio", () => {
+  const result = runTs(`
+    import { extractDiputadosPdfItems } from "./lib/sources/diputados";
+    const html = \`
+      <html><body>
+        <a href="pdf/CPEUM.pdf">Constitución Política de los Estados Unidos Mexicanos</a>
+        <a href="/LeyesBiblio/pdf/LFT.pdf">Ley Federal del Trabajo</a>
+        <a href="https://www.diputados.gob.mx/LeyesBiblio/pdf/LISR.pdf"></a>
+        <a href="/LeyesBiblio/ref/CPEUM.htm">Reformas</a>
+      </body></html>\`;
+    const items = extractDiputadosPdfItems(html, 20);
+    console.log(JSON.stringify(items));
+  `);
+
+  assert.equal(result.length, 3);
+  assert.equal(result[0].url, "https://www.diputados.gob.mx/LeyesBiblio/pdf/CPEUM.pdf");
+  assert.equal(result[1].url, "https://www.diputados.gob.mx/LeyesBiblio/pdf/LFT.pdf");
+  assert.equal(result[2].title, "Ley del Impuesto sobre la Renta");
+  assert.equal(result[2].tema, "fiscal");
+});
+
+test("dedupe refleja items oficiales en Document para búsqueda híbrida", () => {
+  const source = fs.readFileSync("lib/ingest/dedupe.ts", "utf8");
+  assert.match(source, /mirrorItemToDocument/);
+  assert.match(source, /prisma\.document\.(upsert|findFirst)/);
+  assert.match(source, /documentVersion/);
+});
+
+test("clasificador legacy detecta materia mercantil", () => {
+  const result = runTs(`
+    import { classifyItem } from "./lib/classifier";
+    console.log(JSON.stringify(classifyItem("Ley General de Sociedades Mercantiles", "contrato mercantil y comercio")));
+  `);
+
+  assert.equal(result.tema, "mercantil");
+});

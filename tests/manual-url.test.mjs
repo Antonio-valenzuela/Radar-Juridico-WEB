@@ -184,6 +184,92 @@ test("ingesta manual guarda documento válido y lo marca para búsqueda/RAG", ()
   assert.ok(result.calls.includes("indexDocumentVersion"));
 });
 
+test("ingesta manual de índice Diputados guarda PDFs descubiertos sin embeddings obligatorios", () => {
+  const result = runTs(`
+    import { ingestManualUrl } from "./lib/ingest/manualUrl";
+    (async () => {
+      const calls = [];
+      const existing = new Map();
+      const prisma = {
+        item: {
+          findFirst: async () => null,
+          create: async (args) => {
+            calls.push(["item.create", args]);
+            const id = "item_" + calls.filter((c) => c[0] === "item.create").length;
+            existing.set(args.data.url, { id, ...args.data });
+            return { id, ...args.data };
+          },
+          update: async (args) => {
+            calls.push(["item.update", args]);
+            return { id: args.where.id, ...args.data };
+          }
+        },
+        document: {
+          findFirst: async () => null,
+          create: async (args) => {
+            calls.push(["document.create", args]);
+            return { id: "doc_" + calls.filter((c) => c[0] === "document.create").length, ...args.data };
+          },
+          update: async (args) => {
+            calls.push(["document.update", args]);
+            return { id: args.where.id, ...args.data };
+          }
+        },
+        documentVersion: {
+          findFirst: async () => null,
+          create: async (args) => {
+            calls.push(["documentVersion.create", args]);
+            return { id: "version_" + calls.filter((c) => c[0] === "documentVersion.create").length, ...args.data };
+          },
+          update: async (args) => {
+            calls.push(["documentVersion.update", args]);
+            return { id: args.where.id, ...args.data };
+          }
+        },
+        processingJob: { create: async (args) => ({ id: "job_1", ...args.data }) },
+        auditLog: { create: async (args) => ({ id: "audit_1", ...args.data }) }
+      };
+      const html = \`
+        <html><body>
+          <a href="pdf/CPEUM.pdf">Constitución Política de los Estados Unidos Mexicanos</a>
+          <a href="/LeyesBiblio/pdf/LFT.pdf">Ley Federal del Trabajo</a>
+        </body></html>\`;
+      const response = await ingestManualUrl({
+        url: "https://www.diputados.gob.mx/LeyesBiblio/index.htm",
+        matter: "constitucional",
+        jurisdiction: "federal",
+        sourceName: "Cámara de Diputados",
+        tags: ["diputados"],
+        indexNow: true
+      }, {
+        prisma,
+        fetchText: async () => ({
+          ok: true,
+          finalUrl: "https://www.diputados.gob.mx/LeyesBiblio/index.htm",
+          contentType: "text/html",
+          body: html
+        }),
+        indexDocumentVersion: async () => {
+          calls.push(["indexDocumentVersion"]);
+          throw new Error("no debe indexar metadata de índice");
+        }
+      });
+      console.log(JSON.stringify({ response, calls: calls.map((call) => call[0]) }));
+    })().catch((error) => {
+      console.error(error);
+      process.exit(1);
+    });
+  `);
+
+  assert.equal(result.response.ok, true);
+  assert.equal(result.response.status, "stored");
+  assert.equal(result.response.found, 2);
+  assert.equal(result.response.saved, 2);
+  assert.equal(result.response.indexingStatus, "pending");
+  assert.equal(result.calls.filter((name) => name === "item.create").length, 2);
+  assert.equal(result.calls.includes("indexDocumentVersion"), false);
+});
+
 test("reingesta manual reutiliza la última versión del documento si el contenido cambió", () => {
   const result = runTs(`
     import { ingestManualUrl } from "./lib/ingest/manualUrl";
@@ -356,8 +442,12 @@ test("UI de ingesta manual expone formulario y estados esperados", () => {
 
   assert.match(content, /Pegar URL|URL/);
   assert.match(content, /Materia/);
+  assert.match(content, /value="civil">Civil/);
+  assert.match(content, /value="mercantil">Mercantil/);
   assert.match(content, /Jurisdicci/);
   assert.match(content, /Indexar ahora/);
   assert.match(content, /stored|quarantined|failed|cuarentena/i);
   assert.ok(content.includes("/api/admin/ingest/manual-url"));
+  assert.match(content, /sourceName:\s*sourceOptional/);
+  assert.match(content, /jurisdiction,\s*\n/);
 });

@@ -54,6 +54,16 @@ export async function fetchText(url: string, init?: RequestInit) {
 export async function fetchJson<T = unknown>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetchWithRetry(url, init);
   if (!res.ok) throw new Error(`${url} HTTP ${res.status}`);
-  return (await res.json()) as T;
+  const contentType = res.headers.get("content-type") || "";
+  const text = await res.text();
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    const preview = text.slice(0, 160).replace(/\s+/g, " ");
+    if (/^\s*</.test(text) || contentType.includes("text/html")) {
+      throw new Error(`El proveedor devolvió HTML en vez de JSON para ${url}. Puede tratarse de cambio de endpoint, bloqueo o mantenimiento del portal. Preview: ${preview}`);
+    }
+    throw new Error(`El proveedor no devolvió JSON válido para ${url}. Content-Type: ${contentType || "desconocido"}. Preview: ${preview}`);
+  }
 }
 import { fetchOfficialUrl } from "@/lib/sources/officialFetch";

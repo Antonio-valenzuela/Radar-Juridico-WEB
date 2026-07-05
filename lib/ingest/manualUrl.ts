@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import * as cheerio from "cheerio";
 import type { PrismaClient } from "@prisma/client";
+import type { RawSourceItem } from "@/lib/sources/types";
 import { prisma as defaultPrisma } from "@/lib/prisma";
 import { classifyItem } from "@/lib/classifier";
 import { cleanText, canonicalizeUrl, parseMxDate } from "@/lib/ingest/normalize";
@@ -8,12 +9,15 @@ import { DEFAULT_HEADERS } from "@/lib/sources/http";
 import { INGEST_FETCH_MS } from "@/lib/config/timeouts";
 import { validatePublicHttpUrl, validateRedirectTarget } from "@/lib/security/urlValidation";
 import { indexDocumentVersion as defaultIndexDocumentVersion } from "@/lib/documents/indexDocument";
+import { extractDiputadosPdfItems } from "@/lib/sources/diputados";
 
 type ManualMatter =
   | "fiscal"
   | "laboral"
   | "constitucional"
   | "familiar"
+  | "civil"
+  | "mercantil"
   | "administrativo"
   | "otro";
 
@@ -28,7 +32,7 @@ export type ManualUrlInput = {
 
 export type ManualFetchResult =
   | { ok: true; finalUrl: string; contentType: string; body: string }
-  | { ok: false; finalUrl?: string; error: string };
+  | { ok: false; finalUrl?: string; error: string; detail?: string };
 
 export type ManualIngestResponse = {
   ok: boolean;
@@ -36,10 +40,17 @@ export type ManualIngestResponse = {
   documentId?: string;
   canonicalDocumentId?: string;
   documentVersionId?: string;
+  documentIds?: string[];
+  found?: number;
+  saved?: number;
+  duplicates?: number;
+  chunksCreated?: number;
+  embeddingsCreated?: number;
   quarantineId?: string;
   indexingStatus?: "requested" | "indexed" | "pending" | "failed";
   ragReady?: boolean;
   message: string;
+  detail?: string;
   warnings: string[];
   timings: {
     validationMs: number;
@@ -95,6 +106,8 @@ const CHROME_PATTERNS = [
   /mapa del sitio/gi,
   /tr[aá]mites y servicios/gi,
 ];
+const MAX_PDF_BYTES = 15 * 1024 * 1024;
+const MAX_PDF_TEXT_CHARS = 80_000;
 
 function nowMs() {
   return Date.now();
@@ -236,6 +249,7 @@ export function extractLegalContentFromText(text: string, url: string): Extracte
 export async function fetchManualUrlText(url: string): Promise<ManualFetchResult> {
   let current = url;
   const timeoutMs = INGEST_FETCH_MS;
+  console.error(`[manual-url-ingest] received "${url}"`);
 
   for (let redirectCount = 0; redirectCount <= 5; redirectCount++) {
     const controller = new AbortController();
@@ -244,33 +258,82 @@ export async function fetchManualUrlText(url: string): Promise<ManualFetchResult
       const response = await fetch(current, {
         redirect: "manual",
         cache: "no-store",
-        headers: { ...DEFAULT_HEADERS, Accept: "text/html,application/pdf,text/plain,*/*" },
+        headers: {
+          "User-Agent": "Mozilla/5.0 (compatible; JuridicoRadar/1.0)",
+          "Accept": "text/html,application/xhtml+xml,application/pdf,text/plain,*/*",
+          "Accept-Language": "es-MX,es;q=0.9,en;q=0.8",
+        },
         signal: controller.signal,
       });
       if (timer) clearTimeout(timer);
 
+      console.error(`[manual-url-ingest] fetched-status ${response.status} url="${current}"`);
+
       if ([301, 302, 303, 307, 308].includes(response.status)) {
         const validation = validateRedirectTarget(current, response.headers.get("location"));
-        if (!validation.ok) return { ok: false, finalUrl: current, error: validation.reason };
+        if (!validation.ok) {
+          console.error(`[manual-url-ingest] warning redirect-blocked ${validation.reason}`);
+          return { ok: false, finalUrl: current, error: validation.reason };
+        }
         current = validation.url;
         continue;
       }
 
       if (!response.ok) {
+        console.error(`[manual-url-ingest] failed upstream-http ${response.status}`);
         return { ok: false, finalUrl: current, error: `Fuente inaccesible (HTTP ${response.status})` };
       }
 
       const contentType = response.headers.get("content-type") || "text/plain";
-      const body = decodeResponseBody(await response.arrayBuffer(), contentType);
+      console.error(`[manual-url-ingest] content-type "${contentType}"`);
+
+      const arrayBuffer = await response.arrayBuffer();
+      const byteLength = arrayBuffer.byteLength;
+      console.error(`[manual-url-ingest] content-length ${byteLength}`);
+
+      let body = "";
+      if (contentType.toLowerCase().includes("pdf") || current.toLowerCase().endsWith(".pdf")) {
+        console.error(`[manual-url-ingest] pdf-size ${byteLength}`);
+        if (byteLength > MAX_PDF_BYTES) {
+          return {
+            ok: false,
+            finalUrl: current,
+            error: "El PDF excede el tamaño máximo inicial de 15 MB para ingesta manual.",
+          };
+        }
+        console.error(`[manual-url-ingest] pdf-extract-start`);
+        try {
+          const buffer = Buffer.from(arrayBuffer);
+          const mod = await import("pdf-parse");
+          const pdfParse = ("default" in mod ? mod.default : mod) as unknown as (
+            input: Buffer
+          ) => Promise<{ text?: string }>;
+          const parsed = await pdfParse(buffer);
+          body = (parsed.text || "").slice(0, MAX_PDF_TEXT_CHARS);
+          console.error(`[manual-url-ingest] text-length ${body.length}`);
+          if (!body.trim()) {
+            return { ok: false, finalUrl: current, error: "El PDF descargado no contiene texto extraíble." };
+          }
+        } catch (pdfErr: any) {
+          console.error(`[manual-url-ingest] failed pdf-extract`, pdfErr.message);
+          return { ok: false, finalUrl: current, error: "Error al extraer texto del PDF: " + pdfErr.message };
+        }
+      } else {
+        body = decodeResponseBody(arrayBuffer, contentType);
+        console.error(`[manual-url-ingest] text-length ${body.length}`);
+      }
+
       return { ok: true, finalUrl: current, contentType, body };
-    } catch (error) {
+    } catch (error: any) {
       if (timer) clearTimeout(timer);
+      console.error(`[manual-url-ingest] failed fetch`, error.message);
       return {
         ok: false,
         finalUrl: current,
-        error: error instanceof Error && error.name === "AbortError"
+        error: error.name === "AbortError"
           ? "Tiempo de descarga agotado"
-          : "No se pudo descargar la fuente",
+          : "No se pudo descargar la URL",
+        detail: error.message || String(error),
       };
     }
   }
@@ -297,6 +360,131 @@ async function createAudit(prisma: any, action: string, entityId: string | null,
   }
 }
 
+async function persistCatalogItem(db: any, raw: RawSourceItem, input: ManualUrlInput) {
+  const canonicalUrl = canonicalizeUrl(raw.canonicalUrl || raw.url);
+  const source = input.sourceName?.trim() || raw.source || new URL(canonicalUrl).hostname;
+  const published = raw.published || new Date();
+  const rawText = [
+    raw.title,
+    raw.summary,
+    `URL oficial: ${canonicalUrl}`,
+    input.tags?.length ? `Tags: ${input.tags.join(", ")}` : "",
+  ].filter(Boolean).join("\n\n");
+  const contentHash = sha256(rawText);
+  const itemHash = sha256(`${source}|${raw.sourceId}|${canonicalUrl}`);
+
+  const itemData = {
+    source,
+    sourceId: raw.sourceId,
+    title: raw.title,
+    url: raw.url,
+    canonicalUrl,
+    hash: itemHash,
+    published,
+    retrievedAt: new Date(),
+    summary: raw.summary || raw.title,
+    impacto: raw.impacto || "medio",
+    tipo: raw.tipo || "LEY",
+    tema: input.matter && input.matter !== "otro" ? String(input.matter) : raw.tema || null,
+    category: "normativo",
+    keywordsHit: input.tags?.length ? input.tags.join(",") : null,
+    rawRef: raw.rawRef || raw.sourceId,
+    raw: jsonSafe({
+      ...(raw.raw || {}),
+      ingestion: "manual_url_index",
+      jurisdiction: input.jurisdiction || "federal",
+      tags: input.tags || [],
+      indexingStatus: "pending",
+      ragReady: false,
+    }),
+  };
+
+  const existingItem = await db.item.findFirst?.({
+    where: {
+      OR: [
+        { url: raw.url },
+        { canonicalUrl },
+        { source, sourceId: raw.sourceId },
+      ],
+    },
+  });
+
+  const item = existingItem
+    ? await db.item.update({ where: { id: existingItem.id }, data: itemData })
+    : await db.item.create({ data: itemData });
+
+  const documentData = {
+    source,
+    jurisdiction: input.jurisdiction || "federal",
+    documentType: raw.tipo || "LEY",
+    title: raw.title,
+    canonicalKey: itemHash,
+    canonicalUrl,
+    status: "active",
+    summary: raw.summary || raw.title,
+    hasVersions: true,
+    latestVersionHash: contentHash,
+  };
+
+  const existingDocument = await db.document.findFirst?.({
+    where: { OR: [{ canonicalUrl }, { canonicalKey: itemHash }] },
+  });
+  const document = existingDocument
+    ? await db.document.update({ where: { id: existingDocument.id }, data: documentData })
+    : await db.document.create({ data: documentData });
+
+  const existingVersion = await db.documentVersion.findFirst?.({
+    where: {
+      documentId: document.id,
+      OR: [{ contentHash }, { rawRef: canonicalUrl }, { sourceItemId: item.id }],
+    },
+  });
+  const versionData = {
+    versionLabel: published.toISOString().slice(0, 10),
+    publishedAt: published,
+    contentHash,
+    rawRef: canonicalUrl,
+    rawText,
+    originalText: rawText,
+    sourceItemId: item.id,
+  };
+  const version = existingVersion
+    ? await db.documentVersion.update({ where: { id: existingVersion.id }, data: versionData })
+    : await db.documentVersion.create({
+        data: {
+          documentId: document.id,
+          versionNumber: 1,
+          ...versionData,
+        },
+      });
+
+  return { item, document, version, created: !existingItem };
+}
+
+async function persistDiscoveredCatalog(
+  db: any,
+  items: RawSourceItem[],
+  input: ManualUrlInput
+) {
+  const documentIds: string[] = [];
+  let saved = 0;
+  let duplicates = 0;
+
+  for (const item of items) {
+    const persisted = await persistCatalogItem(db, item, input);
+    documentIds.push(persisted.item.id);
+    if (persisted.created) saved++;
+    else duplicates++;
+    console.error("[manual-url-ingest] document-created", {
+      itemId: persisted.item.id,
+      documentId: persisted.document.id,
+      url: item.url,
+    });
+  }
+
+  return { saved, duplicates, documentIds };
+}
+
 export async function ingestManualUrl(
   input: ManualUrlInput,
   deps: ManualIngestDeps = {}
@@ -308,6 +496,7 @@ export async function ingestManualUrl(
   const indexDocumentVersion = deps.indexDocumentVersion || defaultIndexDocumentVersion;
 
   let startedAt = nowMs();
+  console.error("[manual-url-ingest] received", { url: input.url, indexNow: input.indexNow !== false });
   const validation = validatePublicHttpUrl(input.url);
   timings.validationMs = elapsed(startedAt);
   if (!validation.ok) {
@@ -319,6 +508,7 @@ export async function ingestManualUrl(
       timings,
     };
   }
+  console.error("[manual-url-ingest] validated", { url: validation.url });
 
   startedAt = nowMs();
   const fetched = await fetchText(validation.url);
@@ -328,10 +518,15 @@ export async function ingestManualUrl(
       ok: false,
       status: "failed",
       message: fetched.error,
+      detail: fetched.detail,
       warnings,
       timings,
     };
   }
+  console.error("[manual-url-ingest] fetched", {
+    finalUrl: fetched.finalUrl,
+    contentType: fetched.contentType,
+  });
 
   startedAt = nowMs();
   const finalValidation = validatePublicHttpUrl(fetched.finalUrl);
@@ -347,8 +542,60 @@ export async function ingestManualUrl(
   }
 
   const contentType = fetched.contentType.toLowerCase();
+  console.error("[manual-url-ingest] content-type", contentType);
+  if (contentType.includes("html")) {
+    console.error("[manual-url-ingest] html-length", fetched.body.length);
+  }
+
+  const isDiputadosIndex =
+    contentType.includes("html") &&
+    /diputados\.gob\.mx/i.test(finalValidation.url) &&
+    /LeyesBiblio\/index\.htm/i.test(finalValidation.url);
+  if (isDiputadosIndex) {
+    const discovered = extractDiputadosPdfItems(fetched.body, 10);
+    console.error("[manual-url-ingest] links-discovered", discovered.length, discovered.slice(0, 10).map((item) => item.url));
+    if (discovered.length === 0) {
+      timings.extractMs = elapsed(startedAt);
+      return {
+        ok: false,
+        status: "failed",
+        message: "No se encontraron PDFs en Cámara de Diputados.",
+        detail: "No se detectaron enlaces /LeyesBiblio/pdf/ en el índice HTML.",
+        warnings,
+        timings,
+        found: 0,
+        saved: 0,
+        duplicates: 0,
+      };
+    }
+
+    startedAt = nowMs();
+    const persisted = await persistDiscoveredCatalog(db, discovered, input);
+    timings.persistMs = elapsed(startedAt);
+    warnings.push("Se guardaron metadatos de PDFs descubiertos; embeddings quedan pendientes para evitar timeouts en Render Free.");
+    console.error("[manual-url-ingest] chunks-created", 0);
+    console.error("[manual-url-ingest] embeddings-created", 0);
+
+    return {
+      ok: true,
+      status: "stored",
+      documentId: persisted.documentIds[0],
+      documentIds: persisted.documentIds,
+      found: discovered.length,
+      saved: persisted.saved,
+      duplicates: persisted.duplicates,
+      chunksCreated: 0,
+      embeddingsCreated: 0,
+      indexingStatus: "pending",
+      ragReady: false,
+      message: `Documentos de Cámara de Diputados detectados: ${discovered.length}. Guardados: ${persisted.saved}. Duplicados: ${persisted.duplicates}.`,
+      warnings,
+      timings,
+    };
+  }
+
   if (contentType.includes("pdf")) {
-    warnings.push("PDF recibido; se guardará cuando el extractor PDF dedicado esté activo para ingesta manual.");
+    warnings.push("PDF recibido; el texto ha sido extraído con éxito usando el extractor de PDF.");
   }
 
   const extracted = contentType.includes("html") || /<html|<body|<main|<article/i.test(fetched.body)
@@ -582,14 +829,18 @@ export async function ingestManualUrl(
     });
   }
   timings.persistMs = elapsed(startedAt);
+  console.error(`[Manual Ingest] Guardado exitoso de Item ID: "${item.id}", Document ID: "${document.id}", Version ID: "${version.id}"`);
 
   if (input.indexNow !== false) {
     startedAt = nowMs();
     try {
+      console.error(`[Manual Ingest] Iniciando generación de embeddings para Version ID: "${version.id}"...`);
       await indexDocumentVersion(version.id);
       indexingStatus = "indexed";
-    } catch {
+      console.error(`[Manual Ingest] Embeddings creados con éxito para Version ID: "${version.id}"`);
+    } catch (err: any) {
       indexingStatus = "failed";
+      console.warn(`[Manual Ingest] Fallo al generar embeddings para Version ID: "${version.id}":`, err.message);
       warnings.push("El documento se guardó, pero la indexación quedó pendiente por un error de embeddings.");
     }
     timings.indexMs = elapsed(startedAt);

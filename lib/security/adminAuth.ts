@@ -20,7 +20,7 @@ export function requireAdmin(request: Request) {
     return {
       ok: false as const,
       response: new Response(
-        JSON.stringify({ ok: false, error: "unauthorized" }),
+        JSON.stringify({ ok: false, error: "Token de administrador no autorizado." }),
         { status: 401, headers: { 'Content-Type': 'application/json' } }
       )
     };

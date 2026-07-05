@@ -33,3 +33,10 @@ test("UI presenta diagnóstico técnico sin etiqueta genérica engañosa", () =>
   assert.match(page, /finalUrl/);
   assert.doesNotMatch(page, />No accesible</);
 });
+
+test("UI deshabilita ingesta en fuentes search_only o con navegador requerido", () => {
+  assert.match(page, /s\.crawlMode === 'search_only'/);
+  assert.match(page, /s\.requiresBrowser/);
+  assert.match(page, /Esta fuente se usa para búsqueda externa\/RAG/);
+  assert.match(page, /requiere ingesta con navegador headless/i);
+});

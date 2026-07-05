@@ -602,6 +602,12 @@ export default function AdminSourcesPage() {
               {sources.map((s) => {
                 const tStatus = testStatus[s.id];
                 const iStatus = ingestStatus[s.id];
+                const ingestDisabledReason = s.crawlMode === 'search_only'
+                  ? 'Esta fuente se usa para búsqueda externa/RAG, no para ingesta programada.'
+                  : s.requiresBrowser
+                    ? 'Esta fuente viva requiere ingesta con navegador headless. Disponible en fase posterior.'
+                    : '';
+                const isIngestDisabled = Boolean(iStatus?.loading || !s.isActive || ingestDisabledReason);
 
                 return (
                   <div key={s.id} style={{ background: 'rgba(255, 255, 255, 0.02)', border: '1px solid var(--card-border)', borderRadius: '12px', padding: '1.5rem', transition: 'border-color 0.2s' }}>
@@ -693,12 +699,24 @@ export default function AdminSourcesPage() {
 
                       <button 
                         onClick={() => handleIngest(s.id)} 
-                        disabled={iStatus?.loading || !s.isActive} 
+                        disabled={isIngestDisabled}
+                        title={ingestDisabledReason || undefined}
                         className="btn-primary" 
-                        style={{ padding: '0.45rem 1rem', fontSize: '0.85rem', background: '#059669', boxShadow: 'none' }}
+                        style={{
+                          padding: '0.45rem 1rem',
+                          fontSize: '0.85rem',
+                          background: ingestDisabledReason ? '#6b7280' : '#059669',
+                          boxShadow: 'none',
+                          cursor: ingestDisabledReason ? 'not-allowed' : undefined,
+                        }}
                       >
                         {iStatus?.loading ? 'Ingestando...' : 'Ejecutar Ingesta Manual'}
                       </button>
+                      {ingestDisabledReason && (
+                        <span style={{ color: '#fbbf24', fontSize: '0.82rem', maxWidth: '360px' }}>
+                          {ingestDisabledReason}
+                        </span>
+                      )}
                     </div>
 
                     {/* Test Connection Result Box */}

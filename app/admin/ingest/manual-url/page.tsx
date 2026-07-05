@@ -16,6 +16,7 @@ export default function ManualIngestPage() {
   const [progressStep, setProgressStep] = useState(0);
   const [result, setResult] = useState<any>(null);
   const [error, setError] = useState('');
+  const [technicalDetails, setTechnicalDetails] = useState<any>(null);
 
   // Load token and url param from query string if available
   useEffect(() => {
@@ -59,6 +60,7 @@ export default function ManualIngestPage() {
     e.preventDefault();
     setLoading(true);
     setError('');
+    setTechnicalDetails(null);
     setResult(null);
 
     const tags = tagsInput
@@ -76,15 +78,18 @@ export default function ManualIngestPage() {
         body: JSON.stringify({
           url: url.trim(),
           matter,
-          jurisdiction: sourceOptional.trim() || jurisdiction,
+          jurisdiction,
+          sourceName: sourceOptional.trim() || undefined,
           tags,
           indexNow,
         }),
       });
 
-      const data = await res.json();
+      const data = await safeJson(res);
       if (!res.ok) {
-        throw new Error(data.message || data.error || `Error ${res.status}`);
+        const message = data?.error || data?.message || `No se pudo procesar la URL. HTTP ${res.status}`;
+        setTechnicalDetails(data?.detail || data?.raw || data);
+        throw new Error(message);
       }
 
       setResult(data);
@@ -95,6 +100,29 @@ export default function ManualIngestPage() {
       setLoading(false);
     }
   };
+
+  async function safeJson(response: Response) {
+    const raw = await response.text();
+    if (!raw) {
+      return {
+        ok: false,
+        error: `Respuesta vacía del servidor. HTTP ${response.status}`,
+      };
+    }
+
+    try {
+      return JSON.parse(raw);
+    } catch {
+      return {
+        ok: false,
+        error: response.status === 401
+          ? 'Token de administrador no autorizado.'
+          : 'El servidor no devolvió JSON válido.',
+        raw: raw.slice(0, 500),
+        status: response.status,
+      };
+    }
+  }
 
   return (
     <div className="lawyer-theme-container">
@@ -143,6 +171,8 @@ export default function ManualIngestPage() {
                 <label className="lawyer-label">Materia Jurídica</label>
                 <select value={matter} onChange={(e) => setMatter(e.target.value)} className="lawyer-select">
                   <option value="constitucional">Constitucional</option>
+                  <option value="civil">Civil</option>
+                  <option value="mercantil">Mercantil</option>
                   <option value="fiscal">Fiscal</option>
                   <option value="laboral">Laboral</option>
                   <option value="salud">Salud</option>
@@ -266,6 +296,12 @@ export default function ManualIngestPage() {
             <div className="result-content">
               <h3>Fallo en el Procesamiento</h3>
               <p>{error}</p>
+              {technicalDetails && (
+                <details className="technical-details">
+                  <summary>Ver detalles técnicos</summary>
+                  <pre>{typeof technicalDetails === 'string' ? technicalDetails : JSON.stringify(technicalDetails, null, 2)}</pre>
+                </details>
+              )}
             </div>
           </div>
         )}
@@ -282,6 +318,22 @@ export default function ManualIngestPage() {
             </div>
 
             <p className="success-msg">{result.message}</p>
+
+            {(result.found !== undefined || result.saved !== undefined || result.duplicates !== undefined) && (
+              <div className="result-counts">
+                <span>Encontrados: {result.found ?? 1}</span>
+                <span>Guardados: {result.saved ?? (result.status === 'stored' ? 1 : 0)}</span>
+                <span>Duplicados: {result.duplicates ?? 0}</span>
+              </div>
+            )}
+
+            {result.warnings?.length > 0 && (
+              <div className="warning-list">
+                {result.warnings.map((warning: string) => (
+                  <p key={warning}>{warning}</p>
+                ))}
+              </div>
+            )}
 
             <div className="result-details">
               <div className="detail-row">
@@ -711,6 +763,28 @@ export default function ManualIngestPage() {
           line-height: 1.5;
         }
 
+        .technical-details {
+          margin-top: 0.9rem;
+          color: #fca5a5;
+        }
+
+        .technical-details summary {
+          cursor: pointer;
+          font-weight: 700;
+        }
+
+        .technical-details pre {
+          white-space: pre-wrap;
+          word-break: break-word;
+          margin-top: 0.6rem;
+          padding: 0.8rem;
+          border-radius: 8px;
+          background: rgba(0,0,0,0.25);
+          color: #fecaca;
+          max-height: 240px;
+          overflow: auto;
+        }
+
         /* Success detail design */
         .result-header {
           display: flex;
@@ -757,6 +831,27 @@ export default function ManualIngestPage() {
           line-height: 1.6;
           margin: 0 0 1.5rem 0;
           font-size: 1.05rem;
+        }
+
+        .result-counts {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 0.75rem;
+          color: #a7f3d0;
+          font-size: 0.9rem;
+          font-weight: 700;
+        }
+
+        .warning-list {
+          border: 1px solid rgba(251, 191, 36, 0.25);
+          background: rgba(251, 191, 36, 0.08);
+          color: #fde68a;
+          padding: 0.8rem 1rem;
+          border-radius: 8px;
+        }
+
+        .warning-list p {
+          margin: 0.2rem 0;
         }
 
         .result-details {

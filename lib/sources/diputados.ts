@@ -1,12 +1,110 @@
 import { fetchWithRetry } from "@/lib/sources/http";
 import type { RawSourceItem, SourceFetchParams, SourceFetchResult, SourceModule } from "@/lib/sources/types";
 import { cleanText, parseMxDate, stripHtml } from "@/lib/ingest/normalize";
+import * as cheerio from "cheerio";
 
 const INDEX_URL = "https://www.diputados.gob.mx/LeyesBiblio/index.htm";
 const BASE_URL = "https://www.diputados.gob.mx/LeyesBiblio/";
+const DEFAULT_LIMIT = 20;
+
+const KNOWN_TITLES: Record<string, string> = {
+  "CPEUM.pdf": "Constitución Política de los Estados Unidos Mexicanos",
+  "LFT.pdf": "Ley Federal del Trabajo",
+  "LISR.pdf": "Ley del Impuesto sobre la Renta",
+  "LIVA.pdf": "Ley del Impuesto al Valor Agregado",
+  "CFF.pdf": "Código Fiscal de la Federación",
+  "CPF.pdf": "Código Penal Federal",
+  "CC.pdf": "Código Civil Federal",
+  "CCF.pdf": "Código Civil Federal",
+  "LGSM.pdf": "Ley General de Sociedades Mercantiles",
+  "LGS.pdf": "Ley General de Salud",
+  "LA.pdf": "Ley de Amparo",
+};
 
 function absoluteUrl(href: string) {
   return new URL(href.replace(/^\.\//, ""), BASE_URL).toString();
+}
+
+function pdfFileName(url: string) {
+  return decodeURIComponent(new URL(url).pathname.split("/").pop() || "").trim();
+}
+
+function titleFromPdf(fileName: string, linkText: string) {
+  if (linkText && linkText.length > 5 && !/^(pdf|texto|ver|descargar)$/i.test(linkText)) {
+    return linkText;
+  }
+  if (KNOWN_TITLES[fileName]) return KNOWN_TITLES[fileName];
+  return fileName
+    .replace(/\.pdf$/i, "")
+    .replace(/[_-]+/g, " ")
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+function matterFromPdf(fileName: string, title: string) {
+  const text = `${fileName} ${title}`.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
+  if (/CPEUM|CONSTITUCION|AMPARO/.test(text) || /^LA\.PDF$/i.test(fileName)) return "constitucional";
+  if (/LFT|TRABAJO|LABORAL/.test(text)) return "laboral";
+  if (/LISR|LIVA|CFF|FISCAL|RENTA|VALOR AGREGADO|IMPUESTO|SAT/.test(text)) return "fiscal";
+  if (/CPF|PENAL/.test(text)) return "penal";
+  if (/\bCCF\b|\bCC\b|CIVIL/.test(text)) return "civil";
+  if (/LGS|SALUD/.test(text)) return "salud";
+  if (/LGSM|MERCANTIL|SOCIEDADES/.test(text)) return "mercantil";
+  return "administrativo";
+}
+
+export function extractDiputadosPdfItems(html: string, limit = DEFAULT_LIMIT): RawSourceItem[] {
+  const $ = cheerio.load(html);
+  const seen = new Set<string>();
+  const items: RawSourceItem[] = [];
+  const hrefSample: string[] = [];
+
+  $("a[href]").each((_, element) => {
+    const rawHref = String($(element).attr("href") || "").trim();
+    if (!rawHref) return;
+    if (hrefSample.length < 20) hrefSample.push(rawHref);
+
+    const isPdf =
+      /\/LeyesBiblio\/pdf\//i.test(rawHref) ||
+      /^pdf\//i.test(rawHref) ||
+      /\.pdf(?:$|[?#])/i.test(rawHref);
+    if (!isPdf) return;
+
+    let url: string;
+    try {
+      url = absoluteUrl(rawHref);
+    } catch {
+      return;
+    }
+    if (!/\/LeyesBiblio\/pdf\/[^/]+\.pdf(?:$|[?#])/i.test(url)) return;
+    if (seen.has(url)) return;
+    seen.add(url);
+
+    const fileName = pdfFileName(url);
+    const title = titleFromPdf(fileName, cleanText($(element).text()));
+    const tema = matterFromPdf(fileName, title);
+    const sourceId = fileName.replace(/\.pdf$/i, "");
+
+    items.push({
+      source: "DIPUTADOS",
+      sourceId,
+      title,
+      url,
+      canonicalUrl: url,
+      published: new Date(),
+      tipo: title.toUpperCase().includes("CÓDIGO") || title.toUpperCase().includes("CODIGO") ? "CODIGO" : "LEY",
+      tema,
+      impacto: ["CPEUM", "LFT", "LISR", "LIVA", "CFF"].includes(sourceId.toUpperCase()) ? "alto" : "medio",
+      summary: `Texto vigente en Cámara de Diputados LeyesBiblio: ${title}.`,
+      rawRef: sourceId,
+      raw: { indexUrl: INDEX_URL, fileName, source: "LeyesBiblio PDF" },
+    });
+  });
+
+  if (items.length === 0) {
+    console.warn("[diputados-ingest] no-pdf-hrefs", { hrefSample });
+  }
+
+  return items.slice(0, Math.max(1, limit));
 }
 
 function decodeLeyesBiblio(bytes: Uint8Array) {
@@ -72,29 +170,30 @@ function parseRows(html: string): RawSourceItem[] {
 }
 
 export async function fetchItems(params: SourceFetchParams): Promise<SourceFetchResult> {
-  const checkpointDate = params.checkpoint?.lastPublishedAt || null;
-  const days = Math.max(1, Math.min(365, params.days || 30));
-  const cutoff = new Date();
-  cutoff.setDate(cutoff.getDate() - days);
-  const threshold = checkpointDate && checkpointDate > cutoff ? checkpointDate : cutoff;
+  const limit = Math.max(1, Math.min(50, params.limit || DEFAULT_LIMIT));
 
   const response = await fetchWithRetry(INDEX_URL);
   if (!response.ok) throw new Error(`${INDEX_URL} HTTP ${response.status}`);
   const html = decodeLeyesBiblio(new Uint8Array(await response.arrayBuffer()));
-  const all = parseRows(html);
-  const items = all.filter((item) => item.published > threshold);
+  console.log("[diputados-ingest] html-length", html.length);
+
+  const pdfItems = extractDiputadosPdfItems(html, limit);
+  console.log("[diputados-ingest] pdf-hrefs", pdfItems.length, pdfItems.slice(0, 10).map((item) => item.url));
+
+  const all = pdfItems.length ? pdfItems : parseRows(html).slice(0, limit);
+  const items = all;
   const newest = items.reduce<Date | null>(
     (max, item) => (!max || item.published > max ? item.published : max),
-    checkpointDate
+    params.checkpoint?.lastPublishedAt || null
   );
 
   return {
     source: "DIPUTADOS",
-    ok: true,
+    ok: items.length > 0,
     found: items.length,
     items,
     cursor: newest?.toISOString() || params.checkpoint?.cursor || null,
-    errors: all.length ? [] : ["No se pudieron parsear registros de LeyesBiblio"],
+    errors: items.length ? [] : ["No se encontraron PDFs en Cámara de Diputados."],
   };
 }
 

@@ -1,4 +1,4 @@
-﻿export interface Classification {
+export interface Classification {
   impacto: "alto" | "medio" | "bajo";
   tipo: string;
   tema: string | null;
@@ -150,6 +150,28 @@ function detectTema(text: string): { tema: string | null; hitTema: string[] } {
   ];
   const civilHit = civilKw.filter((k) => text.includes(k));
   if (civilHit.length > 0) return { tema: "civil", hitTema: civilHit };
+
+  // Mercantil
+  const mercantilKw = [
+    "MERCANTIL",
+    "CODIGO DE COMERCIO",
+    "SOCIEDADES MERCANTILES",
+    "TITULO DE CREDITO",
+    "PAGARE",
+    "CHEQUE",
+    "LETRA DE CAMBIO",
+    "FIDEICOMISO",
+    "CONCURSO MERCANTIL",
+    "SOCIEDAD ANONIMA",
+    "SOCIEDAD DE RESPONSABILIDAD LIMITADA",
+    "S.A. DE C.V.",
+    "S. DE R.L.",
+    "ACCIONISTAS",
+    "COMISION MERCANTIL",
+    "CONTRATO MERCANTIL",
+  ];
+  const mercantilHit = mercantilKw.filter((k) => text.includes(k));
+  if (mercantilHit.length > 0) return { tema: "mercantil", hitTema: mercantilHit };
 
   // Laboral
   const laboralKw = [
