@@ -18,6 +18,8 @@ jobs:
           POSTGRES_USER: app
           POSTGRES_PASSWORD: apppass
           POSTGRES_DB: juridico
+        ports:
+          - 5432:5432
         options: >-
           --health-cmd "pg_isready -U app -d juridico"
           --health-interval 10s
@@ -47,6 +49,11 @@ jobs:
 
       - name: Generate Prisma Client
         run: npx prisma generate
+
+      - name: Push Database Schema
+        run: npx prisma db push --skip-generate
+        env:
+          DATABASE_URL: postgresql://app:apppass@localhost:5432/juridico?schema=public
 
       - name: Run tests
         run: npm test
