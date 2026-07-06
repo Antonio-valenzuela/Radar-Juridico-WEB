@@ -88,6 +88,222 @@ ${confidence}: basado en documentos disponibles en la plataforma, pendiente de c
 Este análisis es orientativo y debe contrastarse con la fuente oficial y el caso concreto.`;
 }
 
+function detectPeriodStart(message: string) {
+  const lower = message.toLowerCase();
+  const start = new Date();
+
+  if (lower.includes("hoy")) {
+    start.setHours(0, 0, 0, 0);
+    return start;
+  }
+
+  if (lower.includes("ayer")) {
+    start.setDate(start.getDate() - 1);
+    start.setHours(0, 0, 0, 0);
+    return start;
+  }
+
+  if (lower.includes("mes")) {
+    start.setDate(1);
+    start.setHours(0, 0, 0, 0);
+    return start;
+  }
+
+  start.setDate(start.getDate() - 7);
+  start.setHours(0, 0, 0, 0);
+  return start;
+}
+
+function buildLatestChangeActions(materia: string | null) {
+  const matter = materia || "penal";
+  const matterLabel = `derecho ${matter}`;
+
+  return [
+    {
+      label: `Buscar reformas recientes en ${matter}`,
+      type: "search_query",
+      payload: {
+        query: `reformas ${matterLabel}`,
+        matter,
+        dateRange: "this_week",
+      },
+    },
+    {
+      label: `Crear alerta de ${matterLabel}`,
+      type: "create_alert",
+      payload: { query: matterLabel, matter },
+    },
+    {
+      label: "Ver monitoreo legal",
+      type: "open_url",
+      payload: { href: "/monitoreo" },
+    },
+  ];
+}
+
+async function retrieveIndexedChangeEvidence(message: string, materia: string | null) {
+  const startDate = detectPeriodStart(message);
+  const matterFilter: any = materia
+    ? {
+        OR: [
+          { matter: { contains: materia, mode: "insensitive" } },
+          {
+            documentVersion: {
+              document: {
+                OR: [
+                  { matter: { contains: materia, mode: "insensitive" } },
+                  { title: { contains: materia, mode: "insensitive" } },
+                ],
+              },
+            },
+          },
+        ],
+      }
+    : {};
+
+  const versionMatterFilter: any = materia
+    ? {
+        document: {
+          OR: [
+            { matter: { contains: materia, mode: "insensitive" } },
+            { title: { contains: materia, mode: "insensitive" } },
+          ],
+        },
+      }
+    : {};
+
+  let changes: any[] = [];
+  let notifications: any[] = [];
+  let versions: any[] = [];
+
+  try {
+    changes = await prisma.documentChange.findMany({
+      where: {
+        detectedAt: { gte: startDate },
+        ...matterFilter,
+      },
+      orderBy: { detectedAt: "desc" },
+      take: 8,
+      select: {
+        id: true,
+        changeDescription: true,
+        detectedAt: true,
+        sourceUrl: true,
+        matter: true,
+        jurisdiction: true,
+        priority: true,
+        reviewStatus: true,
+        documentVersion: {
+          select: {
+            id: true,
+            sourceUrl: true,
+            createdAt: true,
+            document: {
+              select: {
+                id: true,
+                title: true,
+                shortCode: true,
+                matter: true,
+                officialUrl: true,
+              },
+            },
+          },
+        },
+      },
+    });
+  } catch (error) {
+    console.error("[legal-ai] indexed changes query failed:", error);
+  }
+
+  try {
+    notifications = await prisma.notification.findMany({
+      where: {
+        createdAt: { gte: startDate },
+        documentVersion: versionMatterFilter,
+      },
+      orderBy: { createdAt: "desc" },
+      take: 8,
+      select: {
+        id: true,
+        createdAt: true,
+        status: true,
+        payload: true,
+        documentVersion: {
+          select: {
+            id: true,
+            sourceUrl: true,
+            document: {
+              select: {
+                id: true,
+                title: true,
+                shortCode: true,
+                matter: true,
+                officialUrl: true,
+              },
+            },
+          },
+        },
+      },
+    });
+  } catch (error) {
+    console.error("[legal-ai] notification evidence query failed:", error);
+  }
+
+  try {
+    versions = await prisma.documentVersion.findMany({
+      where: {
+        createdAt: { gte: startDate },
+        ...versionMatterFilter,
+      },
+      orderBy: { createdAt: "desc" },
+      take: 8,
+      select: {
+        id: true,
+        createdAt: true,
+        sourceUrl: true,
+        document: {
+          select: {
+            id: true,
+            title: true,
+            shortCode: true,
+            matter: true,
+            officialUrl: true,
+          },
+        },
+      },
+    });
+  } catch (error) {
+    console.error("[legal-ai] document version evidence query failed:", error);
+  }
+
+  return { startDate, changes, notifications, versions };
+}
+
+function buildIndexedChangesAnswer(
+  materia: string | null,
+  evidence: Awaited<ReturnType<typeof retrieveIndexedChangeEvidence>>,
+) {
+  const matterLabel = materia ? ` en materia ${materia}` : "";
+  const lines = evidence.changes.map((change, index) => {
+    const document = change.documentVersion?.document;
+    const title = normalizeLegalDisplayText(document?.title || "Documento monitoreado");
+    const date = change.detectedAt ? new Date(change.detectedAt).toLocaleDateString("es-MX") : "fecha no registrada";
+    const source = change.sourceUrl || change.documentVersion?.sourceUrl || document?.officialUrl;
+    const sourceLine = source ? `\n   Fuente oficial: ${source}` : "";
+
+    return `${index + 1}. ${title}\n   Cambio indexado: ${normalizeLegalDisplayText(change.changeDescription)}\n   Detectado: ${date}.${sourceLine}`;
+  });
+
+  return `**Respuesta directa**
+Encontré ${evidence.changes.length} cambio(s) indexado(s)${matterLabel} para el periodo consultado.
+
+**Cambios detectados**
+${lines.join("\n\n")}
+
+**Advertencia de verificación**
+Estos resultados provienen de cambios previamente indexados por Radar Jurídico. Antes de tomar una decisión jurídica, abre la fuente oficial y confirma texto vigente, fecha de publicación y aplicación al caso concreto.`;
+}
+
 function getModeInstructions(mode: string): string {
   switch (mode) {
     case "Estrategia Procesal":
@@ -374,6 +590,71 @@ Debes responder ÚNICAMENTE con un objeto JSON válido que contenga:
     }
     
     console.error(`[legal-ai] intent: ${intent}`);
+
+    if (intent === "latest_changes") {
+      const indexedEvidence = await retrieveIndexedChangeEvidence(cleanMessage, materia);
+      const latestActions = buildLatestChangeActions(materia);
+
+      if (indexedEvidence.changes.length === 0) {
+        return NextResponse.json({
+          ok: true,
+          answer: "No encontré cambios indexados para ese periodo.",
+          displayAnswer: "No encontré cambios indexados para ese periodo.",
+          sources: [],
+          citations: [],
+          actions: latestActions,
+          mode: "latest_changes",
+          usedLocalData: false,
+          warnings: ["Verifica directamente en la fuente oficial si el asunto depende de una fecha o plazo."],
+          followUpQuestions: [
+            "¿Quieres crear una alerta para esta materia?",
+            "¿Quieres abrir el monitoreo legal?",
+            "¿Quieres ampliar el periodo de búsqueda?",
+          ],
+          technical: {
+            intent,
+            resultCount: 0,
+            usedLocalData: false,
+            mode: intent,
+          },
+        });
+      }
+
+      const indexedSources = indexedEvidence.changes.map((change) => {
+        const document = change.documentVersion?.document;
+        return {
+          title: normalizeLegalDisplayText(document?.title || "Documento monitoreado"),
+          fuente: "Fuente oficial monitoreada",
+          materia: normalizeLegalDisplayText(change.matter || document?.matter || materia || "General"),
+          url: change.sourceUrl || change.documentVersion?.sourceUrl || document?.officialUrl || null,
+        };
+      });
+
+      const indexedAnswer = buildIndexedChangesAnswer(materia, indexedEvidence);
+
+      return NextResponse.json({
+        ok: true,
+        answer: indexedAnswer,
+        displayAnswer: indexedAnswer,
+        sources: indexedSources,
+        citations: indexedSources,
+        actions: latestActions,
+        mode: "latest_changes",
+        usedLocalData: true,
+        warnings: ["Contrasta cada resultado con la fuente oficial antes de tomar una decisión jurídica."],
+        followUpQuestions: [
+          "¿Quieres ver el detalle del documento monitoreado?",
+          "¿Quieres crear una alerta sobre esta materia?",
+          "¿Quieres revisar otro periodo?",
+        ],
+        technical: {
+          intent,
+          resultCount: indexedEvidence.changes.length,
+          usedLocalData: true,
+          mode: intent,
+        },
+      });
+    }
 
     // Retrieve context without calling embeddings in this request
     console.error("[legal-ai] rag.search.start");

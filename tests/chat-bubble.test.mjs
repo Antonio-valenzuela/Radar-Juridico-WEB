@@ -314,6 +314,6 @@ test("API Chat Bubble reemplaza respuesta evasiva ante cambios penales semanales
   assert.equal(result.status, 200);
   assert.equal(result.mode, "latest_changes");
   assert.doesNotMatch(result.answer, /usa la acción de búsqueda|puedo ayudarte a revisar cambios recientes/i);
-  assert.match(result.answer, /Revisé los documentos indexados|No encontré una reforma penal/i);
+  assert.equal(result.answer, "No encontré cambios indexados para ese periodo.");
   assert.equal(result.actions.some((action) => action.type === "search_query" && action.payload?.matter === "penal"), true);
 });
