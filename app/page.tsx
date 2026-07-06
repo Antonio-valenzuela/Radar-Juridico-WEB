@@ -97,6 +97,7 @@ export default async function Home() {
           <Link href="/">Dashboard</Link>
           <Link href="/search">Búsqueda</Link>
           <Link href="/documents">Documentos</Link>
+          <Link href="/monitoreo">Monitoreo</Link>
           <Link href="/rag">IA Legal</Link>
           <Link href="/watchlists">Alertas</Link>
           
@@ -116,10 +117,11 @@ export default async function Home() {
           <span className="badge">Inteligencia Regulatoria</span>
           <h1>Monitorea cambios legales con IA.</h1>
           <p className="subtitle">
-            Plataforma avanzada de monitoreo regulatorio para México. Extrae, analiza y clasifica publicaciones del DOF, SIDOF, SCJN y más usando embeddings locales y RAG.
+            Plataforma de monitoreo regulatorio para México. Revisa publicaciones oficiales, leyes vigentes y cambios relevantes con apoyo de IA verificable.
           </p>
           <div className="hero-buttons">
             <Link href="/search" className="btn-primary" style={{ textDecoration: 'none' }}>Búsqueda Avanzada</Link>
+            <Link href="/monitoreo" className="btn-primary" style={{ textDecoration: 'none' }}>Monitoreo legal</Link>
             <Link href="/legal-hub" className="btn-primary" style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.2)', boxShadow: 'none', textDecoration: 'none' }}>Centro Jurídico</Link>
             <Link href="/rag" className="btn-primary" style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.2)', boxShadow: 'none', textDecoration: 'none' }}>Preguntar a IA</Link>
             {process.env.ENABLE_PUBLIC_DEMO !== 'true' && (
@@ -156,7 +158,7 @@ export default async function Home() {
                       {normalizeLegalDisplayText(item.title)}
                     </Link>
                     <div className="alert-meta">
-                      {item.source} • {item.tema || 'materia pendiente'} • {new Date(item.published || '').toLocaleDateString('es-MX')} • embeddings: {item.embeddingsStatus}
+                      {item.source} • {item.tema || 'materia pendiente'} • {new Date(item.published || '').toLocaleDateString('es-MX')} • lectura: {item.embeddingsStatus}
                     </div>
                   </div>
                   <div>

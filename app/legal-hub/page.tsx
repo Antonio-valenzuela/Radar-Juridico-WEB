@@ -49,6 +49,7 @@ export default function LegalHubPage() {
           <Link href="/">Dashboard</Link>
           <Link href="/search">Búsqueda</Link>
           <Link href="/documents">Documentos</Link>
+          <Link href="/monitoreo">Monitoreo</Link>
           <Link href="/rag">IA Legal</Link>
           <Link href="/watchlists">Alertas</Link>
           {process.env.NEXT_PUBLIC_ENABLE_PUBLIC_DEMO !== 'true' && process.env.ENABLE_PUBLIC_DEMO !== 'true' && (
