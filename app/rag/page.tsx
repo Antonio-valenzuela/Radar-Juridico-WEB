@@ -242,7 +242,7 @@ export default function RadarLegalPage() {
       setWeeklyData(data);
       setMode('weekly');
       if (data.degraded) {
-        setWarnings(w => [...w, 'El servicio está en modo degradado. Algunos datos pueden no estar disponibles.']);
+        setWarnings(w => [...w, 'La consulta se resolvió con información local disponible. Verifica la fuente oficial antes de usar el resultado.']);
       }
     } catch (err: unknown) {
       if (err instanceof Error && err.name === 'AbortError') return;
@@ -862,7 +862,7 @@ export default function RadarLegalPage() {
 
                 {(radarData.aiAnalysis as AiAnalysis).provider === 'local' && (
                   <div style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', padding: '0.75rem 1rem', borderRadius: '6px', fontSize: '0.85rem', color: '#f87171', marginBottom: '1.25rem' }}>
-                    ⚠️ Procesamiento local estático activo (sin conexión a IA externa).
+                    ⚠️ Orientación local activa; confirma el resultado en fuentes oficiales antes de usarlo en un escrito.
                   </div>
                 )}
 

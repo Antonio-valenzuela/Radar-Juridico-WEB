@@ -14,7 +14,10 @@ const MATERIAS = [
   { value: '', label: 'Cualquier materia' },
   { value: 'constitucional', label: 'Constitucional' },
   { value: 'civil', label: 'Civil' },
+  { value: 'familiar', label: 'Familiar' },
   { value: 'mercantil', label: 'Mercantil' },
+  { value: 'cnpcf', label: 'Código Nacional de Procedimientos Civiles y Familiares' },
+  { value: 'amparo', label: 'Amparo' },
   { value: 'penal', label: 'Penal' },
   { value: 'fiscal', label: 'Fiscal' },
   { value: 'laboral', label: 'Laboral' },
@@ -718,7 +721,7 @@ export default function SearchPage() {
       )}
       {searchMeta.failed && (
         <div style={{ background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.4)', padding: '0.75rem', borderRadius: '4px', marginBottom: '1rem' }}>
-          ❌ <strong>failed</strong>: Ocurrió un <strong>error técnico</strong>. No se pudo completar la búsqueda en el servidor.
+          ❌ No se pudo completar la búsqueda en fuentes oficiales. Reintenta la consulta o abre directamente la fuente aplicable.
         </div>
       )}
 

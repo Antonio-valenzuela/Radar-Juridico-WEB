@@ -20,10 +20,10 @@ test("UI de fuentes reconoce todos los estados de health", () => {
 
 test("UI muestra mensajes claros por categoría", () => {
   assert.match(page, /Accesible/);
-  assert.match(page, /Bloqueado por proveedor externo, requiere navegador\/Playwright/);
+  assert.match(page, /fuente oficial requiere consulta desde navegador autorizado/);
   assert.match(page, /Ruta configurada incorrecta/);
   assert.match(page, /Redirección insegura bloqueada/);
-  assert.match(page, /Error de red\/TLS\/DNS/);
+  assert.match(page, /No se pudo contactar la fuente oficial/);
   assert.match(page, /Accesible con limitaciones/);
 });
 
@@ -38,5 +38,5 @@ test("UI deshabilita ingesta en fuentes search_only o con navegador requerido", 
   assert.match(page, /s\.crawlMode === 'search_only'/);
   assert.match(page, /s\.requiresBrowser/);
   assert.match(page, /Esta fuente se usa para búsqueda externa\/RAG/);
-  assert.match(page, /requiere ingesta con navegador headless/i);
+  assert.match(page, /requiere ingesta con navegador autorizado/i);
 });

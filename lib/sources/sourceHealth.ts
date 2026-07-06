@@ -282,7 +282,7 @@ export async function checkSourceHealth(
         return result(startTime, adapter, "BLOCKED_BY_PROVIDER", {
           ok: true,
           accessible: true,
-          message: "Bloqueado por proveedor externo, requiere navegador/Playwright",
+          message: "La fuente oficial requiere consulta desde navegador autorizado",
           statusCode: response.status,
           finalUrl: currentUrl,
           redirectsFollowed,
@@ -306,7 +306,7 @@ export async function checkSourceHealth(
           return result(startTime, adapter, "BROWSER_REQUIRED", {
             ok: true,
             accessible: true,
-            message: "Bloqueado por proveedor externo, requiere navegador/Playwright",
+            message: "La fuente oficial requiere consulta desde navegador autorizado",
             statusCode: response.status,
             finalUrl: currentUrl,
             redirectsFollowed,

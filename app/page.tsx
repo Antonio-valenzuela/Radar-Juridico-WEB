@@ -95,6 +95,7 @@ export default async function Home() {
         </label>
         <nav className="nav-menu">
           <Link href="/">Dashboard</Link>
+          <Link href="/legal-hub">Centro Jurídico</Link>
           <Link href="/search">Búsqueda</Link>
           <Link href="/rag">Consultor RAG</Link>
           <Link href="/digests">Resúmenes</Link>
@@ -116,6 +117,7 @@ export default async function Home() {
           </p>
           <div className="hero-buttons">
             <Link href="/search" className="btn-primary" style={{ textDecoration: 'none' }}>Búsqueda Avanzada</Link>
+            <Link href="/legal-hub" className="btn-primary" style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.2)', boxShadow: 'none', textDecoration: 'none' }}>Centro Jurídico</Link>
             <Link href="/rag" className="btn-primary" style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.2)', boxShadow: 'none', textDecoration: 'none' }}>Preguntar a IA</Link>
             <Link href="/admin/ingest/manual-url" className="btn-primary" style={{ background: 'var(--accent)', color: 'white', textDecoration: 'none' }}>Agregar link jurídico</Link>
           </div>

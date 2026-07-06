@@ -55,6 +55,41 @@ export const LEGAL_THESAURUS: Record<string, ThesaurusEntry> = {
     weight: 1.0
   },
 
+  cnpcf: {
+    canonical: "Código Nacional de Procedimientos Civiles y Familiares",
+    materias: ["Civil", "Familiar", "Procesal", "Derechos Humanos"],
+    aliases: [
+      "Código Nacional de Procedimientos Civiles y Familiares",
+      "Codigo Nacional de Procedimientos Civiles y Familiares",
+      "CNPCF",
+      "codigo nacional civil y familiar",
+      "procedimiento civil y familiar",
+      "procedimientos civiles y familiares",
+      "nuevo codigo procesal civil y familiar"
+    ],
+    relatedTerms: [
+      "Código Nacional de Procedimientos Civiles y Familiares",
+      "justicia digital",
+      "oralidad civil",
+      "oralidad familiar",
+      "audiencia preliminar",
+      "audiencia de juicio",
+      "expediente electrónico",
+      "notificación electrónica",
+      "juicio oral civil",
+      "procedimiento familiar",
+      "procedimiento civil",
+      "medidas cautelares",
+      "prueba anticipada",
+      "ejecución de sentencia",
+      "transitorios CNPCF",
+      "declaratoria de vigencia",
+      "implementación gradual"
+    ],
+    negativeTerms: [],
+    weight: 1.0
+  },
+
   civil: {
     canonical: "derecho civil",
     materias: ["Civil", "Obligaciones", "Contratos"],

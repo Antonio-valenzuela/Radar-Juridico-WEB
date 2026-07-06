@@ -24,7 +24,7 @@ export function resolveIngestPolicy(source: IngestSourceConfig): IngestPolicy {
     return {
       handler: "warning",
       warningCode: "BROWSER_REQUIRED",
-      message: "SCJN SJF requiere navegador/Playwright; se omitió la ingesta HTML simple.",
+      message: "SCJN/SJF requiere consulta con navegador autorizado; se omitió la ingesta automática simple.",
     };
   }
 
@@ -32,7 +32,7 @@ export function resolveIngestPolicy(source: IngestSourceConfig): IngestPolicy {
     return {
       handler: "warning",
       warningCode: "BLOCKED_BY_PROVIDER",
-      message: "SCJN Legislación está bloqueada por el proveedor para fetch simple; requiere navegador/Playwright.",
+      message: "SCJN Legislación requiere consulta con navegador autorizado; se omitió la ingesta automática simple.",
     };
   }
 

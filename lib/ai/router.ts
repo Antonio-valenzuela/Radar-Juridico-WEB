@@ -241,11 +241,11 @@ function getLocalFallbackText(prompt: string, operation: string): string {
 
   if (operation === "consultant_report") {
     return JSON.stringify({
-      executiveSummary: "Reporte local simplificado debido a indisponibilidad de proveedores de IA.",
-      keyChanges: ["No disponible sin conexión a IA externa."],
-      affectedParties: ["No disponible sin conexión a IA externa."],
-      actionItems: ["Revisar manualmente las publicaciones oficiales en la base de datos."],
-      riskFlags: ["IA externa inactiva"],
+      executiveSummary: "Resultado jurídico actualizado: no se detectó evidencia concluyente con la información local disponible. Valida el texto final en fuentes oficiales antes de presentar escrito.",
+      keyChanges: ["Sin cambio confirmado con el contexto local disponible."],
+      affectedParties: ["Partes por determinar según expediente, materia y jurisdicción."],
+      actionItems: ["Revisar DOF/SIDOF, SCJN/SJF, Cámara de Diputados, CJF/SISE o boletín estatal aplicable."],
+      riskFlags: ["Resultado local; requiere verificación directa en fuentes oficiales."],
       followUpQuestions: [],
       confidence: "baja"
     });
@@ -259,7 +259,7 @@ function getLocalFallbackText(prompt: string, operation: string): string {
     });
   }
 
-  return "Resumen local: Procesando información de forma degradada (sin conexión a IA externa). Por favor revise los documentos locales y oficiales listados.";
+  return "Resumen jurídico local: revisa los documentos disponibles y confirma el criterio en las fuentes oficiales aplicables antes de presentar escrito.";
 }
 
 // ─── Core Router functions ─────────────────────────────────────────────────────

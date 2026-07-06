@@ -4,12 +4,22 @@ import { prisma } from "@/lib/prisma";
 // Legacy static fallback, still kept for safety
 export const ALLOWED_OFFICIAL_DOMAINS = [
   "dof.gob.mx",
+  "www.dof.gob.mx",
   "sidof.segob.gob.mx",
   "scjn.gob.mx",
+  "sjf2.scjn.gob.mx",
+  "legislacion.scjn.gob.mx",
   "cjf.gob.mx",
+  "www.cjf.gob.mx",
+  "sise.cjf.gob.mx",
+  "www.dgej.cjf.gob.mx",
   "diputados.gob.mx",
+  "www.diputados.gob.mx",
   "senado.gob.mx",
-  "conamer.gob.mx"
+  "www.senado.gob.mx",
+  "conamer.gob.mx",
+  "periodicooficial.jalisco.gob.mx",
+  "ciudadano.cjj.gob.mx"
 ];
 
 const MATTER_FALLBACK: Record<string, { terms: string[]; authorities: string[] }> = {
@@ -40,9 +50,32 @@ const MATTER_FALLBACK: Record<string, { terms: string[]; authorities: string[] }
       'Congreso Estatal',
     ],
   },
+  civil: {
+    terms: ['derecho civil', 'contratos', 'obligaciones', 'responsabilidad civil', 'sucesiones', 'procedimiento civil'],
+    authorities: ['Juzgados Civiles', 'SCJN', 'Congreso', 'Cámara de Diputados'],
+  },
   mercantil: {
     terms: ['contrato mercantil', 'sociedad', 'quiebra', 'embargo', 'insolvencia'],
     authorities: ['Juzgados Mercantiles', 'CONAMER'],
+  },
+  cnpcf: {
+    terms: [
+      'Código Nacional de Procedimientos Civiles y Familiares',
+      'CNPCF',
+      'procedimiento civil',
+      'procedimiento familiar',
+      'oralidad civil',
+      'justicia digital'
+    ],
+    authorities: ['Cámara de Diputados', 'DOF', 'SCJN', 'Consejo de la Judicatura Federal'],
+  },
+  amparo: {
+    terms: ['juicio de amparo', 'amparo indirecto', 'amparo directo', 'suspensión del acto reclamado', 'recurso de revisión'],
+    authorities: ['SCJN', 'Tribunales Colegiados de Circuito', 'Juzgados de Distrito'],
+  },
+  judicial: {
+    terms: ['boletín judicial', 'lista de acuerdos', 'SISE', 'expediente judicial', 'Consejo de la Judicatura Federal'],
+    authorities: ['Consejo de la Judicatura Federal', 'Poder Judicial Federal', 'Consejos de la Judicatura estatales'],
   },
   penal: {
     terms: ['reforma penal', 'amparo', 'jurisprudencia', 'tesis aislada'],
@@ -70,8 +103,16 @@ export async function expandLegalSearch(params: {
       matter = "laboral";
     } else if (q.includes("fiscal") || q.includes("impuesto") || q.includes("sat") || q.includes("isr") || q.includes("iva")) {
       matter = "fiscal";
+    } else if (q.includes("cnpcf") || q.includes("procedimientos civiles y familiares") || q.includes("codigo nacional de procedimientos")) {
+      matter = "cnpcf";
+    } else if (q.includes("amparo") || q.includes("acto reclamado") || q.includes("suspension")) {
+      matter = "amparo";
+    } else if (q.includes("civil") || q.includes("contrato") || q.includes("sucesion") || q.includes("sucesión")) {
+      matter = "civil";
     } else if (q.includes("mercantil") || q.includes("comercio") || q.includes("sociedad")) {
       matter = "mercantil";
+    } else if (q.includes("boletin") || q.includes("boletín") || q.includes("sise") || q.includes("judicatura")) {
+      matter = "judicial";
     } else if (q.includes("penal") || q.includes("delito") || q.includes("prisión")) {
       matter = "penal";
     }
@@ -150,7 +191,7 @@ Reglas obligatorias:
 
     const parsed = JSON.parse(clean);
 
-    // Filtrado estricto por backend
+    // Filtrado estricto por servicio interno.
     const filteredSources = (Array.isArray(parsed.officialSources) ? parsed.officialSources : [])
       .map((s: any) => {
         const domain = (s.domain || "").trim().toLowerCase();

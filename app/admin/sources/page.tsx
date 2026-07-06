@@ -55,10 +55,10 @@ interface ManualIngestResult {
 const HEALTH_LABELS: Record<SourceHealthStatus, string> = {
   OK: 'Accesible',
   REDIRECT_BLOCKED: 'Redirección insegura bloqueada',
-  BLOCKED_BY_PROVIDER: 'Bloqueado por proveedor externo, requiere navegador/Playwright',
+  BLOCKED_BY_PROVIDER: 'La fuente oficial requiere consulta desde navegador autorizado',
   NOT_FOUND: 'Ruta configurada incorrecta',
-  FETCH_ERROR: 'Error de red/TLS/DNS',
-  BROWSER_REQUIRED: 'Bloqueado por proveedor externo, requiere navegador/Playwright',
+  FETCH_ERROR: 'No se pudo contactar la fuente oficial',
+  BROWSER_REQUIRED: 'La fuente oficial requiere consulta desde navegador autorizado',
   WARNING_ACCESSIBLE_WITH_LIMITATIONS: 'Accesible con limitaciones',
 };
 
@@ -87,9 +87,9 @@ async function fetchJsonSafe(res: Response): Promise<any> {
   const text = await res.text();
   const preview = text.slice(0, 300).replace(/\n/g, ' ');
   throw new Error(
-    `La API devolvió ${contentType || 'contenido desconocido'} (HTTP ${res.status}) en lugar de JSON. ` +
-    `Revisa que la ruta exista y que el backend esté funcionando correctamente. ` +
-    `Preview: ${preview}`
+    `El servicio de fuentes oficiales devolvió una respuesta inesperada (HTTP ${res.status}). ` +
+    `Revisa que la ruta exista y que el servicio interno esté disponible. ` +
+    `Vista previa: ${preview}`
   );
 }
 
@@ -165,7 +165,7 @@ export default function AdminSourcesPage() {
       setSources(data.sources || []);
     } catch (err: any) {
       if (err.name === 'AbortError') {
-        setError('La carga excedió el tiempo límite (15s). Verifica que el backend esté funcionando.');
+        setError('La carga excedió el tiempo límite (15s). Verifica que el servicio interno de fuentes oficiales esté disponible.');
       } else {
         setError(err.message || 'Error de conexión.');
       }
@@ -605,7 +605,7 @@ export default function AdminSourcesPage() {
                 const ingestDisabledReason = s.crawlMode === 'search_only'
                   ? 'Esta fuente se usa para búsqueda externa/RAG, no para ingesta programada.'
                   : s.requiresBrowser
-                    ? 'Esta fuente viva requiere ingesta con navegador headless. Disponible en fase posterior.'
+                    ? 'Esta fuente viva requiere ingesta con navegador autorizado. Disponible en fase posterior.'
                     : '';
                 const isIngestDisabled = Boolean(iStatus?.loading || !s.isActive || ingestDisabledReason);
 
