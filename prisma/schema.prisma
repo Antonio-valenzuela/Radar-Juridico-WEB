@@ -255,13 +255,31 @@ model Document {
   updatedAt         DateTime @updatedAt
   hasVersions       Boolean  @default(false)
   latestVersionHash String?  // Hash SHA256 para detectar duplicados
+  shortCode         String?
+  matter            String?
+  officialSourceId  String?
+  officialUrl       String?
+  officialSourceUrl String?
+  currentHash       String?
+  etag              String?
+  lastModified      DateTime?
+  fileSize          BigInt?
+  lastCheckedAt     DateTime?
+  lastError         String?
+  monitoringStatus  String?
+  changeSummary     String?
 
   versions DocumentVersion[]
   metadata DocumentMetadata[]
   ingestionJobs IngestionJob[]
+  officialSource OfficialSource? @relation(fields: [officialSourceId], references: [id], onDelete: SetNull)
 
   @@index([source, documentType])
   @@index([status, updatedAt])
+  @@index([matter, monitoringStatus])
+  @@index([officialSourceId])
+  @@index([lastCheckedAt])
+  @@index([shortCode])
 }
 
 model DocumentVersion {
@@ -275,6 +293,11 @@ model DocumentVersion {
   rawRef        String?
   rawText       String?
   diffSummary   Json?
+  etag          String?
+  lastModified  DateTime?
+  fileSize      BigInt?
+  sourceUrl     String?
+  metadata      Json?
   sourceItemId  String?
   sourceItem    Item?    @relation(fields: [sourceItemId], references: [id], onDelete: SetNull)
   createdAt     DateTime @default(now())
@@ -292,6 +315,7 @@ model DocumentVersion {
   @@unique([documentId, versionNumber])
   @@index([publishedAt])
   @@index([sourceItemId])
+  @@index([documentId, createdAt])
 }
 
 model DocumentMetadata {
@@ -531,6 +555,7 @@ model OfficialSource {
   updatedAt        DateTime @updatedAt
 
   fetchLogs        OfficialSourceFetchLog[]
+  documents        Document[]
 
   @@index([type])
   @@index([isActive])
@@ -591,6 +616,14 @@ model DocumentChange {
   before            String?  @db.Text // Texto anterior
   after             String?  @db.Text // Texto nuevo
   changeDescription String   @db.Text // Descripción legible
+  sourceUrl         String?
+  detectedAt        DateTime @default(now())
+  previousHash      String?
+  newHash           String?
+  priority          String   @default("media")
+  reviewStatus      String   @default("nueva")
+  matter            String?
+  jurisdiction      String?
   
   // Extracción de cambios específicos
   extractedPlazoDias Int?    // Si es cambio de plazo
