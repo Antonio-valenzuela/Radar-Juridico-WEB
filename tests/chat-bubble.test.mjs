@@ -259,3 +259,61 @@ test("API Chat Bubble no fuerza DOF en acción penal reciente si debe consultar 
   assert.notEqual(result.searchAction?.payload?.source, "DOF");
   assert.equal(/No tengo una publicación específica recuperada/i.test(result.answer), false);
 });
+
+test("API Chat Bubble reemplaza respuesta evasiva ante cambios penales semanales", () => {
+  const result = runTs(`
+    import { POST } from "./app/api/ai/chat-bubble/route";
+    import { NextRequest } from "next/server";
+
+    let call = 0;
+    globalThis.fetch = async () => {
+      call += 1;
+      const text = call === 1
+        ? '{"intent":"latest_changes","materia":"penal"}'
+        : "\\\`\\\`\\\`json\\n" + JSON.stringify({
+          answer: "Puedo ayudarte a revisar cambios recientes con una búsqueda jurídica filtrada por materia y fecha. Usa la acción de búsqueda para consultar registros oficiales disponibles.",
+          followUpQuestions: ["¿Existe alguna reforma reciente sobre este tema?"]
+        }) + "\\n\\\`\\\`\\\`";
+      return new Response(JSON.stringify({
+        candidates: [{ content: { parts: [{ text }] } }],
+        usageMetadata: { promptTokenCount: 1, candidatesTokenCount: 1, totalTokenCount: 2 }
+      }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" }
+      });
+    };
+
+    (async () => {
+      const req = new NextRequest("http://localhost/api/ai/chat-bubble", {
+        method: "POST",
+        body: JSON.stringify({
+          message: "Dame los cambios en el derecho penal esta semana",
+          currentPath: "/search",
+          mode: "general"
+        })
+      });
+
+      const response = await POST(req);
+      const data = await response.json();
+      console.log(JSON.stringify({
+        status: response.status,
+        mode: data.mode,
+        answer: data.answer,
+        actions: data.actions
+      }));
+    })().catch((err) => {
+      console.error(err);
+      process.exit(1);
+    });
+  `, {
+    AI_PROVIDER_CHAIN: "gemini",
+    GEMINI_API_KEY: "mock-key",
+    AI_ENABLE_USAGE_TRACKING: "false"
+  });
+
+  assert.equal(result.status, 200);
+  assert.equal(result.mode, "latest_changes");
+  assert.doesNotMatch(result.answer, /usa la acción de búsqueda|puedo ayudarte a revisar cambios recientes/i);
+  assert.match(result.answer, /Revisé los documentos indexados|No encontré una reforma penal/i);
+  assert.equal(result.actions.some((action) => action.type === "search_query" && action.payload?.matter === "penal"), true);
+});

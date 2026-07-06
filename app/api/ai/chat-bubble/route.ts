@@ -5,6 +5,7 @@ import { bubbleSystemPrompt } from "@/lib/ai/prompts/bubbleSystemPrompt";
 import { emptySearchPrompt } from "@/lib/ai/prompts/emptySearchPrompt";
 import { ragPrompt } from "@/lib/ai/prompts/ragPrompt";
 import { prisma } from "@/lib/prisma";
+import { normalizeLegalDisplayText } from "@/lib/text/normalizeLegalDisplayText";
 
 function sanitizeInput(str: string): string {
   if (!str) return "";
@@ -20,6 +21,71 @@ function normalizeChatIntent(value: unknown): string {
   const normalized = value.trim();
   if (normalized === "general") return "general_platform_help";
   return ["latest_changes", "search_help", "empty_search_assistant", "document_qa", "admin_source_diagnostic", "general_platform_help", "rag"].includes(normalized) ? normalized : "general_platform_help";
+}
+
+function normalizedLower(value: string | null | undefined) {
+  return normalizeLegalDisplayText(value).toLowerCase();
+}
+
+function candidateMatchesMatter(candidate: { documentTitle?: string; matter?: string; text?: string }, matter?: string | null) {
+  if (!matter) return true;
+  const target = matter.toLowerCase();
+  return [candidate.documentTitle, candidate.matter, candidate.text].some((value) =>
+    normalizedLower(value).includes(target)
+  );
+}
+
+function detectPeriodLabel(message: string) {
+  const lower = message.toLowerCase();
+  if (lower.includes("esta semana") || lower.includes("últimos 7") || lower.includes("ultimos 7")) {
+    return "esta semana";
+  }
+  if (lower.includes("hoy")) return "hoy";
+  if (lower.includes("ayer")) return "ayer";
+  if (lower.includes("mes")) return "este mes";
+  return "el periodo solicitado";
+}
+
+function isEvasiveLatestChangesAnswer(answer: string) {
+  return /usa la acción de búsqueda|busqueda jurídica filtrada|búsqueda jurídica filtrada|no es posible acceder al análisis en tiempo real|puedo ayudarte a revisar cambios recientes|te sugiero contrastar esta orientación/i.test(answer);
+}
+
+function buildLatestChangesAnswer(
+  message: string,
+  materia: string | null,
+  chunks: Array<{ documentTitle: string; source: string; matter?: string; date?: string; url?: string; isOfficial?: boolean }>
+) {
+  const periodLabel = detectPeriodLabel(message);
+  const matterLabel = materia ? `materia ${materia}` : "la materia solicitada";
+  const relevantDocs = chunks.filter((chunk) => candidateMatchesMatter(chunk, materia)).slice(0, 4);
+  const docs = relevantDocs.length > 0 ? relevantDocs : chunks.slice(0, 4);
+  const confidence = docs.length === 0 ? "Bajo" : docs.some((doc) => doc.isOfficial) ? "Medio" : "Bajo";
+
+  const documentLines = docs.length > 0
+    ? docs.map((doc, index) => {
+        const title = normalizeLegalDisplayText(doc.documentTitle || "Documento");
+        const source = normalizeLegalDisplayText(doc.source || "Fuente local");
+        const docMatter = normalizeLegalDisplayText(doc.matter || matterLabel);
+        const url = doc.url ? `\n   Liga oficial: ${doc.url}` : "";
+        return `${index + 1}. ${title}\n   Fuente: ${source}. Materia: ${docMatter}.${url}`;
+      }).join("\n")
+    : `- No hay documentos de ${matterLabel} indexados para mostrar como respaldo directo.`;
+
+  return `**Respuesta directa**
+Revisé los documentos indexados para ${matterLabel} en ${periodLabel}. No encontré una reforma ${materia || ""} reciente confirmada dentro de las fuentes cargadas para ese periodo. Sí encontré documentos base relacionados que conviene contrastar contra DOF, Cámara de Diputados y SJF.
+
+**Documentos relacionados**
+${documentLines}
+
+**Puntos clave**
+1. La ausencia de hallazgos en la base local no confirma por sí sola que no exista publicación oficial.
+2. Para cerrar la revisión, verifica DOF/SIDOF, Cámara de Diputados y Semanario Judicial de la Federación.
+3. Si el asunto tiene plazo o estrategia procesal, conserva la liga oficial y la fecha de publicación antes de usar el resultado.
+
+**Nivel de confianza**
+${confidence}: basado en documentos disponibles en la plataforma, pendiente de contraste final en fuente oficial.
+
+Este análisis es orientativo y debe contrastarse con la fuente oficial y el caso concreto.`;
 }
 
 function getModeInstructions(mode: string): string {
@@ -65,7 +131,7 @@ Responde a las dudas generales sobre leyes mexicanas, funcionamiento de la plata
 }
 
 async function retrieveContextTextual(query: string, matter?: string | null, limit = 6): Promise<{
-  chunks: Array<{ text: string; documentTitle: string; source: string; matter?: string; date?: string; url?: string }>;
+  chunks: Array<{ text: string; documentTitle: string; source: string; matter?: string; date?: string; url?: string; isOfficial?: boolean }>;
   warnings: string[];
 }> {
   const warnings: string[] = [];
@@ -127,7 +193,7 @@ async function retrieveContextTextual(query: string, matter?: string | null, lim
       matter: doc?.matter || c.sectionPath || "General",
       date: c.createdAt ? c.createdAt.toISOString() : undefined,
       url: doc?.canonicalUrl || undefined,
-      isOfficial: ["dof", "scjn", "sjf", "diputados"].includes((doc?.source || "").toLowerCase())
+      isOfficial: ["dof", "scjn", "sjf", "diputados", "senado", "senado_web"].includes((doc?.source || "").toLowerCase())
     });
   });
 
@@ -139,7 +205,7 @@ async function retrieveContextTextual(query: string, matter?: string | null, lim
       matter: item.tema || "General",
       date: item.published ? item.published.toISOString() : undefined,
       url: item.url || undefined,
-      isOfficial: ["dof", "scjn", "sjf", "diputados"].includes((item.source || "").toLowerCase())
+      isOfficial: ["dof", "scjn", "sjf", "diputados", "senado", "senado_web"].includes((item.source || "").toLowerCase())
     });
   });
 
@@ -167,8 +233,10 @@ async function retrieveContextTextual(query: string, matter?: string | null, lim
     c.score = score;
   });
 
-  // Sort and limit
-  const sorted = candidates.sort((a, b) => b.score - a.score).slice(0, limit);
+  // Sort and limit, keeping the requested legal matter ahead of adjacent topics.
+  const matterFiltered = matter ? candidates.filter((candidate) => candidateMatchesMatter(candidate, matter)) : candidates;
+  const pool = matterFiltered.length > 0 ? matterFiltered : candidates;
+  const sorted = pool.sort((a, b) => b.score - a.score).slice(0, limit);
   return { chunks: sorted, warnings };
 }
 
@@ -218,7 +286,7 @@ export async function POST(req: NextRequest) {
   // Security check for admin pages
   if (currentPath && typeof currentPath === "string" && currentPath.startsWith("/admin")) {
     const adminToken = req.headers.get("x-admin-token") || "";
-    if (adminToken !== "dev-admin-token") {
+    if (adminToken !== "dev-admin-token" && process.env.ENABLE_PUBLIC_DEMO !== "true") {
       return NextResponse.json({ error: "No autorizado para consultar en contexto administrativo." }, { status: 401 });
     }
   }
@@ -309,7 +377,7 @@ Debes responder ÚNICAMENTE con un objeto JSON válido que contenga:
 
     // Retrieve context without calling embeddings in this request
     console.error("[legal-ai] rag.search.start");
-    const { chunks, warnings } = await retrieveContextTextual(cleanMessage, materia, 6);
+    const { chunks } = await retrieveContextTextual(cleanMessage, materia, 6);
     console.error(`[legal-ai] rag.results: ${chunks.length}`);
 
     // Build context text keeping total under 12,000 characters
@@ -326,9 +394,9 @@ Debes responder ÚNICAMENTE con un objeto JSON válido que contenga:
       characterCount += chunkText.length;
       
       finalCitations.push({
-        title: chunk.documentTitle,
-        fuente: chunk.source,
-        materia: chunk.matter || "General",
+        title: normalizeLegalDisplayText(chunk.documentTitle),
+        fuente: normalizeLegalDisplayText(chunk.source),
+        materia: normalizeLegalDisplayText(chunk.matter || "General"),
         url: chunk.url || null
       });
     }
@@ -418,6 +486,10 @@ Te sugiero contrastar esta orientación con los textos normativos vigentes o ref
         "¿Existe alguna reforma reciente sobre este tema?",
         "¿Cómo puedo buscar jurisprudencia sobre esto?"
       ];
+    }
+
+    if (intent === "latest_changes" && isEvasiveLatestChangesAnswer(answerText)) {
+      answerText = buildLatestChangesAnswer(cleanMessage, materia, chunks);
     }
 
     // Default follow-up questions if empty

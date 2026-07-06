@@ -42,6 +42,9 @@ export default function MachotesGuiadosPage() {
   const documentText = manualDraft ?? generatedText;
 
   const categories = Array.from(new Set(GUIDED_LEGAL_TEMPLATES.map((template) => template.category)));
+  const requiredFields = selectedTemplate.fields.filter((field) => field.required);
+  const completedRequired = requiredFields.filter((field) => values[field.id]?.trim()).length;
+  const pendingRequired = Math.max(requiredFields.length - completedRequired, 0);
 
   function updateField(id: string, value: string) {
     setValues((current) => ({ ...current, [id]: value }));
@@ -88,7 +91,7 @@ export default function MachotesGuiadosPage() {
           <Link href="/legal-hub/expedientes">Expedientes</Link>
         </nav>
 
-        <section className="legal-hub-hero">
+        <section className="machotes-page-header">
           <span className="badge">Machotes guiados</span>
           <h1>Formatos para amparo, civil, familiar, mercantil y revocación.</h1>
           <p className="subtitle">
@@ -97,42 +100,49 @@ export default function MachotesGuiadosPage() {
           </p>
         </section>
 
-        <section className="glass-card legal-form-panel">
-          <div className="legal-form-grid">
-            <label>
-              Tipo de escrito
-              <select value={selectedId} onChange={(event) => selectTemplate(event.target.value)}>
-                {categories.map((category) => (
-                  <optgroup key={category} label={category}>
-                    {GUIDED_LEGAL_TEMPLATES.filter((template) => template.category === category).map(
-                      (template) => (
-                        <option key={template.id} value={template.id}>
-                          {template.title}
-                        </option>
-                      )
-                    )}
-                  </optgroup>
-                ))}
-              </select>
-            </label>
-            <div className="legal-meta-block">
-              <strong>{selectedTemplate.category}</strong>
-              <br />
-              {selectedTemplate.description}
-              <br />
-              <span className="document-muted">Exporta como Word, texto o imprime para guardar PDF.</span>
-            </div>
+        <section className="machote-template-toolbar">
+          <label className="machote-template-select">
+            <span>Tipo de escrito</span>
+            <select value={selectedId} onChange={(event) => selectTemplate(event.target.value)}>
+              {categories.map((category) => (
+                <optgroup key={category} label={category}>
+                  {GUIDED_LEGAL_TEMPLATES.filter((template) => template.category === category).map(
+                    (template) => (
+                      <option key={template.id} value={template.id}>
+                        {template.title}
+                      </option>
+                    )
+                  )}
+                </optgroup>
+              ))}
+            </select>
+          </label>
+          <div className="machote-template-summary">
+            <strong>{selectedTemplate.category}</strong>
+            <span>{selectedTemplate.description}</span>
+          </div>
+          <div className="machote-status-pill">
+            Campos obligatorios {completedRequired}/{requiredFields.length}
           </div>
         </section>
 
-        <section className="legal-hub-grid legal-two-column">
-          <article className="glass-card legal-hub-card">
-            <span className="document-label">Datos del escrito</span>
-            <h2 className="legal-hub-card-title">{selectedTemplate.title}</h2>
-            <div className="legal-form-grid">
+        <section className="machotes-workspace">
+          <aside className="machote-panel machote-form-panel">
+            <div className="machote-panel-heading">
+              <span className="document-label">Datos del escrito</span>
+              <h2>{selectedTemplate.title}</h2>
+              <p>
+                Completa los datos base. Los campos vacíos quedan marcados como pendientes dentro del texto.
+              </p>
+            </div>
+
+            <div className="machote-fields">
               {selectedTemplate.fields.map((field) => (
-                <label key={field.id}>
-                  {field.label}
+                <label key={field.id} className="machote-field">
+                  <span>
+                    {field.label}
+                    {field.required && <em>Obligatorio</em>}
+                  </span>
                   <input
                     value={values[field.id] || ""}
                     onChange={(event) => updateField(field.id, event.target.value)}
@@ -142,35 +152,43 @@ export default function MachotesGuiadosPage() {
                 </label>
               ))}
             </div>
-            <p className="document-muted legal-warning">
+
+            <p className="machote-warning">
               Este formato es una base de trabajo y requiere revisión profesional antes de presentarse.
+              {pendingRequired > 0 && ` Faltan ${pendingRequired} campo(s) obligatorio(s).`}
             </p>
-            <div className="legal-actions-row">
-              <button type="button" className="btn-doc-primary" onClick={downloadWord}>
+
+            <div className="machote-action-grid">
+              <button type="button" className="machote-action-primary" onClick={downloadWord}>
                 Descargar Word
               </button>
-              <button type="button" className="btn-doc-secondary" onClick={printPdf}>
+              <button type="button" className="machote-action-secondary" onClick={printPdf}>
                 Imprimir / guardar PDF
               </button>
-              <button type="button" className="btn-doc-secondary" onClick={downloadText}>
+              <button type="button" className="machote-action-secondary" onClick={downloadText}>
                 Descargar texto
               </button>
-              <button type="button" className="btn-doc-secondary" onClick={copyText}>
+              <button type="button" className="machote-action-secondary" onClick={copyText}>
                 {copyStatus}
               </button>
             </div>
-          </article>
+          </aside>
 
-          <article className="glass-card legal-hub-card">
-            <span className="document-label">Vista previa</span>
-            <h2 className="legal-hub-card-title">Documento generado</h2>
+          <section className="machote-preview-panel">
+            <div className="machote-preview-header">
+              <div>
+                <span className="document-label">Vista previa editable</span>
+                <h2>Documento generado</h2>
+              </div>
+              <span className="machote-draft-badge">{manualDraft ? "Editado manualmente" : "Autogenerado"}</span>
+            </div>
             <textarea
-              className="legal-preview legal-preview-editor"
+              className="machote-document-paper legal-preview-editor"
               value={documentText}
               onChange={(event) => setManualDraft(event.target.value)}
               aria-label="Texto generado editable"
             />
-          </article>
+          </section>
         </section>
       </main>
     </>

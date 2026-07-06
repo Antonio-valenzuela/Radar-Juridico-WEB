@@ -174,6 +174,22 @@ test("machotes guiados tienen categorias, campos, advertencia y exportacion", ()
   assert.match(page, /Texto generado editable/);
 });
 
+test("machotes guiados usan editor juridico profesional y vista tipo hoja", () => {
+  const page = fs.readFileSync("app/legal-hub/machotes/page.tsx", "utf8");
+  const css = fs.readFileSync("app/globals.css", "utf8");
+
+  assert.match(page, /machotes-workspace/);
+  assert.match(page, /machote-template-toolbar/);
+  assert.match(page, /Campos obligatorios/);
+  assert.match(page, /machote-document-paper/);
+  assert.doesNotMatch(page, /legal-two-column/);
+
+  assert.match(css, /\.machotes-workspace/);
+  assert.match(css, /\.machote-document-paper/);
+  assert.match(css, /background:\s*#fbfaf7/);
+  assert.match(css, /\.machote-action-grid/);
+});
+
 test("fallback local del consultor usa lenguaje juridico, no texto tecnico de proveedores", () => {
   const router = fs.readFileSync("lib/ai/router.ts", "utf8");
   assert.doesNotMatch(router, /Reporte local simplificado debido a indisponibilidad de proveedores de IA/);

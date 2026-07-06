@@ -45,3 +45,18 @@ test("busqueda y detalle de item renderizan textos normalizados", () => {
   assert.match(itemPage, /normalizeLegalDisplayText\(\s*item\.summary/);
   assert.match(itemPage, /normalizeLegalDisplayText\(chunk\.text\)/);
 });
+
+test("radar semanal y chat movil renderizan textos juridicos normalizados", () => {
+  const ragPage = fs.readFileSync("app/rag/page.tsx", "utf8");
+  const chatBubble = fs.readFileSync("components/ai/FloatingLegalChat.tsx", "utf8");
+
+  assert.match(ragPage, /normalizeLegalDisplayText/);
+  assert.match(ragPage, /formatLegalText\(item\.title\)/);
+  assert.match(ragPage, /formatLegalPreview\(item\.summary/);
+  assert.match(ragPage, /formatLegalText\(res\.excerpt/);
+
+  assert.match(chatBubble, /normalizeLegalDisplayText/);
+  assert.match(chatBubble, /normalizeLegalDisplayText\(cit\.title\)/);
+  assert.match(chatBubble, /normalizeLegalDisplayText\(cit\.fuente\)/);
+  assert.match(chatBubble, /normalizeLegalDisplayText\(cit\.materia\)/);
+});

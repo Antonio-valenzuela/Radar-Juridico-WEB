@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import { normalizeLegalDisplayText } from '@/lib/text/normalizeLegalDisplayText';
 
 interface Citation {
   id?: string;
@@ -424,10 +425,10 @@ export default function FloatingLegalChat() {
                           {msg.citations.map((cit, idx) => (
                             <div key={idx} className="citation-card">
                               <div className="cit-header">
-                                <span className="cit-source">{cit.fuente}</span>
-                                <span className="cit-matter">{cit.materia}</span>
+                                <span className="cit-source">{normalizeLegalDisplayText(cit.fuente)}</span>
+                                <span className="cit-matter">{normalizeLegalDisplayText(cit.materia)}</span>
                               </div>
-                              <div className="cit-title">{cit.title}</div>
+                              <div className="cit-title">{normalizeLegalDisplayText(cit.title)}</div>
                               {cit.url && (
                                 <a href={cit.url} target="_blank" rel="noopener noreferrer" className="cit-link">
                                   Ver Oficial &rarr;
@@ -444,7 +445,7 @@ export default function FloatingLegalChat() {
                       <div className="actions-container">
                         {msg.actions.map((act, idx) => (
                           <button key={idx} className="action-button" onClick={() => handleActionClick(act)}>
-                            ⚡ {act.label}
+                            ⚡ {normalizeLegalDisplayText(act.label)}
                           </button>
                         ))}
                       </div>
@@ -459,7 +460,7 @@ export default function FloatingLegalChat() {
                             className="followup-button"
                             onClick={() => handleSend(undefined, q)}
                           >
-                            💬 {q}
+                            💬 {normalizeLegalDisplayText(q)}
                           </button>
                         ))}
                       </div>

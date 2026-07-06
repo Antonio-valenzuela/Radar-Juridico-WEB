@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
+import { normalizeLegalDisplayText } from '@/lib/text/normalizeLegalDisplayText';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -121,6 +122,15 @@ function getDefaultDates() {
   const start = new Date(now);
   start.setDate(start.getDate() - 7);
   return { start: start.toISOString().slice(0, 10), end };
+}
+
+function formatLegalText(value: string | null | undefined) {
+  return normalizeLegalDisplayText(value);
+}
+
+function formatLegalPreview(value: string | null | undefined, maxLength = 220) {
+  const normalized = formatLegalText(value);
+  return normalized.length > maxLength ? `${normalized.slice(0, maxLength)}...` : normalized;
 }
 
 function getChangeTypeBadge(changeType: string) {
@@ -600,7 +610,7 @@ export default function RadarLegalPage() {
               <div style={{ marginTop: '0.75rem', display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
                 {Object.entries(weeklyData.summary.byType).map(([type, count]) => (
                   <span key={type} style={{ fontSize: '0.75rem', padding: '0.2rem 0.6rem', background: 'rgba(99,102,241,0.12)', color: '#a5b4fc', border: '1px solid rgba(99,102,241,0.2)', borderRadius: '4px', textTransform: 'capitalize' }}>
-                    {type} ({count})
+                    {formatLegalText(type)} ({count})
                   </span>
                 ))}
               </div>
@@ -664,28 +674,28 @@ export default function RadarLegalPage() {
                     style={{ padding: '1.25rem', border: '1px solid var(--card-border)', transition: 'border-color 0.2s' }}
                   >
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.75rem', marginBottom: '0.5rem' }}>
-                      <h4 style={{ fontSize: '1rem', color: 'var(--text-main)', margin: 0, fontWeight: 600, flex: 1 }}>{item.title}</h4>
+                      <h4 style={{ fontSize: '1rem', color: 'var(--text-main)', margin: 0, fontWeight: 600, flex: 1 }}>{formatLegalText(item.title)}</h4>
                       <div style={{ display: 'flex', gap: '0.4rem', flexShrink: 0, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
                         <span style={{ fontSize: '0.7rem', padding: '0.15rem 0.5rem', borderRadius: '4px', background: badge.bg, color: badge.color, border: badge.border, fontWeight: 700, textTransform: 'capitalize' }}>
-                          {item.changeType}
+                          {formatLegalText(item.changeType)}
                         </span>
                         {item.impact && (
                           <span style={{ fontSize: '0.7rem', padding: '0.15rem 0.5rem', borderRadius: '4px', background: 'rgba(255,255,255,0.04)', color: impact.color, border: `1px solid ${impact.color}44`, fontWeight: 600 }}>
-                            ★ {item.impact}
+                            ★ {formatLegalText(item.impact)}
                           </span>
                         )}
                       </div>
                     </div>
 
                     <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.6rem', fontSize: '0.75rem' }}>
-                      <span style={{ color: 'var(--primary)', fontWeight: 600 }}>🏛️ {item.source}</span>
+                      <span style={{ color: 'var(--primary)', fontWeight: 600 }}>🏛️ {formatLegalText(item.source)}</span>
                       {item.type && (
                         <><span style={{ color: 'var(--text-muted)' }}>•</span>
-                        <span style={{ color: 'var(--text-muted)', textTransform: 'capitalize' }}>📄 {item.type}</span></>
+                        <span style={{ color: 'var(--text-muted)', textTransform: 'capitalize' }}>📄 {formatLegalText(item.type)}</span></>
                       )}
                       {item.matter && (
                         <><span style={{ color: 'var(--text-muted)' }}>•</span>
-                        <span style={{ color: 'var(--text-muted)', textTransform: 'capitalize' }}>📁 {item.matter}</span></>
+                        <span style={{ color: 'var(--text-muted)', textTransform: 'capitalize' }}>📁 {formatLegalText(item.matter)}</span></>
                       )}
                       <span style={{ color: 'var(--text-muted)' }}>•</span>
                       <span style={{ color: 'var(--text-muted)' }}>
@@ -695,7 +705,7 @@ export default function RadarLegalPage() {
 
                     {item.summary && (
                       <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontStyle: 'italic', background: 'rgba(0,0,0,0.15)', padding: '0.65rem 0.85rem', borderRadius: '6px', margin: '0 0 0.75rem 0', borderLeft: '3px solid var(--primary)', lineHeight: 1.5 }}>
-                        {item.summary.length > 220 ? item.summary.slice(0, 220) + '…' : item.summary}
+                        {formatLegalPreview(item.summary)}
                       </p>
                     )}
 
@@ -704,7 +714,7 @@ export default function RadarLegalPage() {
                         <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', alignSelf: 'center' }}>Secciones:</span>
                         {item.affectedSections.slice(0, 5).map((sec, i) => (
                           <span key={i} style={{ fontSize: '0.7rem', padding: '0.1rem 0.4rem', background: 'rgba(255,255,255,0.04)', color: 'white', borderRadius: '3px', border: '1px solid var(--card-border)' }}>
-                            {sec}
+                            {formatLegalText(sec)}
                           </span>
                         ))}
                       </div>
@@ -759,13 +769,13 @@ export default function RadarLegalPage() {
 
             {/* Local Results */}
             <div className="glass-card" style={{ padding: '1.5rem' }}>
-              <h3 style={{ margin: '0 0 1.25rem 0' }}>🔍 Resultados para &ldquo;{radarData.query}&rdquo;</h3>
+              <h3 style={{ margin: '0 0 1.25rem 0' }}>🔍 Resultados para &ldquo;{formatLegalText(radarData.query)}&rdquo;</h3>
 
               {radarData.localResults.length === 0 && totalExternalResults === 0 ? (
                 <p style={{ color: 'var(--text-muted)', fontStyle: 'italic', margin: 0 }}>
                   {radarData.timedOutSources.length > 0 || radarData.degraded
                     ? `La búsqueda externa excedió el tiempo límite (timeout) en: ${radarData.timedOutSources.join(', ') || 'algunas fuentes'}. Intenta nuevamente.`
-                    : `No se encontraron coincidencias locales ni externas para "${radarData.query}".`}
+                    : `No se encontraron coincidencias locales ni externas para "${formatLegalText(radarData.query)}".`}
                 </p>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
@@ -774,22 +784,22 @@ export default function RadarLegalPage() {
                     return (
                       <div key={`local-${i}`} style={{ background: 'rgba(255,255,255,0.01)', border: '1px solid var(--card-border)', borderRadius: '10px', padding: '1rem' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.5rem' }}>
-                          <h4 style={{ fontSize: '0.95rem', color: 'var(--text-main)', margin: '0 1rem 0 0', fontWeight: 600 }}>{res.title}</h4>
+                          <h4 style={{ fontSize: '0.95rem', color: 'var(--text-main)', margin: '0 1rem 0 0', fontWeight: 600 }}>{formatLegalText(res.title)}</h4>
                           <span style={{ fontSize: '0.7rem', padding: '0.15rem 0.5rem', borderRadius: '4px', background: badge.bg, color: badge.color, border: badge.border, whiteSpace: 'nowrap', fontWeight: 'bold' }}>
-                            {res.status}
+                            {formatLegalText(res.status)}
                           </span>
                         </div>
                         <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.6rem', fontSize: '0.75rem' }}>
-                          <span style={{ color: 'var(--primary)', fontWeight: 600 }}>🏛️ {res.source}</span>
+                          <span style={{ color: 'var(--primary)', fontWeight: 600 }}>🏛️ {formatLegalText(res.source)}</span>
                           <span style={{ color: 'var(--text-muted)' }}>•</span>
-                          <span style={{ color: 'var(--text-muted)', textTransform: 'capitalize' }}>📄 {res.type}</span>
+                          <span style={{ color: 'var(--text-muted)', textTransform: 'capitalize' }}>📄 {formatLegalText(res.type)}</span>
                           <span style={{ color: 'var(--text-muted)' }}>•</span>
                           <span style={{ color: 'var(--text-muted)' }}>📅 {res.publishedAt ? new Date(res.publishedAt).toLocaleDateString('es-MX') : 'Desconocida'}</span>
                           {res.matches > 0 && <><span style={{ color: 'var(--text-muted)' }}>•</span><span style={{ color: '#10b981', fontWeight: 600 }}>🔢 {res.matches} coincidencia(s)</span></>}
                         </div>
                         {res.excerpt && (
                           <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontStyle: 'italic', background: 'rgba(0,0,0,0.15)', padding: '0.65rem', borderRadius: '6px', margin: '0 0 0.75rem 0', borderLeft: '3px solid var(--primary)', lineHeight: 1.4 }}>
-                            &ldquo;{res.excerpt}&rdquo;
+                            &ldquo;{formatLegalText(res.excerpt)}&rdquo;
                           </p>
                         )}
                         <a href={res.officialUrl} target="_blank" rel="noopener noreferrer" className="btn-doc-primary" style={{ textDecoration: 'none', fontSize: '0.8rem', padding: '0.35rem 0.75rem', minHeight: 'auto', display: 'inline-block' }}>
@@ -803,18 +813,18 @@ export default function RadarLegalPage() {
                   {radarData.externalResults.map((group, gi) => (
                     <div key={`ext-${gi}`} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                       <div style={{ fontSize: '0.88rem', fontWeight: 'bold', color: '#ec4899', borderBottom: '1px solid rgba(236,72,153,0.2)', paddingBottom: '0.25rem', marginTop: '1rem' }}>
-                        🏛️ {group.source}
+                        🏛️ {formatLegalText(group.source)}
                       </div>
                       {group.results.map((res, ri) => (
                         <div key={`ext-r-${gi}-${ri}`} style={{ background: 'rgba(236,72,153,0.02)', border: '1px solid rgba(236,72,153,0.15)', borderRadius: '10px', padding: '1rem' }}>
-                          <h4 style={{ fontSize: '0.9rem', color: 'var(--text-main)', margin: '0 0 0.5rem 0', fontWeight: 600 }}>{res.title}</h4>
+                          <h4 style={{ fontSize: '0.9rem', color: 'var(--text-main)', margin: '0 0 0.5rem 0', fontWeight: 600 }}>{formatLegalText(res.title)}</h4>
                           <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.6rem', fontSize: '0.75rem' }}>
-                            {res.type && <span style={{ color: 'var(--text-muted)', textTransform: 'capitalize' }}>📄 {res.type}</span>}
+                            {res.type && <span style={{ color: 'var(--text-muted)', textTransform: 'capitalize' }}>📄 {formatLegalText(res.type)}</span>}
                             {res.date && <><span style={{ color: 'var(--text-muted)' }}>•</span><span style={{ color: 'var(--text-muted)' }}>📅 {new Date(res.date).toLocaleDateString('es-MX')}</span></>}
                           </div>
                           {res.excerpt && (
                             <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', fontStyle: 'italic', background: 'rgba(0,0,0,0.15)', padding: '0.6rem', borderRadius: '6px', margin: '0 0 0.6rem 0', borderLeft: '3px solid #ec4899', lineHeight: 1.4 }}>
-                             &ldquo;{res.excerpt}&rdquo;
+                             &ldquo;{formatLegalText(res.excerpt)}&rdquo;
                             </p>
                           )}
                           <a href={res.url} target="_blank" rel="noopener noreferrer" className="btn-doc-primary" style={{ textDecoration: 'none', fontSize: '0.8rem', padding: '0.35rem 0.75rem', minHeight: 'auto', display: 'inline-block' }}>
@@ -840,9 +850,9 @@ export default function RadarLegalPage() {
                   {radarData.weeklyChanges.map((change, i) => (
                     <div key={`change-${i}`} style={{ background: 'rgba(245,158,11,0.02)', border: '1px solid rgba(245,158,11,0.15)', borderRadius: '10px', padding: '1rem' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.5rem' }}>
-                        <h4 style={{ fontSize: '0.95rem', color: 'var(--text-main)', margin: '0 1rem 0 0', fontWeight: 600 }}>{change.title}</h4>
+                        <h4 style={{ fontSize: '0.95rem', color: 'var(--text-main)', margin: '0 1rem 0 0', fontWeight: 600 }}>{formatLegalText(change.title)}</h4>
                         <span style={{ fontSize: '0.7rem', padding: '0.15rem 0.5rem', borderRadius: '4px', background: 'rgba(245,158,11,0.18)', color: '#f59e0b', border: '1px solid rgba(245,158,11,0.3)', whiteSpace: 'nowrap', fontWeight: 'bold', textTransform: 'uppercase' }}>
-                          {change.changeType}
+                          {formatLegalText(change.changeType)}
                         </span>
                       </div>
                       <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.5rem' }}>
@@ -852,11 +862,11 @@ export default function RadarLegalPage() {
                         <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', marginBottom: '0.6rem' }}>
                           <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', alignSelf: 'center' }}>Secciones:</span>
                           {change.affectedSections.map((sec, si) => (
-                            <span key={si} style={{ fontSize: '0.7rem', padding: '0.1rem 0.4rem', background: 'rgba(255,255,255,0.04)', color: 'white', borderRadius: '3px', border: '1px solid var(--card-border)' }}>{sec}</span>
+                            <span key={si} style={{ fontSize: '0.7rem', padding: '0.1rem 0.4rem', background: 'rgba(255,255,255,0.04)', color: 'white', borderRadius: '3px', border: '1px solid var(--card-border)' }}>{formatLegalText(sec)}</span>
                           ))}
                         </div>
                       )}
-                      <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: 0, lineHeight: 1.4 }}>{change.summary}</p>
+                      <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: 0, lineHeight: 1.4 }}>{formatLegalText(change.summary)}</p>
                     </div>
                   ))}
                 </div>
@@ -899,13 +909,13 @@ export default function RadarLegalPage() {
                     <div style={{ marginBottom: '1.5rem' }}>
                       <h4 style={{ fontSize: '1rem', color: 'var(--primary)', marginBottom: '0.5rem', fontWeight: 700 }}>Resumen Ejecutivo:</h4>
                       <p style={{ fontSize: '0.95rem', color: 'var(--text-main)', lineHeight: 1.6, whiteSpace: 'pre-wrap', margin: 0 }}>
-                        {(radarData.aiAnalysis as AiAnalysis).summary}
+                        {formatLegalText((radarData.aiAnalysis as AiAnalysis).summary)}
                       </p>
                     </div>
                     <div style={{ marginBottom: '1.5rem', paddingTop: '1.5rem', borderTop: '1px solid var(--card-border)' }}>
                       <h4 style={{ fontSize: '1rem', color: 'var(--secondary)', marginBottom: '0.5rem', fontWeight: 700 }}>Impacto Jurídico:</h4>
                       <p style={{ fontSize: '0.95rem', color: 'var(--text-muted)', lineHeight: 1.6, whiteSpace: 'pre-wrap', margin: 0 }}>
-                        {(radarData.aiAnalysis as AiAnalysis).legalImpact}
+                        {formatLegalText((radarData.aiAnalysis as AiAnalysis).legalImpact)}
                       </p>
                     </div>
                     {(radarData.aiAnalysis as AiAnalysis).attentionPoints.length > 0 && (
@@ -913,7 +923,7 @@ export default function RadarLegalPage() {
                         <h4 style={{ fontSize: '1rem', color: '#f59e0b', marginBottom: '0.75rem', fontWeight: 700 }}>Puntos de Atención:</h4>
                         <ul style={{ margin: 0, paddingLeft: '1.25rem', color: 'var(--text-main)', fontSize: '0.95rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                           {(radarData.aiAnalysis as AiAnalysis).attentionPoints.map((pt, i) => (
-                            <li key={i} style={{ lineHeight: 1.5 }}>{pt}</li>
+                            <li key={i} style={{ lineHeight: 1.5 }}>{formatLegalText(pt)}</li>
                           ))}
                         </ul>
                       </div>
@@ -935,7 +945,7 @@ export default function RadarLegalPage() {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
                   {radarData.sourcesConsulted.map((src, i) => (
                     <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.82rem', color: '#f8fafc', background: 'rgba(255,255,255,0.02)', padding: '0.35rem 0.6rem', borderRadius: '4px', border: '1px solid var(--card-border)' }}>
-                      <span style={{ color: '#10b981' }}>✓</span> {src}
+                      <span style={{ color: '#10b981' }}>✓</span> {formatLegalText(src)}
                     </div>
                   ))}
                 </div>
@@ -944,7 +954,7 @@ export default function RadarLegalPage() {
                     <strong style={{ color: '#fbbf24', fontSize: '0.82rem' }}>⏱ Fuentes con timeout:</strong>
                     <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap', marginTop: '0.25rem' }}>
                       {radarData.timedOutSources.map((s, i) => (
-                        <span key={i} style={{ fontSize: '0.75rem', padding: '0.15rem 0.4rem', background: 'rgba(245,158,11,0.1)', color: '#fbbf24', border: '1px solid rgba(245,158,11,0.25)', borderRadius: '4px' }}>{s}</span>
+                        <span key={i} style={{ fontSize: '0.75rem', padding: '0.15rem 0.4rem', background: 'rgba(245,158,11,0.1)', color: '#fbbf24', border: '1px solid rgba(245,158,11,0.25)', borderRadius: '4px' }}>{formatLegalText(s)}</span>
                       ))}
                     </div>
                   </div>
