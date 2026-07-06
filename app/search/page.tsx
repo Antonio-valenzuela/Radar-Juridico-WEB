@@ -352,10 +352,19 @@ export default function SearchPage() {
       });
       clearTimeout(timeoutId);
 
-      const data = await res.json();
+      const text = await res.text();
+      let data: any = {};
+      if (text) {
+        try {
+          data = JSON.parse(text);
+        } catch (jsonErr) {
+          console.error('Failed to parse search response JSON:', jsonErr);
+        }
+      }
+
       if (!res.ok) {
         setSearchMeta({ timedOut: false, partial: false, failed: true });
-        const details = data.details ? data.details.join('; ') : data.error || 'Error en la búsqueda';
+        const details = data.details ? data.details.join('; ') : data.error || `Error HTTP ${res.status}`;
         throw new Error(details);
       }
 
@@ -382,15 +391,13 @@ export default function SearchPage() {
         }
       }));
     } catch (err: any) {
-      if (err?.name === 'AbortError') {
-        setError(process.env.NEXT_PUBLIC_ENABLE_PUBLIC_DEMO === 'true'
-          ? 'No pude completar esta acción en este momento. Intenta de nuevo o ajusta tu búsqueda.'
-          : 'La búsqueda excedió el tiempo límite. Intenta de nuevo o quita filtros para ampliar la consulta.');
-        setSearchMeta({ timedOut: true, partial: false, failed: false });
+      const isTechnical = !err.message || 
+                          /json|fetch|response|prisma|sql|unexpected|abort|timeout|token|fail|undefined|null|object|status/i.test(err.message);
+      if (err?.name === 'AbortError' || isTechnical) {
+        setError('No pude completar esta acción en este momento. Intenta de nuevo o ajusta tu búsqueda.');
+        setSearchMeta({ timedOut: err?.name === 'AbortError', partial: false, failed: true });
       } else {
-        setError(process.env.NEXT_PUBLIC_ENABLE_PUBLIC_DEMO === 'true'
-          ? 'No pude completar esta acción en este momento. Intenta de nuevo o ajusta tu búsqueda.'
-          : (err.message || 'No se pudo completar la búsqueda.'));
+        setError(err.message);
         setSearchMeta({ timedOut: false, partial: false, failed: true });
       }
       setResults([]);
