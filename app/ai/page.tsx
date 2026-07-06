@@ -193,27 +193,31 @@ export default function AILegalPage() {
         <Link href="/" style={{ color: 'var(--accent)', textDecoration: 'none' }}>
           &larr; Volver al Dashboard
         </Link>
-        <Link href="/admin/sources" style={{ border: '1px dashed var(--secondary)', padding: '0.2rem 0.5rem', borderRadius: '4px', color: 'var(--secondary)', textDecoration: 'none', fontSize: '0.9rem' }}>
-          ⚙ Fuentes Oficiales (Admin)
-        </Link>
+        {process.env.NEXT_PUBLIC_ENABLE_PUBLIC_DEMO !== 'true' && (
+          <Link href="/admin/sources" style={{ border: '1px dashed var(--secondary)', padding: '0.2rem 0.5rem', borderRadius: '4px', color: 'var(--secondary)', textDecoration: 'none', fontSize: '0.9rem' }}>
+            ⚙ Fuentes Oficiales (Admin)
+          </Link>
+        )}
       </div>
       <header style={{ marginBottom: '2rem' }}>
         <h1>IA Legal</h1>
         <p className="subtitle" style={{ marginLeft: 0 }}>
           Analiza publicaciones oficiales, compara alertas y genera resumen semanal usando la capa de IA de Jurídico Radar.
         </p>
-        <div style={{ marginTop: '1rem', display: 'flex', gap: '1rem', alignItems: 'center' }}>
-          <label style={{ fontWeight: 'bold' }}>Admin Token:</label>
-          <input 
-            type="text" 
-            value={token} 
-            onChange={(e) => handleTokenChange(e.target.value)} 
-            style={{ padding: '0.5rem', borderRadius: '4px', border: '1px solid #ccc', background: '#1e293b', color: 'white' }}
-          />
-          <button onClick={handleCheckLimits} className="btn-primary" disabled={limitsLoading} style={{ background: '#3b82f6' }}>
-            {limitsLoading ? 'Consultando...' : 'Ver intentos restantes de IA'}
-          </button>
-        </div>
+        {process.env.NEXT_PUBLIC_ENABLE_PUBLIC_DEMO !== 'true' && (
+          <div style={{ marginTop: '1rem', display: 'flex', gap: '1rem', alignItems: 'center' }}>
+            <label style={{ fontWeight: 'bold' }}>Admin Token:</label>
+            <input 
+              type="text" 
+              value={token} 
+              onChange={(e) => handleTokenChange(e.target.value)} 
+              style={{ padding: '0.5rem', borderRadius: '4px', border: '1px solid #ccc', background: '#1e293b', color: 'white' }}
+            />
+            <button onClick={handleCheckLimits} className="btn-primary" disabled={limitsLoading} style={{ background: '#3b82f6' }}>
+              {limitsLoading ? 'Consultando...' : 'Ver intentos restantes de IA'}
+            </button>
+          </div>
+        )}
         
         {limitsError && <p style={{ color: '#ef4444', marginTop: '1rem' }}>{limitsError}</p>}
         {limitsResult && (
@@ -312,13 +316,17 @@ export default function AILegalPage() {
               <p><strong>Sectores afectados:</strong> {analyzeResult.analysis.affectedSectors?.join(', ')}</p>
               <p><strong>Impacto:</strong> <span className={`alert-impact-${analyzeResult.analysis.impactLevel}`}>{analyzeResult.analysis.impactLevel}</span></p>
               <p><strong>Keywords:</strong> {analyzeResult.analysis.keywords?.join(', ')}</p>
-              <p><strong>Proveedor:</strong> {analyzeResult.provider}</p>
-              <details style={{ marginTop: '1rem' }}>
-                <summary style={{ cursor: 'pointer', color: 'var(--text-muted)' }}>Ver JSON completo</summary>
-                <pre style={{ background: '#0f172a', padding: '1rem', borderRadius: '4px', overflowX: 'auto', marginTop: '0.5rem', fontSize: '0.8rem' }}>
-                  {JSON.stringify(analyzeResult, null, 2)}
-                </pre>
-              </details>
+              {process.env.NEXT_PUBLIC_ENABLE_PUBLIC_DEMO !== 'true' && (
+                <>
+                  <p><strong>Proveedor:</strong> {analyzeResult.provider}</p>
+                  <details style={{ marginTop: '1rem' }}>
+                    <summary style={{ cursor: 'pointer', color: 'var(--text-muted)' }}>Ver JSON completo</summary>
+                    <pre style={{ background: '#0f172a', padding: '1rem', borderRadius: '4px', overflowX: 'auto', marginTop: '0.5rem', fontSize: '0.8rem' }}>
+                      {JSON.stringify(analyzeResult, null, 2)}
+                    </pre>
+                  </details>
+                </>
+              )}
             </div>
           )}
         </div>
@@ -361,12 +369,14 @@ export default function AILegalPage() {
                 {matchResult.match.reasons?.map((r: string, i: number) => <li key={i}>{r}</li>)}
               </ul>
               <p><strong>Matched Keywords:</strong> {matchResult.match.matchedKeywords?.join(', ')}</p>
-              <details style={{ marginTop: '1rem' }}>
-                <summary style={{ cursor: 'pointer', color: 'var(--text-muted)' }}>Ver JSON completo</summary>
-                <pre style={{ background: '#0f172a', padding: '1rem', borderRadius: '4px', overflowX: 'auto', marginTop: '0.5rem', fontSize: '0.8rem' }}>
-                  {JSON.stringify(matchResult, null, 2)}
-                </pre>
-              </details>
+              {process.env.NEXT_PUBLIC_ENABLE_PUBLIC_DEMO !== 'true' && (
+                <details style={{ marginTop: '1rem' }}>
+                  <summary style={{ cursor: 'pointer', color: 'var(--text-muted)' }}>Ver JSON completo</summary>
+                  <pre style={{ background: '#0f172a', padding: '1rem', borderRadius: '4px', overflowX: 'auto', marginTop: '0.5rem', fontSize: '0.8rem' }}>
+                    {JSON.stringify(matchResult, null, 2)}
+                  </pre>
+                </details>
+              )}
             </div>
           )}
         </div>
@@ -403,12 +413,14 @@ export default function AILegalPage() {
               <ul style={{ marginLeft: '1.5rem', marginBottom: '0.5rem', fontSize: '0.9rem', color: 'var(--text-muted)' }}>
                 {digestResult.digest.recommendations?.map((r: string, i: number) => <li key={i}>{r}</li>)}
               </ul>
-              <details style={{ marginTop: '1rem' }}>
-                <summary style={{ cursor: 'pointer', color: 'var(--text-muted)' }}>Ver JSON completo</summary>
-                <pre style={{ background: '#0f172a', padding: '1rem', borderRadius: '4px', overflowX: 'auto', marginTop: '0.5rem', fontSize: '0.8rem' }}>
-                  {JSON.stringify(digestResult, null, 2)}
-                </pre>
-              </details>
+              {process.env.NEXT_PUBLIC_ENABLE_PUBLIC_DEMO !== 'true' && (
+                <details style={{ marginTop: '1rem' }}>
+                  <summary style={{ cursor: 'pointer', color: 'var(--text-muted)' }}>Ver JSON completo</summary>
+                  <pre style={{ background: '#0f172a', padding: '1rem', borderRadius: '4px', overflowX: 'auto', marginTop: '0.5rem', fontSize: '0.8rem' }}>
+                    {JSON.stringify(digestResult, null, 2)}
+                  </pre>
+                </details>
+              )}
             </div>
           )}
         </div>

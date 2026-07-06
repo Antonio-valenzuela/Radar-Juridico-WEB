@@ -9,6 +9,7 @@ const MATTER_LABELS: Record<LegalMatter, string[]> = {
   energia: ["energia", "sener", "cre", "hidrocarburo", "electricidad"],
   financiero: ["financiero", "cnbv", "banxico", "bancario", "seguros"],
   administrativo: ["administrativo", "tramite", "dependencia"],
+  aduanal: ["aduanal", "aduana", "comercio exterior", "importacion", "exportacion", "arancel", "pedimento", "despacho aduanero", "anam", "sat comercio exterior", "ley aduanera"],
   comercio_exterior: ["comercio exterior", "aduana", "importacion", "exportacion"],
   proteccion_datos: ["datos personales", "privacidad", "inai"],
   otro: [],

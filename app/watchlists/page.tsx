@@ -11,7 +11,7 @@ type Watch = {
 
 export default function WatchlistsPage() {
   const [email, setEmail] = useState("");
-  const [orgSlug, setOrgSlug] = useState("default");
+  const [orgSlug, setOrgSlug] = useState("demo");
   const [type, setType] = useState("keyword");
   const [value, setValue] = useState("");
   const [onlyHighImpact, setOnlyHighImpact] = useState(false);

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { normalizeLegalDisplayText } from '@/lib/text/normalizeLegalDisplayText';
 
 type TaskDef = {
   id: string;
@@ -19,6 +20,7 @@ const MATERIAS = [
   { value: 'cnpcf', label: 'Código Nacional de Procedimientos Civiles y Familiares' },
   { value: 'amparo', label: 'Amparo' },
   { value: 'penal', label: 'Penal' },
+  { value: 'aduanal', label: 'Aduanal' },
   { value: 'fiscal', label: 'Fiscal' },
   { value: 'laboral', label: 'Laboral' },
   { value: 'salud', label: 'Salud' },
@@ -82,6 +84,13 @@ export default function SearchPage() {
   const [mode, setMode] = useState('hybrid');
   const [sort, setSort] = useState('relevance');
   const [limit] = useState(20);
+  const [tipo, setTipo] = useState('');
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [showCreateAlert, setShowCreateAlert] = useState(false);
+  const [alertEmail, setAlertEmail] = useState('abogado@demo.com');
+  const [alertName, setAlertName] = useState('');
+  const [alertFrequency, setAlertFrequency] = useState('semanal');
+  const [alertMessage, setAlertMessage] = useState('');
 
   const [results, setResults] = useState<any[]>([]);
   const [facets, setFacets] = useState<any>(null);
@@ -316,7 +325,7 @@ export default function SearchPage() {
       window.removeEventListener('chat-action-clear', handleActionClear as any);
       window.removeEventListener('chat-action-mode', handleActionMode as any);
     };
-  }, [exact, matter, impactLevel, source, authority, entity, sector, task, dateFrom, dateTo, mode, sort]);
+  }, [exact, matter, impactLevel, source, authority, entity, sector, task, dateFrom, dateTo, mode, sort, tipo]);
 
 
   const handleSearch = async (overrideParams?: any) => {
@@ -327,7 +336,7 @@ export default function SearchPage() {
     try {
       const payload: any = {
         query, exact, matter, impactLevel, source, authority,
-        entity, sector, task, dateFrom, dateTo, mode, sort, limit,
+        entity, sector, task, dateFrom, dateTo, mode, sort, limit, tipo,
         ...overrideParams
       };
       // Clean empty fields
@@ -374,10 +383,14 @@ export default function SearchPage() {
       }));
     } catch (err: any) {
       if (err?.name === 'AbortError') {
-        setError('La búsqueda excedió el tiempo límite. Intenta de nuevo o quita filtros para ampliar la consulta.');
+        setError(process.env.NEXT_PUBLIC_ENABLE_PUBLIC_DEMO === 'true'
+          ? 'No pude completar esta acción en este momento. Intenta de nuevo o ajusta tu búsqueda.'
+          : 'La búsqueda excedió el tiempo límite. Intenta de nuevo o quita filtros para ampliar la consulta.');
         setSearchMeta({ timedOut: true, partial: false, failed: false });
       } else {
-        setError(err.message || 'No se pudo completar la búsqueda.');
+        setError(process.env.NEXT_PUBLIC_ENABLE_PUBLIC_DEMO === 'true'
+          ? 'No pude completar esta acción en este momento. Intenta de nuevo o ajusta tu búsqueda.'
+          : (err.message || 'No se pudo completar la búsqueda.'));
         setSearchMeta({ timedOut: false, partial: false, failed: true });
       }
       setResults([]);
@@ -432,22 +445,43 @@ export default function SearchPage() {
   const clearFilters = () => {
     setQuery(''); setExact(''); setMatter(''); setImpactLevel('');
     setSource(''); setAuthority(''); setEntity(''); setSector('');
-    setTask(''); setDateFrom(''); setDateTo('');
+    setTask(''); setDateFrom(''); setDateTo(''); setTipo('');
     setMode('hybrid'); setSort('relevance');
     setResults([]); setFacets(null); setPagination(null);
     setHasSearched(false); setError('');
   };
 
   const applyChip = (overrides: Record<string, string>) => {
-    // Set state for affected fields
-    if (overrides.matter !== undefined) setMatter(overrides.matter);
-    if (overrides.impactLevel !== undefined) setImpactLevel(overrides.impactLevel);
-    if (overrides.entity !== undefined) setEntity(overrides.entity);
-    if (overrides.source !== undefined) setSource(overrides.source);
-    if (overrides.sector !== undefined) setSector(overrides.sector);
-    if (overrides.dateFrom !== undefined) setDateFrom(overrides.dateFrom);
-    if (overrides.dateTo !== undefined) setDateTo(overrides.dateTo);
-    handleSearch(overrides);
+    const nextParams = {
+      query: overrides.query ?? '',
+      exact: '',
+      matter: overrides.matter ?? '',
+      impactLevel: overrides.impactLevel ?? '',
+      source: overrides.source ?? '',
+      authority: '',
+      entity: overrides.entity ?? '',
+      sector: overrides.sector ?? '',
+      task: '',
+      dateFrom: overrides.dateFrom ?? '',
+      dateTo: overrides.dateTo ?? '',
+      mode: 'hybrid',
+      sort: overrides.sort ?? 'relevance',
+      tipo: '',
+    };
+    setQuery(nextParams.query);
+    setExact('');
+    setMatter(nextParams.matter);
+    setImpactLevel(nextParams.impactLevel);
+    setSource(nextParams.source);
+    setAuthority('');
+    setEntity(nextParams.entity);
+    setSector(nextParams.sector);
+    setTask('');
+    setDateFrom(nextParams.dateFrom);
+    setDateTo(nextParams.dateTo);
+    setTipo('');
+    setSort(nextParams.sort);
+    handleSearch(nextParams);
   };
 
   const chipStyle = (active: boolean) => ({
@@ -488,90 +522,250 @@ export default function SearchPage() {
       </p>
 
       {/* Search form */}
-      <div className="glass-card" style={{ marginBottom: '1.5rem' }}>
-        <form onSubmit={(e) => { e.preventDefault(); handleSearch(); }} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-          {/* Main query */}
-          <input
-            type="text"
-            placeholder="Buscar por palabra clave (fiscal, SAT, IMSS, salud, energía...)"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            style={{ padding: '1rem', fontSize: '1.1rem', borderRadius: '8px', background: '#0f172a', color: 'white', border: '1px solid var(--card-border)', width: '100%' }}
-          />
-
-          {/* Filters row 1 */}
-          <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
-            <input type="text" placeholder="Palabra exacta (ej. ISR)" value={exact} onChange={e => setExact(e.target.value)} style={inputStyle} />
-            <select value={matter} onChange={e => setMatter(e.target.value)} style={selectStyle}>
-              {MATERIAS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
-            </select>
-            <select value={impactLevel} onChange={e => setImpactLevel(e.target.value)} style={selectStyle}>
-              {IMPACT_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-            </select>
-            <select value={source} onChange={e => setSource(e.target.value)} style={selectStyle}>
-              {SOURCE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-            </select>
-          </div>
-
-          {/* Filters row 2 */}
-          <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
-            <input type="text" placeholder="Autoridad (ej. SAT, IMSS)" value={authority} onChange={e => setAuthority(e.target.value)} style={inputStyle} />
-            <input type="text" placeholder="Entidad (ej. SAT)" value={entity} onChange={e => setEntity(e.target.value)} style={inputStyle} />
-            <input type="text" placeholder="Sector (ej. empresas)" value={sector} onChange={e => setSector(e.target.value)} style={inputStyle} />
-            <select value={task} onChange={e => setTask(e.target.value)} style={selectStyle}>
-              <option value="">Sin tarea específica</option>
-              {tasks.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
-            </select>
-          </div>
-
-          {/* Filters row 3: dates, mode, sort */}
-          <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
-            <label style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Desde:</label>
-            <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} style={{ ...selectStyle, minWidth: '130px' }} />
-            <label style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Hasta:</label>
-            <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} style={{ ...selectStyle, minWidth: '130px' }} />
-            <select value={mode} onChange={e => setMode(e.target.value)} style={selectStyle}>
-              {MODE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-            </select>
-            <select value={sort} onChange={e => setSort(e.target.value)} style={selectStyle}>
-              {SORT_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-            </select>
+      <div className="glass-card" style={{ marginBottom: '1.5rem', padding: '2rem' }}>
+        <form onSubmit={(e) => { e.preventDefault(); handleSearch(); }} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+          
+          {/* Main query field with label */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+            <label htmlFor="search-query-field" style={{ fontSize: '1.4rem', fontWeight: 600, color: 'white' }}>
+              ¿Qué quieres buscar?
+            </label>
+            <input
+              id="search-query-field"
+              type="text"
+              placeholder="Escribe palabras clave o preguntas legales (ej. aduanal, reformas, amparo...)"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              style={{ padding: '1.2rem', fontSize: '1.2rem', borderRadius: '8px', background: '#0f172a', color: 'white', border: '1px solid var(--card-border)', width: '100%' }}
+            />
           </div>
 
           {/* Action buttons */}
-          <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
-            <button type="submit" className="btn-primary" disabled={loading} style={{ flex: 2 }}>
+          <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'center' }}>
+            <button type="submit" className="btn-primary" disabled={loading} style={{ padding: '0.8rem 2rem', fontSize: '1rem', flex: 1 }}>
               {loading ? 'Buscando...' : 'Buscar'}
             </button>
+            
             <button 
               type="button" 
-              onClick={handleCreateReport} 
-              className="btn-primary" 
-              disabled={loading || (reportStatus !== '' && reportStatus !== 'COMPLETED' && reportStatus !== 'FAILED')} 
-              style={{ flex: 2, background: 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)', border: 'none', boxShadow: '0 4px 12px rgba(99, 102, 241, 0.3)' }}
+              onClick={() => {
+                if (query.trim()) {
+                  window.location.href = `/rag?q=${encodeURIComponent(query)}`;
+                } else {
+                  window.location.href = `/rag`;
+                }
+              }} 
+              className="btn-primary"
+              style={{ 
+                padding: '0.8rem 2rem', 
+                fontSize: '1rem', 
+                flex: 1, 
+                background: 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)', 
+                border: 'none', 
+                boxShadow: '0 4px 12px rgba(99, 102, 241, 0.3)' 
+              }}
             >
-              {reportStatus && reportStatus !== 'COMPLETED' && reportStatus !== 'FAILED' ? 'Generando...' : 'Generar reporte legal IA'}
+              Preguntar a IA
             </button>
-            <button type="button" onClick={clearFilters} style={{ flex: 1, padding: '0.5rem 1rem', borderRadius: '8px', background: '#334155', color: 'white', border: 'none', cursor: 'pointer' }}>
+            
+            <button 
+              type="button" 
+              onClick={clearFilters} 
+              style={{ padding: '0.8rem 1.5rem', borderRadius: '8px', background: '#1e293b', color: '#94a3b8', border: '1px solid var(--card-border)', cursor: 'pointer', fontSize: '0.9rem' }}
+            >
               Limpiar filtros
             </button>
+
+            <button 
+              type="button" 
+              onClick={() => {
+                setAlertName(query ? `Alerta: ${query}` : `Alerta materia: ${matter || 'todas'}`);
+                setShowCreateAlert(!showCreateAlert);
+              }}
+              className="btn-primary"
+              style={{ padding: '0.8rem 1.5rem', borderRadius: '8px', background: '#0284c7', color: 'white', border: 'none', cursor: 'pointer', fontSize: '0.9rem', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}
+            >
+              🔔 Crear alerta
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setShowAdvanced(!showAdvanced)}
+              style={{ padding: '0.8rem 1.5rem', borderRadius: '8px', background: 'transparent', color: 'var(--accent)', border: '1px solid var(--accent)', cursor: 'pointer', fontSize: '0.9rem', fontWeight: 600 }}
+            >
+              {showAdvanced ? 'Ocultar filtros avanzados' : 'Mostrar filtros avanzados'}
+            </button>
           </div>
+
+          {/* Collapsible Advanced Filters */}
+          {showAdvanced && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', borderTop: '1px solid var(--card-border)', paddingTop: '1.5rem', marginTop: '0.5rem' }}>
+              <h3 style={{ margin: 0, fontSize: '1.1rem', color: '#cbd5e1' }}>Filtros avanzados</h3>
+              
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '0.75rem' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                  <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Materia</label>
+                  <select value={matter} onChange={e => setMatter(e.target.value)} style={{ ...selectStyle, width: '100%' }}>
+                    {MATERIAS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
+                  </select>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                  <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Fuente</label>
+                  <select value={source} onChange={e => setSource(e.target.value)} style={{ ...selectStyle, width: '100%' }}>
+                    {SOURCE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                  </select>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                  <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Impacto</label>
+                  <select value={impactLevel} onChange={e => setImpactLevel(e.target.value)} style={{ ...selectStyle, width: '100%' }}>
+                    {IMPACT_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                  </select>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                  <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Autoridad</label>
+                  <input type="text" placeholder="ej. SAT, IMSS, ANAM" value={authority} onChange={e => setAuthority(e.target.value)} style={{ ...inputStyle, width: '100%' }} />
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                  <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Tipo de documento</label>
+                  <input type="text" placeholder="ej. LEY, DECRETO" value={tipo} onChange={e => setTipo(e.target.value)} style={{ ...inputStyle, width: '100%' }} />
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                  <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Desde:</span>
+                  <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} style={{ ...selectStyle, minWidth: '130px' }} />
+                </div>
+                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                  <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Hasta:</span>
+                  <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} style={{ ...selectStyle, minWidth: '130px' }} />
+                </div>
+                
+                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', marginLeft: 'auto' }}>
+                  <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Orden:</span>
+                  <select value={sort} onChange={e => setSort(e.target.value)} style={selectStyle}>
+                    {SORT_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                  </select>
+                  <select value={mode} onChange={e => setMode(e.target.value)} style={selectStyle}>
+                    {MODE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                  </select>
+                </div>
+              </div>
+            </div>
+          )}
         </form>
 
         {/* Chips rápidos */}
-        <div style={{ marginTop: '1rem', display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
-          <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Chips rápidos:</span>
-          <button onClick={() => applyChip({ matter: 'fiscal' })} style={chipStyle(matter === 'fiscal')}>Fiscal</button>
-          <button onClick={() => applyChip({ matter: 'laboral' })} style={chipStyle(matter === 'laboral')}>Laboral</button>
-          <button onClick={() => applyChip({ matter: 'salud' })} style={chipStyle(matter === 'salud')}>Salud</button>
-          <button onClick={() => applyChip({ entity: 'SAT' })} style={chipStyle(entity === 'SAT')}>SAT</button>
-          <button onClick={() => applyChip({ entity: 'IMSS' })} style={chipStyle(entity === 'IMSS')}>IMSS</button>
-          <button onClick={() => applyChip({ impactLevel: 'alto' })} style={chipStyle(impactLevel === 'alto')}>Alto impacto</button>
-          <button onClick={() => applyChip(getThisWeekRange())} style={chipStyle(!!dateFrom)}>Esta semana</button>
-          <button onClick={() => applyChip({ sector: 'empresas' })} style={chipStyle(sector === 'empresas')}>Empresas</button>
-          <button onClick={() => applyChip({ source: 'DOF' })} style={chipStyle(source === 'DOF')}>DOF</button>
+        <div style={{ marginTop: '1.5rem', display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '1rem' }}>
+          <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: 600 }}>Temas de interés:</span>
+          <button type="button" onClick={() => applyChip({ matter: 'penal' })} style={chipStyle(matter === 'penal')}>Penal</button>
+          <button type="button" onClick={() => applyChip({ matter: 'civil' })} style={chipStyle(matter === 'civil')}>Civil</button>
+          <button type="button" onClick={() => applyChip({ matter: 'familiar' })} style={chipStyle(matter === 'familiar')}>Familiar</button>
+          <button type="button" onClick={() => applyChip({ matter: 'mercantil' })} style={chipStyle(matter === 'mercantil')}>Mercantil</button>
+          <button type="button" onClick={() => applyChip({ matter: 'fiscal' })} style={chipStyle(matter === 'fiscal')}>Fiscal</button>
+          <button type="button" onClick={() => applyChip({ matter: 'laboral' })} style={chipStyle(matter === 'laboral')}>Laboral</button>
+          <button type="button" onClick={() => applyChip({ matter: 'salud' })} style={chipStyle(matter === 'salud')}>Salud</button>
+          <button type="button" onClick={() => applyChip({ matter: 'amparo' })} style={chipStyle(matter === 'amparo')}>Amparo</button>
+          <button type="button" onClick={() => applyChip({ matter: 'aduanal' })} style={chipStyle(matter === 'aduanal')}>Aduanal</button>
+          <button type="button" onClick={() => applyChip({ matter: 'comercio_exterior' })} style={chipStyle(matter === 'comercio_exterior')}>Comercio exterior</button>
+          <button type="button" onClick={() => applyChip({ entity: 'SAT' })} style={chipStyle(entity === 'SAT')}>SAT</button>
+          <button type="button" onClick={() => applyChip({ entity: 'IMSS' })} style={chipStyle(entity === 'IMSS')}>IMSS</button>
+          <button type="button" onClick={() => applyChip({ impactLevel: 'alto' })} style={chipStyle(impactLevel === 'alto')}>Alto impacto</button>
+          <button type="button" onClick={() => applyChip({ sector: 'empresas' })} style={chipStyle(sector === 'empresas')}>Empresas</button>
+          <button type="button" onClick={() => applyChip({ source: 'DOF' })} style={chipStyle(source === 'DOF')}>DOF</button>
+          <button type="button" onClick={() => applyChip({ source: 'SCJN' })} style={chipStyle(source === 'SCJN')}>SCJN</button>
+          <button type="button" onClick={() => {
+            const range = getThisWeekRange();
+            applyChip(range);
+          }} style={chipStyle(!!dateFrom && !query)}>Esta semana</button>
+          <button type="button" onClick={() => applyChip({ query: 'reforma', sort: 'date' })} style={chipStyle(query === 'reforma')}>Reformas recientes</button>
         </div>
       </div>
+
+      {showCreateAlert && (
+        <div className="glass-card" style={{ marginBottom: '1.5rem', border: '1px solid #0284c7', padding: '1.5rem', borderRadius: '12px' }}>
+          <h3 style={{ margin: '0 0 1rem 0', color: '#38bdf8', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <span>🔔</span> Configurar Alerta Regulatoria
+          </h3>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '0.75rem', marginBottom: '1rem' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+              <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Email para notificaciones</label>
+              <input type="email" value={alertEmail} onChange={e => setAlertEmail(e.target.value)} style={inputStyle} />
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+              <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Nombre de la alerta</label>
+              <input type="text" value={alertName} onChange={e => setAlertName(e.target.value)} style={inputStyle} />
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+              <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Frecuencia</label>
+              <select value={alertFrequency} onChange={e => setAlertFrequency(e.target.value)} style={selectStyle}>
+                <option value="diaria">Diaria</option>
+                <option value="semanal">Semanal</option>
+              </select>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+              <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Estado</label>
+              <select style={selectStyle}>
+                <option value="activa">Activa</option>
+                <option value="inactiva">Inactiva</option>
+              </select>
+            </div>
+          </div>
+          <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '1rem' }}>
+            Se creará una alerta por <strong>{query ? `palabra clave "${query}"` : `materia "${matter || 'general'}"`}</strong> en el tenant compartida de demostración.
+          </div>
+          <div style={{ display: 'flex', gap: '0.5rem' }}>
+            <button 
+              type="button" 
+              className="btn-primary" 
+              onClick={async () => {
+                try {
+                  const type = query ? 'keyword' : 'tema';
+                  const value = query || matter || 'general';
+                  const res = await fetch('/api/watchlist', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      email: alertEmail,
+                      orgSlug: 'demo',
+                      action: 'add',
+                      type,
+                      value
+                    })
+                  });
+                  const data = await res.json();
+                  if (data.ok) {
+                    setAlertMessage('¡Alerta creada con éxito! Se mostrará en tu panel de alertas.');
+                    setTimeout(() => {
+                      setShowCreateAlert(false);
+                      setAlertMessage('');
+                    }, 2500);
+                  } else {
+                    setAlertMessage(`Error: ${data.error}`);
+                  }
+                } catch (err: any) {
+                  setAlertMessage(`Error: ${err.message}`);
+                }
+              }}
+              style={{ padding: '0.5rem 1.5rem', fontSize: '0.9rem' }}
+            >
+              Guardar Alerta
+            </button>
+            <button 
+              type="button" 
+              onClick={() => setShowCreateAlert(false)} 
+              style={{ padding: '0.5rem 1.5rem', borderRadius: '8px', background: '#334155', color: 'white', border: 'none', cursor: 'pointer', fontSize: '0.9rem' }}
+            >
+              Cancelar
+            </button>
+          </div>
+          {alertMessage && <p style={{ marginTop: '1rem', color: alertMessage.includes('Error') ? '#f87171' : '#4ade80', fontWeight: 600 }}>{alertMessage}</p>}
+        </div>
+      )}
 
       {/* AI Report Progress / Result Card */}
       {reportStatus && (
@@ -923,18 +1117,22 @@ export default function SearchPage() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
             {results.map((r: any) => {
               const hasEnrichment = !r.isExternal && !!(r.aiMatter || r.authority || (r.entities && r.entities.length > 0));
+              const title = normalizeLegalDisplayText(r.title);
+              const summary = normalizeLegalDisplayText(r.summary);
+              const sourceName = normalizeLegalDisplayText(r.source);
+              const matterName = normalizeLegalDisplayText(r.matter);
               return (
                 <div key={r.id} className="glass-card" style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', border: r.isExternal ? '1px solid #ec4899' : '1px solid var(--card-border)' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem' }}>
                     {r.isExternal ? (
                       <a href={r.url} target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'none', color: 'inherit', flex: 1 }}>
                         <h3 style={{ color: '#f472b6', margin: 0 }}>
-                          {r.title} <span style={{ fontSize: '0.7rem', background: '#ec4899', color: 'white', padding: '0.15rem 0.4rem', borderRadius: '4px', marginLeft: '0.5rem', verticalAlign: 'middle', fontWeight: 'bold' }}>Fuente Externa</span>
+                          {normalizeLegalDisplayText(r.title)} <span style={{ fontSize: '0.7rem', background: '#ec4899', color: 'white', padding: '0.15rem 0.4rem', borderRadius: '4px', marginLeft: '0.5rem', verticalAlign: 'middle', fontWeight: 'bold' }}>Fuente Externa</span>
                         </h3>
                       </a>
                     ) : (
                       <Link href={`/items/${r.id}`} style={{ textDecoration: 'none', color: 'inherit', flex: 1 }}>
-                        <h3 style={{ color: 'var(--accent)', margin: 0 }}>{r.title}</h3>
+                        <h3 style={{ color: 'var(--accent)', margin: 0 }}>{normalizeLegalDisplayText(r.title)}</h3>
                       </Link>
                     )}
                     <span style={{ fontSize: '0.75rem', background: 'var(--card-border)', padding: '0.2rem 0.5rem', borderRadius: '4px', whiteSpace: 'nowrap' }}>
@@ -943,14 +1141,14 @@ export default function SearchPage() {
                   </div>
 
                   <p style={{ margin: 0, fontSize: '0.9rem', color: 'var(--text-muted)' }}>
-                    {r.summary ? r.summary.substring(0, 300) + (r.summary.length > 300 ? '...' : '') : 'Sin resumen disponible'}
+                    {summary ? summary.substring(0, 300) + (summary.length > 300 ? '...' : '') : 'Sin resumen disponible'}
                   </p>
 
                   {/* Metadata Row */}
                   <div style={{ display: 'flex', gap: '1rem', fontSize: '0.8rem', color: 'var(--text-muted)', flexWrap: 'wrap' }}>
                     <span>📅 {r.publishedAt ? new Date(r.publishedAt).toLocaleDateString('es-MX') : 'Sin fecha'}</span>
-                    <span>🏛️ Fuente: {r.source}</span>
-                    <span>📚 Materia: {r.matter || 'Sin tema'}</span>
+                    <span>🏛️ Fuente: {sourceName || 'Sin fuente'}</span>
+                    <span>📚 Materia: {matterName || 'Sin tema'}</span>
                     {!r.isExternal && r.impactLevel && (
                       <span style={{ color: r.impactLevel === 'high' || r.impactLevel === 'alto' ? '#ef4444' : r.impactLevel === 'medium' || r.impactLevel === 'medio' ? '#f59e0b' : '#10b981', fontWeight: 600 }}>
                         ⚠️ Impacto: {r.impactLevel}
@@ -988,19 +1186,21 @@ export default function SearchPage() {
                         <a href={r.url} target="_blank" rel="noopener noreferrer" className="btn-primary" style={{ padding: '0.4rem 0.8rem', fontSize: '0.85rem', textDecoration: 'none', display: 'inline-block', borderRadius: '4px' }}>
                           Ingresar ahora
                         </a>
-                        <Link href={`/admin/ingest/manual-url?url=${encodeURIComponent(r.url)}`} style={{ padding: '0.4rem 0.8rem', fontSize: '0.85rem', background: '#475569', color: 'white', textDecoration: 'none', borderRadius: '4px' }}>
-                          Importar a Local
-                        </Link>
+                        {process.env.NEXT_PUBLIC_ENABLE_PUBLIC_DEMO !== 'true' && (
+                          <Link href={`/admin/ingest/manual-url?url=${encodeURIComponent(r.url)}`} style={{ padding: '0.4rem 0.8rem', fontSize: '0.85rem', background: '#475569', color: 'white', textDecoration: 'none', borderRadius: '4px' }}>
+                            Importar a Local
+                          </Link>
+                        )}
                       </>
                     ) : (
                       <>
                         <Link href={`/items/${r.id}`} className="btn-primary" style={{ padding: '0.4rem 0.8rem', fontSize: '0.85rem', textDecoration: 'none', display: 'inline-block', borderRadius: '4px' }}>
                           Ver detalle
                         </Link>
-                        <Link href={`/rag?q=${encodeURIComponent(r.title)}`} style={{ padding: '0.4rem 0.8rem', fontSize: '0.85rem', background: '#475569', color: 'white', textDecoration: 'none', borderRadius: '4px', transition: 'background 0.2s' }}>
+                        <Link href={`/rag?q=${encodeURIComponent(title)}`} style={{ padding: '0.4rem 0.8rem', fontSize: '0.85rem', background: '#475569', color: 'white', textDecoration: 'none', borderRadius: '4px', transition: 'background 0.2s' }}>
                           Preguntar con RAG
                         </Link>
-                        {!hasEnrichment && (
+                        {!hasEnrichment && process.env.NEXT_PUBLIC_ENABLE_PUBLIC_DEMO !== 'true' && (
                           <button onClick={() => handleEnrich(r.id)} style={{ padding: '0.4rem 0.8rem', fontSize: '0.85rem', background: '#0284c7', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
                             Enriquecer con IA
                           </button>

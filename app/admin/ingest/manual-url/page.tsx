@@ -173,6 +173,7 @@ export default function ManualIngestPage() {
                   <option value="constitucional">Constitucional</option>
                   <option value="civil">Civil</option>
                   <option value="mercantil">Mercantil</option>
+                  <option value="aduanal">Aduanal</option>
                   <option value="fiscal">Fiscal</option>
                   <option value="laboral">Laboral</option>
                   <option value="salud">Salud</option>

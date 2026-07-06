@@ -191,6 +191,26 @@ function detectTema(text: string): { tema: string | null; hitTema: string[] } {
   const laboralHit = laboralKw.filter((k) => text.includes(k));
   if (laboralHit.length > 0) return { tema: "laboral", hitTema: laboralHit };
 
+  // Aduanal
+  const aduanalKw = [
+    "ADUANA",
+    "ADUANAL",
+    "ADUANERO",
+    "COMERCIO EXTERIOR",
+    "IMPORTACION",
+    "EXPORTACION",
+    "ARANCEL",
+    "FRACCION ARANCELARIA",
+    "AGENTE ADUANAL",
+    "PEDIMENTO",
+    "DESPACHO ADUANERO",
+    "ANAM",
+    "SAT COMERCIO EXTERIOR",
+    "LEY ADUANERA"
+  ];
+  const aduanalHit = aduanalKw.filter((k) => text.includes(k));
+  if (aduanalHit.length > 0) return { tema: "aduanal", hitTema: aduanalHit };
+
   // Fiscal
   const fiscalKw = [
     "FISCAL",
@@ -198,7 +218,6 @@ function detectTema(text: string): { tema: string | null; hitTema: string[] } {
     "SAT",
     "HACIENDA",
     "TRIBUTARIO",
-    "ADUANERO",
     "CFF",
     "ISR",
     "IVA",

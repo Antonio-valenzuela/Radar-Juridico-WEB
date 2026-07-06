@@ -88,12 +88,21 @@ export const TASK_TAXONOMY: TaskDefinition[] = [
     entities: ["SAT", "SE", "ANAM"],
     sectors: ["importadores", "exportadores", "maquiladoras"],
     keywords: ["arancel", "importación", "exportación", "aduana", "TMEC", "comercio exterior"]
+  },
+  {
+    id: "regulacion-aduanal",
+    label: "Regulación aduanal y despacho",
+    description: "Normas de operación aduanera, agentes aduanales y pedimentos.",
+    matter: "aduanal",
+    entities: ["ANAM", "SAT", "SHCP"],
+    sectors: ["agentes aduanales", "importadores", "exportadores", "logística"],
+    keywords: ["aduana", "agente aduanal", "pedimento", "despacho aduanero", "arancel", "ANAM", "Ley Aduanera"]
   }
 ];
 
 export const VALID_MATTERS = [
   "constitucional", "civil", "mercantil", "fiscal", "laboral", "salud", "ambiental", "energia",
-  "financiero", "administrativo", "comercio_exterior",
+  "financiero", "administrativo", "aduanal", "comercio_exterior",
   "proteccion_datos", "otro"
 ];
 

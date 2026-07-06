@@ -6,6 +6,7 @@ export type LegalMatter =
   | "energia"
   | "financiero"
   | "administrativo"
+  | "aduanal"
   | "comercio_exterior"
   | "proteccion_datos"
   | "otro";
@@ -47,6 +48,7 @@ export const LEGAL_MATTERS: readonly LegalMatter[] = [
   "energia",
   "financiero",
   "administrativo",
+  "aduanal",
   "comercio_exterior",
   "proteccion_datos",
   "otro",
@@ -188,7 +190,7 @@ export function buildLegalAiPrompt(input: LegalAiInput) {
     "",
     "Contrato JSON estricto:",
     "{",
-    '  "matter": "fiscal|laboral|salud|ambiental|energia|financiero|administrativo|comercio_exterior|proteccion_datos|otro",',
+    '  "matter": "fiscal|laboral|salud|ambiental|energia|financiero|administrativo|aduanal|comercio_exterior|proteccion_datos|otro",',
     '  "confidence": 0.0,',
     '  "summary": "resumen ejecutivo breve en español",',
     '  "entities": ["autoridades, leyes, organismos o sujetos relevantes"],',

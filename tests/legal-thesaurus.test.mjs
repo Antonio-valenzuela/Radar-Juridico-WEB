@@ -24,6 +24,8 @@ test("legalThesaurus contiene las materias mínimas y la estructura correcta", (
       hasFiscal: !!LEGAL_THESAURUS.fiscal,
       hasEmbargo: !!LEGAL_THESAURUS.embargo,
       hasCnpcf: !!LEGAL_THESAURUS.cnpcf,
+      hasAduanal: !!LEGAL_THESAURUS.aduanal,
+      hasComercioExterior: !!LEGAL_THESAURUS.comercio_exterior,
       cnpcfTerms: LEGAL_THESAURUS.cnpcf?.relatedTerms || []
     }));
   `);
@@ -33,16 +35,19 @@ test("legalThesaurus contiene las materias mínimas y la estructura correcta", (
   assert.equal(result.hasFiscal, true);
   assert.equal(result.hasEmbargo, true);
   assert.equal(result.hasCnpcf, true);
+  assert.equal(result.hasAduanal, true);
+  assert.equal(result.hasComercioExterior, true);
   assert.match(result.cnpcfTerms.join(","), /Código Nacional de Procedimientos Civiles y Familiares/);
   assert.match(result.cnpcfTerms.join(","), /justicia digital/);
   assert.match(result.keys.join(","), /laboral/);
   assert.match(result.keys.join(","), /transparencia/);
 });
 
-test("busqueda avanzada expone filtros para familiar, amparo y CNPCF", () => {
+test("busqueda avanzada expone filtros para familiar, amparo, CNPCF y aduanal", () => {
   const page = fs.readFileSync("app/search/page.tsx", "utf8");
   assert.match(page, /value: 'familiar'/);
   assert.match(page, /value: 'amparo'/);
   assert.match(page, /value: 'cnpcf'/);
+  assert.match(page, /value: 'aduanal'/);
   assert.match(page, /Código Nacional de Procedimientos Civiles y Familiares/);
 });

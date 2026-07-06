@@ -774,5 +774,63 @@ export const LEGAL_THESAURUS: Record<string, ThesaurusEntry> = {
     ],
     negativeTerms: [],
     weight: 1.0
+  },
+
+  aduanal: {
+    canonical: "materia aduanal",
+    materias: ["Aduanal", "Fiscal", "Comercio exterior"],
+    aliases: [
+      "aduana",
+      "aduanal",
+      "aduanero",
+      "ley aduanera",
+      "materia aduanera",
+      "despacho aduanero",
+      "pedimento"
+    ],
+    relatedTerms: [
+      "ANAM",
+      "Agencia Nacional de Aduanas",
+      "SAT comercio exterior",
+      "arancel",
+      "fracción arancelaria",
+      "agente aduanal",
+      "pedimento",
+      "despacho aduanero",
+      "recinto fiscalizado",
+      "importación",
+      "exportación",
+      "Ley Aduanera",
+      "T-MEC"
+    ],
+    negativeTerms: [],
+    weight: 1.0
+  },
+
+  comercio_exterior: {
+    canonical: "comercio exterior",
+    materias: ["Comercio exterior", "Aduanal", "Financiero"],
+    aliases: [
+      "comercio exterior",
+      "comercio internacional",
+      "exportaciones",
+      "importaciones"
+    ],
+    relatedTerms: [
+      "T-MEC",
+      "arancel",
+      "fracción arancelaria",
+      "reglas de origen",
+      "ANAM",
+      "SAT comercio exterior",
+      "Secretaría de Economía",
+      "dumping",
+      "cuotas compensatorias",
+      "importación",
+      "exportación",
+      "certificación de origen"
+    ],
+    negativeTerms: [],
+    weight: 1.0
   }
 };

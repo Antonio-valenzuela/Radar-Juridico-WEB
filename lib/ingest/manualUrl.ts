@@ -18,6 +18,7 @@ type ManualMatter =
   | "familiar"
   | "civil"
   | "mercantil"
+  | "aduanal"
   | "administrativo"
   | "otro";
 

@@ -44,6 +44,7 @@ function matterFromPdf(fileName: string, title: string) {
   const text = `${fileName} ${title}`.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
   if (/CPEUM|CONSTITUCION|AMPARO/.test(text) || /^LA\.PDF$/i.test(fileName)) return "constitucional";
   if (/LFT|TRABAJO|LABORAL/.test(text)) return "laboral";
+  if (/ADUAN|COMERCIO EXTERIOR|ARANCEL|IMPORTACION|EXPORTACION/.test(text)) return "aduanal";
   if (/LISR|LIVA|CFF|FISCAL|RENTA|VALOR AGREGADO|IMPUESTO|SAT/.test(text)) return "fiscal";
   if (/CPF|PENAL/.test(text)) return "penal";
   if (/\bCCF\b|\bCC\b|CIVIL/.test(text)) return "civil";

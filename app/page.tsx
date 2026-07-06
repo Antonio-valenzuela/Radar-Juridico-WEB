@@ -95,16 +95,19 @@ export default async function Home() {
         </label>
         <nav className="nav-menu">
           <Link href="/">Dashboard</Link>
-          <Link href="/legal-hub">Centro Jurídico</Link>
           <Link href="/search">Búsqueda</Link>
-          <Link href="/rag">Consultor RAG</Link>
-          <Link href="/digests">Resúmenes</Link>
+          <Link href="/documents">Documentos</Link>
+          <Link href="/rag">IA Legal</Link>
           <Link href="/watchlists">Alertas</Link>
-          <Link href="/items">Documentos</Link>
-          <Link href="/ai">IA Legal</Link>
-          <Link href="/metrics">Metrics</Link>
-          <Link href="/admin/ingest/manual-url" style={{ border: '1px solid var(--accent)', padding: '0.2rem 0.5rem', borderRadius: '4px', color: 'var(--accent)', fontWeight: 'bold' }}>Agregar link jurídico</Link>
-          <Link href="/admin/sources" style={{ border: '1px dashed var(--secondary)', padding: '0.2rem 0.5rem', borderRadius: '4px', color: 'var(--secondary)' }}>⚙ Fuentes Admin</Link>
+          
+          {process.env.NEXT_PUBLIC_ENABLE_PUBLIC_DEMO !== 'true' && process.env.ENABLE_PUBLIC_DEMO !== 'true' && (
+            <>
+              <Link href="/ai" style={{ borderLeft: '1px solid rgba(255,255,255,0.1)', paddingLeft: '0.75rem' }}>IA Sandbox</Link>
+              <Link href="/metrics">Métricas</Link>
+              <Link href="/admin/ingest/manual-url" style={{ border: '1px solid var(--accent)', padding: '0.2rem 0.5rem', borderRadius: '4px', color: 'var(--accent)', fontWeight: 'bold' }}>Agregar link jurídico</Link>
+              <Link href="/admin/sources" style={{ border: '1px dashed var(--secondary)', padding: '0.2rem 0.5rem', borderRadius: '4px', color: 'var(--secondary)' }}>⚙ Fuentes Admin</Link>
+            </>
+          )}
         </nav>
       </header>
 
@@ -119,7 +122,9 @@ export default async function Home() {
             <Link href="/search" className="btn-primary" style={{ textDecoration: 'none' }}>Búsqueda Avanzada</Link>
             <Link href="/legal-hub" className="btn-primary" style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.2)', boxShadow: 'none', textDecoration: 'none' }}>Centro Jurídico</Link>
             <Link href="/rag" className="btn-primary" style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.2)', boxShadow: 'none', textDecoration: 'none' }}>Preguntar a IA</Link>
-            <Link href="/admin/ingest/manual-url" className="btn-primary" style={{ background: 'var(--accent)', color: 'white', textDecoration: 'none' }}>Agregar link jurídico</Link>
+            {process.env.ENABLE_PUBLIC_DEMO !== 'true' && (
+              <Link href="/admin/ingest/manual-url" className="btn-primary" style={{ background: 'var(--accent)', color: 'white', textDecoration: 'none' }}>Agregar link jurídico</Link>
+            )}
           </div>
         </section>
 

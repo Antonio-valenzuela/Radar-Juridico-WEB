@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import EnrichButton from "@/app/components/EnrichButton";
+import { normalizeLegalDisplayText } from "@/lib/text/normalizeLegalDisplayText";
 
 export const dynamic = "force-dynamic";
 
@@ -75,6 +76,10 @@ export default async function ItemDetailPage({ params }: { params: Promise<{ id:
 
   const diff = item.normaVersions[0]?.diffsTo[0] || null;
   const documentVersion = item.documentVersions[0] || null;
+  const itemTitle = normalizeLegalDisplayText(item.title);
+  const itemSummary = normalizeLegalDisplayText(
+    item.summary || "Sin resumen disponible. Abre la fuente oficial para revisar el texto completo."
+  );
 
   return (
     <main className="document-page">
@@ -98,18 +103,18 @@ export default async function ItemDetailPage({ params }: { params: Promise<{ id:
             {item.tipo ? <Badge tone="info">{item.tipo}</Badge> : null}
             {item.tema ? <Badge>{item.tema}</Badge> : null}
           </div>
-          <h1 className="document-title">{item.title}</h1>
+          <h1 className="document-title">{normalizeLegalDisplayText(item.title)}</h1>
           <p className="document-muted" style={{ fontSize: 16, marginTop: 12, marginBottom: 12 }}>
-            {item.summary || "Sin resumen disponible. Abre la fuente oficial para revisar el texto completo."}
+            {itemSummary}
           </p>
           <div style={{ color: "#93c5fd", fontWeight: 800, fontSize: 14 }}>Publicado: {formatDate(item.published)}</div>
         </header>
 
         <section style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 }}>
-          <InfoCard label="Categoría" value={item.category || "sin clasificar"} />
-          <InfoCard label="Keywords" value={item.keywordsHit || "sin coincidencias"} />
-          <InfoCard label="Entidades detectadas" value={Array.isArray((item as any).entities) && (item as any).entities.length ? (item as any).entities.join(', ') : "Ninguna"} />
-          <InfoCard label="Sectores afectados" value={Array.isArray((item as any).affectedSectors) && (item as any).affectedSectors.length ? (item as any).affectedSectors.join(', ') : "Ninguno"} />
+          <InfoCard label="Categoría" value={normalizeLegalDisplayText(item.category || "sin clasificar")} />
+          <InfoCard label="Keywords" value={normalizeLegalDisplayText(item.keywordsHit || "sin coincidencias")} />
+          <InfoCard label="Entidades detectadas" value={normalizeLegalDisplayText(Array.isArray((item as any).entities) && (item as any).entities.length ? (item as any).entities.join(', ') : "Ninguna")} />
+          <InfoCard label="Sectores afectados" value={normalizeLegalDisplayText(Array.isArray((item as any).affectedSectors) && (item as any).affectedSectors.length ? (item as any).affectedSectors.join(', ') : "Ninguno")} />
         </section>
 
         {/* Sección de Análisis IA */}
@@ -119,17 +124,17 @@ export default async function ItemDetailPage({ params }: { params: Promise<{ id:
             <div style={{ display: "grid", gap: 16 }}>
               <div>
                 <strong className="document-label" style={{ display: "block" }}>Resumen Ejecutivo</strong>
-                <p className="document-muted" style={{ margin: "4px 0 0" }}>{item.aiEnrichment.executiveSummary || "No disponible"}</p>
+                <p className="document-muted" style={{ margin: "4px 0 0" }}>{normalizeLegalDisplayText(item.aiEnrichment.executiveSummary || "No disponible")}</p>
               </div>
 
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 12 }}>
                 <div>
                   <strong className="document-label" style={{ display: "block" }}>Materia Detectada</strong>
-                  <div style={{ marginTop: 4, fontWeight: 700, color: "#60a5fa" }}>{item.aiEnrichment.matter}</div>
+                  <div style={{ marginTop: 4, fontWeight: 700, color: "#60a5fa" }}>{normalizeLegalDisplayText(item.aiEnrichment.matter)}</div>
                 </div>
                 <div>
                   <strong className="document-label" style={{ display: "block" }}>Autoridad</strong>
-                  <div style={{ marginTop: 4, fontWeight: 700, color: "#34d399" }}>{item.aiEnrichment.authority || "No identificada"}</div>
+                  <div style={{ marginTop: 4, fontWeight: 700, color: "#34d399" }}>{normalizeLegalDisplayText(item.aiEnrichment.authority || "No identificada")}</div>
                 </div>
                 <div>
                   <strong className="document-label" style={{ display: "block" }}>Nivel de Impacto</strong>
@@ -147,7 +152,7 @@ export default async function ItemDetailPage({ params }: { params: Promise<{ id:
 
               <div>
                 <strong className="document-label" style={{ display: "block" }}>Explicación del impacto</strong>
-                <p className="document-muted" style={{ margin: "4px 0 0" }}>{item.aiEnrichment.explanation || "No disponible"}</p>
+                <p className="document-muted" style={{ margin: "4px 0 0" }}>{normalizeLegalDisplayText(item.aiEnrichment.explanation || "No disponible")}</p>
               </div>
 
               {Array.isArray(item.aiEnrichment.entities) && (item.aiEnrichment.entities as string[]).length > 0 && (
@@ -155,7 +160,7 @@ export default async function ItemDetailPage({ params }: { params: Promise<{ id:
                   <strong className="document-label" style={{ display: "block", marginBottom: 6 }}>Entidades Mencionadas</strong>
                   <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                     {(item.aiEnrichment.entities as string[]).map((e: string) => (
-                      <span key={e} style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", padding: "4px 10px", borderRadius: 6, fontSize: 12, color: "#cbd5e1" }}>{e}</span>
+                      <span key={e} style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", padding: "4px 10px", borderRadius: 6, fontSize: 12, color: "#cbd5e1" }}>{normalizeLegalDisplayText(e)}</span>
                     ))}
                   </div>
                 </div>
@@ -166,7 +171,7 @@ export default async function ItemDetailPage({ params }: { params: Promise<{ id:
                   <strong className="document-label" style={{ display: "block", marginBottom: 6 }}>Sectores Afectados</strong>
                   <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                     {(item.aiEnrichment.affectedSectors as string[]).map((s: string) => (
-                      <span key={s} style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", padding: "4px 10px", borderRadius: 6, fontSize: 12, color: "#cbd5e1" }}>{s}</span>
+                      <span key={s} style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", padding: "4px 10px", borderRadius: 6, fontSize: 12, color: "#cbd5e1" }}>{normalizeLegalDisplayText(s)}</span>
                     ))}
                   </div>
                 </div>
@@ -177,7 +182,7 @@ export default async function ItemDetailPage({ params }: { params: Promise<{ id:
                   <strong className="document-label" style={{ display: "block", marginBottom: 6 }}>Palabras Clave (Keywords)</strong>
                   <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                     {(item.aiEnrichment.keywords as string[]).map((k: string) => (
-                      <span key={k} style={{ background: "rgba(236,72,153,0.12)", border: "1px solid rgba(236,72,153,0.25)", padding: "4px 10px", borderRadius: 6, fontSize: 12, color: "#f472b6" }}>{k}</span>
+                      <span key={k} style={{ background: "rgba(236,72,153,0.12)", border: "1px solid rgba(236,72,153,0.25)", padding: "4px 10px", borderRadius: 6, fontSize: 12, color: "#f472b6" }}>{normalizeLegalDisplayText(k)}</span>
                     ))}
                   </div>
                 </div>
@@ -186,7 +191,7 @@ export default async function ItemDetailPage({ params }: { params: Promise<{ id:
               {Array.isArray(item.aiEnrichment.relatedTopics) && (item.aiEnrichment.relatedTopics as string[]).length > 0 && (
                 <div>
                   <strong className="document-label" style={{ display: "block" }}>Temas Relacionados</strong>
-                  <div style={{ marginTop: 4, color: "#cbd5e1", fontSize: 14 }}>{(item.aiEnrichment.relatedTopics as string[]).join(", ")}</div>
+                  <div style={{ marginTop: 4, color: "#cbd5e1", fontSize: 14 }}>{normalizeLegalDisplayText((item.aiEnrichment.relatedTopics as string[]).join(", "))}</div>
                 </div>
               )}
             </div>
@@ -201,12 +206,12 @@ export default async function ItemDetailPage({ params }: { params: Promise<{ id:
         {documentVersion ? (
           <section className="document-card">
             <h2 className="document-section-title">Documento Canónico</h2>
-            <p className="document-muted" style={{ marginBottom: '1.25rem' }}>{documentVersion.document.title}</p>
+            <p className="document-muted" style={{ marginBottom: '1.25rem' }}>{normalizeLegalDisplayText(documentVersion.document.title)}</p>
             <div style={{ display: "grid", gap: 8 }}>
               {documentVersion.chunks.map((chunk) => (
                 <div key={chunk.id} style={{ border: "1px solid var(--card-border)", borderRadius: 8, padding: 12, background: "rgba(255,255,255,0.02)" }}>
-                  <strong style={{ color: "#93c5fd" }}>{chunk.sectionPath || `Chunk ${chunk.chunkIndex + 1}`}</strong>
-                  <p style={{ margin: "6px 0 0", color: "var(--text-main)", fontSize: "0.95rem" }}>{chunk.text}</p>
+                  <strong style={{ color: "#93c5fd" }}>{normalizeLegalDisplayText(chunk.sectionPath || `Chunk ${chunk.chunkIndex + 1}`)}</strong>
+                  <p style={{ margin: "6px 0 0", color: "var(--text-main)", fontSize: "0.95rem" }}>{normalizeLegalDisplayText(chunk.text)}</p>
                 </div>
               ))}
             </div>
@@ -217,7 +222,7 @@ export default async function ItemDetailPage({ params }: { params: Promise<{ id:
           <h2 className="document-section-title">Acciones</h2>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center" }}>
             <a href={item.url} target="_blank" rel="noreferrer" className="btn-doc-primary">Abrir fuente oficial</a>
-            <Link href={`/rag?item=${item.id}`} className="btn-doc-primary">Preguntar con RAG</Link>
+            <Link href={`/rag?item=${item.id}&q=${encodeURIComponent(itemTitle)}`} className="btn-doc-primary">Preguntar con RAG</Link>
             <Link href={`/items/${item.id}/consultant`} className="btn-doc-secondary">Ver consultor</Link>
             <Link href={`/items/${item.id}/diff`} className="btn-doc-secondary">Ver diff</Link>
             

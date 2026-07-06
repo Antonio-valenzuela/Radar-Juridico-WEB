@@ -29,7 +29,7 @@ export default function DigestsPage() {
   };
 
   const handleGenerate = async () => {
-    if (!token.trim()) {
+    if (!token.trim() && process.env.NEXT_PUBLIC_ENABLE_PUBLIC_DEMO !== 'true') {
       setError('Escribe el Admin Token local.');
       return;
     }
@@ -38,13 +38,15 @@ export default function DigestsPage() {
     setDigest(null);
     try {
       const res = await fetch(`/api/ai/weekly-digest?days=${days}`, {
-        headers: { 'x-admin-token': token.trim() }
+        headers: { 'x-admin-token': token.trim() || 'dev-admin-token' }
       });
       if (!res.ok) await handleFetchError(res);
       const data = await res.json();
       setDigest(data.digest || data);
     } catch (err: any) {
-      setError(err.message);
+      setError(process.env.NEXT_PUBLIC_ENABLE_PUBLIC_DEMO === 'true'
+        ? 'No pude completar esta acción en este momento. Intenta de nuevo o ajusta tu búsqueda.'
+        : err.message);
     } finally {
       setLoading(false);
     }
@@ -58,15 +60,17 @@ export default function DigestsPage() {
       <h1>Resumen Semanal IA</h1>
       <p style={{ color: 'var(--text-muted)' }}>Genera un digest ejecutivo de los documentos más importantes.</p>
       
-      <div style={{ marginTop: '1rem', display: 'flex', gap: '1rem', alignItems: 'center' }}>
-        <label style={{ fontWeight: 'bold' }}>Admin Token:</label>
-        <input 
-          type="text" 
-          value={token} 
-          onChange={(e) => handleTokenChange(e.target.value)} 
-          style={{ padding: '0.5rem', borderRadius: '4px', border: '1px solid #ccc', background: '#1e293b', color: 'white' }}
-        />
-      </div>
+      {process.env.NEXT_PUBLIC_ENABLE_PUBLIC_DEMO !== 'true' && (
+        <div style={{ marginTop: '1rem', display: 'flex', gap: '1rem', alignItems: 'center' }}>
+          <label style={{ fontWeight: 'bold' }}>Admin Token:</label>
+          <input 
+            type="text" 
+            value={token} 
+            onChange={(e) => handleTokenChange(e.target.value)} 
+            style={{ padding: '0.5rem', borderRadius: '4px', border: '1px solid #ccc', background: '#1e293b', color: 'white' }}
+          />
+        </div>
+      )}
 
       <div style={{ display: 'flex', gap: '1rem', marginTop: '2rem', alignItems: 'center' }}>
         <label>Días a analizar:</label>

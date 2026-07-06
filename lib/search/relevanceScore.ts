@@ -43,6 +43,8 @@ export interface RelevanceResult {
 const MATERIA_WEIGHTS: Record<string, number> = {
   fiscal: 90,
   tributario: 90,
+  aduanal: 90,
+  comercio_exterior: 85,
   laboral: 85,
   penal: 85,
   constitucional: 85,
@@ -76,6 +78,7 @@ const AUTORIDAD_WEIGHTS: Record<string, number> = {
   diputados: 80,
   senado: 75,
   sat: 85,
+  anam: 85,
   imss: 80,
   conamer: 70,
 };

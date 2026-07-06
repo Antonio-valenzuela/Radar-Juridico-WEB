@@ -16,6 +16,32 @@ export function requireAdmin(request: Request) {
   const isDev = process.env.NODE_ENV !== "production";
   const isDevToken = isDev && provided === "dev-admin-token";
 
+  // Check public bypasses
+  const isPublicDemo = process.env.ENABLE_PUBLIC_DEMO === "true";
+  const isPublicAI = process.env.ENABLE_PUBLIC_AI === "true" || isPublicDemo;
+  const isPublicSearch = process.env.ENABLE_PUBLIC_SEARCH === "true" || isPublicDemo;
+  const isPublicDocs = process.env.ENABLE_PUBLIC_DOCUMENTS === "true" || isPublicDemo;
+
+  const url = new URL(request.url);
+  const path = url.pathname;
+  const method = request.method.toUpperCase();
+
+  // Allow read-only (GET) to sources if public search or docs are enabled
+  if (path.startsWith("/api/admin/sources") && method === "GET" && (isPublicSearch || isPublicDocs)) {
+    return { ok: true as const };
+  }
+
+  // Allow IA / RAG / watchlist endpoints (GET and POST) if public AI is enabled
+  const isAiEndpoint = path.startsWith("/api/legal-reports") || 
+                       path.startsWith("/api/legal/radar") || 
+                       path.startsWith("/api/ai/") || 
+                       path.startsWith("/api/rag/") ||
+                       path.startsWith("/api/watchlist");
+                       
+  if (isAiEndpoint && isPublicAI) {
+    return { ok: true as const };
+  }
+
   if (!expected || !provided || (provided !== expected && !isDevToken)) {
     return {
       ok: false as const,
@@ -28,3 +54,4 @@ export function requireAdmin(request: Request) {
 
   return { ok: true as const };
 }
+

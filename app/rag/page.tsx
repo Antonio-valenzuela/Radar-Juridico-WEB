@@ -247,7 +247,9 @@ export default function RadarLegalPage() {
     } catch (err: unknown) {
       if (err instanceof Error && err.name === 'AbortError') return;
       const msg = err instanceof Error ? err.message : 'Error desconocido';
-      setError(msg);
+      setError(process.env.NEXT_PUBLIC_ENABLE_PUBLIC_DEMO === 'true'
+        ? 'No pude completar esta acción en este momento. Intenta de nuevo o ajusta tu búsqueda.'
+        : msg);
     } finally {
       setWeeklyLoading(false);
     }
@@ -255,7 +257,20 @@ export default function RadarLegalPage() {
 
   // Auto-load on mount
   useEffect(() => {
-    loadWeeklyData(defaults.start, defaults.end);
+    const params = new URLSearchParams(window.location.search);
+    const q = params.get('q') || params.get('query') || params.get('keyword');
+    const mat = params.get('matter') || params.get('materia');
+
+    if (q) {
+      setKeyword(q);
+      if (mat) setMatter(mat);
+      // Run the search after a short tick
+      setTimeout(() => {
+        executeSearch(q, mat || '');
+      }, 100);
+    } else {
+      loadWeeklyData(defaults.start, defaults.end);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Only on mount
 
@@ -264,24 +279,21 @@ export default function RadarLegalPage() {
     localStorage.setItem('juridico_admin_token', v);
   };
 
-  // ── Main search handler ──────────────────────────────────────────────────────
-  const handleSearch = async (e: React.FormEvent) => {
-    e.preventDefault();
-
+  const executeSearch = async (kwVal: string, matVal: string) => {
     // If no keyword and no forceExternal: reload weekly local data with current filters
-    if (!keyword.trim() && !forceExternal) {
-      await loadWeeklyData(dateFrom, dateTo, undefined, matter || undefined);
+    if (!kwVal.trim() && !forceExternal) {
+      await loadWeeklyData(dateFrom, dateTo, undefined, matVal || undefined);
       return;
     }
 
     // If keyword without forceExternal: fast local filter via GET weekly-changes
-    if (keyword.trim() && !forceExternal) {
-      await loadWeeklyData(dateFrom, dateTo, keyword.trim(), matter || undefined);
+    if (kwVal.trim() && !forceExternal) {
+      await loadWeeklyData(dateFrom, dateTo, kwVal.trim(), matVal || undefined);
       return;
     }
 
     // If forceExternal (or keyword + external): use POST /api/legal/radar with AI
-    if (!token.trim()) {
+    if (!token.trim() && process.env.NEXT_PUBLIC_ENABLE_PUBLIC_DEMO !== 'true') {
       setError('El Admin Token es requerido para búsqueda externa con IA.');
       return;
     }
@@ -306,11 +318,11 @@ export default function RadarLegalPage() {
         method:  'POST',
         headers: {
           'Content-Type':  'application/json',
-          'x-admin-token': token.trim(),
+          'x-admin-token': token.trim() || 'dev-admin-token',
         },
         body: JSON.stringify({
-          query:        keyword.trim() || 'resumen semanal',
-          matter:       matter   || undefined,
+          query:        kwVal.trim() || 'resumen semanal',
+          matter:       matVal   || undefined,
           dateFrom:     dateFrom || undefined,
           dateTo:       dateTo   || undefined,
           forceExternal,
@@ -345,13 +357,20 @@ export default function RadarLegalPage() {
           msg = err.message;
         }
       }
-      setError(msg);
+      setError(process.env.NEXT_PUBLIC_ENABLE_PUBLIC_DEMO === 'true'
+        ? 'No pude completar esta acción en este momento. Intenta de nuevo o ajusta tu búsqueda.'
+        : msg);
       setRadarStatus('error');
       setLastQueryTime(new Date().toLocaleTimeString('es-MX'));
     } finally {
       setSearchLoading(false);
       setLoadingState('');
     }
+  };
+
+  const handleSearch = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    await executeSearch(keyword, matter);
   };
 
   // ── Convenience ────────────────────────────────────────────────────────────
@@ -372,18 +391,20 @@ export default function RadarLegalPage() {
         <Link href="/" style={{ color: 'var(--primary)', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 600 }}>
           ← Volver al Dashboard
         </Link>
-        <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-          <label style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: 600 }}>
-            Admin Token (para IA):
-          </label>
-          <input
-            id="admin-token-input"
-            type="password"
-            value={token}
-            onChange={(e) => handleTokenChange(e.target.value)}
-            style={{ padding: '0.4rem 0.75rem', borderRadius: '6px', border: '1px solid var(--card-border)', background: '#1e293b', color: 'white', fontSize: '0.85rem', width: '160px' }}
-          />
-        </div>
+        {process.env.NEXT_PUBLIC_ENABLE_PUBLIC_DEMO !== 'true' && (
+          <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+            <label style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+              Admin Token (para IA):
+            </label>
+            <input
+              id="admin-token-input"
+              type="password"
+              value={token}
+              onChange={(e) => handleTokenChange(e.target.value)}
+              style={{ padding: '0.4rem 0.75rem', borderRadius: '6px', border: '1px solid var(--card-border)', background: '#1e293b', color: 'white', fontSize: '0.85rem', width: '160px' }}
+            />
+          </div>
+        )}
       </div>
 
       {/* Title */}

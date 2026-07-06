@@ -47,12 +47,13 @@ export default function LegalHubPage() {
         </label>
         <nav className="nav-menu">
           <Link href="/">Dashboard</Link>
-          <Link href="/legal-hub" style={{ color: "var(--accent)", fontWeight: "bold" }}>Centro Jurídico</Link>
           <Link href="/search">Búsqueda</Link>
-          <Link href="/rag">Consultor RAG</Link>
+          <Link href="/documents">Documentos</Link>
+          <Link href="/rag">IA Legal</Link>
           <Link href="/watchlists">Alertas</Link>
-          <Link href="/items">Documentos</Link>
-          <Link href="/admin/sources">Fuentes</Link>
+          {process.env.NEXT_PUBLIC_ENABLE_PUBLIC_DEMO !== 'true' && process.env.ENABLE_PUBLIC_DEMO !== 'true' && (
+            <Link href="/admin/sources">Fuentes</Link>
+          )}
         </nav>
       </header>
 

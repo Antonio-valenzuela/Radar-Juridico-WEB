@@ -200,6 +200,43 @@ export default function FloatingLegalChat() {
     }
   };
 
+  const handleCopyText = (text: string) => {
+    navigator.clipboard.writeText(text);
+    alert("Respuesta copiada al portapapeles.");
+  };
+
+  const handleDownloadPdf = (content: string) => {
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Radar Jurídico - Análisis IA</title>
+          <style>
+            body { font-family: 'Helvetica Neue', Arial, sans-serif; padding: 2rem; color: #1e293b; line-height: 1.6; }
+            h1 { color: #1e3a8a; border-bottom: 2px solid #e2e8f0; padding-bottom: 0.5rem; }
+            pre { background: #f8fafc; padding: 1rem; border-radius: 6px; white-space: pre-wrap; }
+            footer { margin-top: 3rem; font-size: 0.85rem; color: #64748b; border-top: 1px solid #e2e8f0; padding-top: 1rem; }
+          </style>
+        </head>
+        <body>
+          <h1>Radar Jurídico - Reporte de Análisis</h1>
+          <div style="font-size: 1.1rem; white-space: pre-wrap;">${content}</div>
+          <footer>
+            Este análisis es orientativo y debe contrastarse con la fuente oficial y el caso concreto.
+          </footer>
+          <script>
+            window.onload = function() {
+              window.print();
+              window.close();
+            }
+          </script>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+  };
+
   const handleActionClick = (action: ActionBtn) => {
     const { type, payload } = action;
 
@@ -357,6 +394,27 @@ export default function FloatingLegalChat() {
                     <div className="message-content">
                       {renderMarkdown(msg.content)}
                     </div>
+
+                    {msg.role === 'assistant' && !msg.isError && (
+                      <div className="actions-container" style={{ marginTop: '0.5rem', marginBottom: '0.5rem', display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                        <button 
+                          type="button"
+                          className="action-button" 
+                          onClick={() => handleCopyText(msg.content)}
+                          style={{ fontSize: '0.8rem', padding: '0.2rem 0.5rem', background: '#1e293b', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '4px', color: '#cbd5e1', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}
+                        >
+                          📋 Copiar
+                        </button>
+                        <button 
+                          type="button"
+                          className="action-button" 
+                          onClick={() => handleDownloadPdf(msg.content)}
+                          style={{ fontSize: '0.8rem', padding: '0.2rem 0.5rem', background: '#1e293b', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '4px', color: '#cbd5e1', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}
+                        >
+                          📥 Descargar PDF
+                        </button>
+                      </div>
+                    )}
 
                     {/* Citations List as Discrete Cards */}
                     {msg.citations && msg.citations.length > 0 && (
@@ -862,6 +920,22 @@ export default function FloatingLegalChat() {
 
         .chat-cancel-btn:hover {
           background: #475569;
+        }
+
+        @media (max-width: 500px) {
+          .floating-chat-root {
+            bottom: 12px;
+            right: 12px;
+          }
+          .chat-panel {
+            width: calc(100vw - 24px);
+            height: calc(100vh - 120px);
+            max-height: 500px;
+          }
+          .chat-toggle-btn {
+            width: 48px;
+            height: 48px;
+          }
         }
       `}</style>
     </div>

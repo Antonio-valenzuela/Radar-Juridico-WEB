@@ -81,6 +81,14 @@ const MATTER_FALLBACK: Record<string, { terms: string[]; authorities: string[] }
     terms: ['reforma penal', 'amparo', 'jurisprudencia', 'tesis aislada'],
     authorities: ['SCJN', 'Tribunales de Alzada', 'Ministerio Público'],
   },
+  aduanal: {
+    terms: ['aduana', 'aduanal', 'comercio exterior', 'importación', 'exportación', 'arancel', 'fracción arancelaria', 'agente aduanal', 'pedimento', 'despacho aduanero', 'ANAM', 'SAT comercio exterior', 'Ley Aduanera'],
+    authorities: ['ANAM', 'SAT', 'SHCP', 'Cámara de Diputados'],
+  },
+  comercio_exterior: {
+    terms: ['comercio exterior', 'importación', 'exportación', 'arancel', 'fracción arancelaria', 'T-MEC', 'SAT comercio exterior', 'ANAM'],
+    authorities: ['ANAM', 'SAT', 'Secretaría de Economía', 'Congreso de la Unión'],
+  },
 };
 
 export async function expandLegalSearch(params: {

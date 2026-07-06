@@ -59,9 +59,17 @@ const SIGNALS: RuleSignal[] = [
     sectors: ["privacidad", "cumplimiento", "tecnología", "empresas con datos personales"],
     keywords: ["INAI", "datos personales", "privacidad"],
   },
+  {
+    matter: "aduanal",
+    pattern: /\b(ADUANA|ADUANAL|ADUANERO|COMERCIO EXTERIOR|IMPORTACION|IMPORTACIÓN|EXPORTACION|EXPORTACIÓN|ARANCEL|FRACCION ARANCELARIA|FRACCIÓN ARANCELARIA|AGENTE ADUANAL|PEDIMENTO|DESPACHO ADUANERO|ANAM|SAT COMERCIO EXTERIOR|LEY ADUANERA)\b/i,
+    entities: ["ANAM", "SAT"],
+    sectors: ["importadores", "exportadores", "agentes aduanales", "comercio exterior"],
+    keywords: ["ANAM", "aduana", "aduanal", "comercio exterior", "arancel", "pedimento"],
+  },
 ];
 
 function detectAuthority(text: string): string | null {
+  if (/\b(ANAM|AGENCIA NACIONAL DE ADUANAS)\b/i.test(text)) return "ANAM";
   if (/\b(SAT|SERVICIO DE ADMINISTRACION TRIBUTARIA)\b/i.test(text)) return "SAT";
   if (/\b(SCJN|SUPREMA CORTE|MINISTRO|MINISTRA)\b/i.test(text)) return "SCJN";
   if (/\b(SHCP|SECRETARIA DE HACIENDA)\b/i.test(text)) return "SHCP";

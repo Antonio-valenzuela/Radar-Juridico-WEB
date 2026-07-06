@@ -91,6 +91,29 @@ export const SEARCH_LEXICON: Record<string, string[]> = {
         "nulidad",
         "responsabilidad administrativa",
         "servidor público"
+    ],
+    aduanal: [
+        "aduana",
+        "aduanal",
+        "aduanero",
+        "pedimento",
+        "arancel",
+        "fracción arancelaria",
+        "despacho aduanero",
+        "agente aduanal",
+        "ANAM",
+        "Ley Aduanera"
+    ],
+    comercio_exterior: [
+        "comercio exterior",
+        "importación",
+        "exportación",
+        "arancel",
+        "fracción arancelaria",
+        "reglas de origen",
+        "SAT comercio exterior",
+        "ANAM",
+        "T-MEC"
     ]
 };
 

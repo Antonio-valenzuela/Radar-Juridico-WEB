@@ -29,6 +29,7 @@ export type AdvancedSearchInput = {
   sort?: string;
   limit?: number;
   offset?: number;
+  tipo?: string;
 };
 
 export type ParsedFilters = {
@@ -103,7 +104,7 @@ export function validateSearchInput(input: AdvancedSearchInput): ValidationError
   // string length validation
   const shortFields: (keyof AdvancedSearchInput)[] = [
     'exact', 'matter', 'source', 'authority', 'impactLevel',
-    'sector', 'entity', 'task', 'watchlistId', 'mode', 'sort'
+    'sector', 'entity', 'task', 'watchlistId', 'mode', 'sort', 'tipo'
   ];
   for (const field of shortFields) {
     const val = input[field];
@@ -190,6 +191,7 @@ export function parseAdvancedSearch(input: AdvancedSearchInput, extraKeywords?: 
   if (input.matter) where.tema = input.matter;
   if (input.source) where.source = input.source;
   if (input.impactLevel) where.impacto = input.impactLevel;
+  if (input.tipo) where.tipo = input.tipo;
 
   // 4. Dates (only if already validated)
   if (input.dateFrom || input.dateTo) {
