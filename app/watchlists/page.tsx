@@ -3,10 +3,29 @@
 import Link from "next/link";
 import { FormEvent, useEffect, useState } from "react";
 
-type Watch = {
+type AlertRuleItem = {
   id: string;
   type: string;
   value: string;
+};
+
+type RecentChange = {
+  id: string;
+  changeDescription: string;
+  detectedAt: string;
+  matter: string | null;
+  sourceUrl: string | null;
+  document?: {
+    title: string;
+    shortCode: string | null;
+    officialUrl: string | null;
+  };
+};
+
+const TYPE_LABELS: Record<string, string> = {
+  keyword: "Palabra clave",
+  norma: "Norma",
+  tema: "Materia",
 };
 
 export default function WatchlistsPage() {
@@ -15,7 +34,8 @@ export default function WatchlistsPage() {
   const [type, setType] = useState("keyword");
   const [value, setValue] = useState("");
   const [onlyHighImpact, setOnlyHighImpact] = useState(false);
-  const [watchlists, setWatchlists] = useState<Watch[]>([]);
+  const [rules, setRules] = useState<AlertRuleItem[]>([]);
+  const [changes, setChanges] = useState<RecentChange[]>([]);
   const [message, setMessage] = useState("");
   const [tenantLabel, setTenantLabel] = useState("");
   const [loading, setLoading] = useState(false);
@@ -28,6 +48,27 @@ export default function WatchlistsPage() {
     if (matter) setType("tema");
   }, []);
 
+  useEffect(() => {
+    loadRecentChanges();
+  }, []);
+
+  async function loadRecentChanges() {
+    try {
+      const res = await fetch("/api/monitoring/changes?days=30&limit=5");
+      const data = await res.json();
+      if (Array.isArray(data.changes)) setChanges(data.changes);
+    } catch {
+      setChanges([]);
+    }
+  }
+
+  function publicMessage(action: string) {
+    if (action === "add") return "Alerta guardada. Se revisará contra los cambios indexados.";
+    if (action === "remove") return "Alerta desactivada.";
+    if (action === "settings") return "Preferencias actualizadas.";
+    return "Alertas cargadas.";
+  }
+
   async function post(body: Record<string, unknown>) {
     setLoading(true);
     setMessage("");
@@ -38,16 +79,14 @@ export default function WatchlistsPage() {
         body: JSON.stringify({ email, orgSlug, ...body }),
       });
       const data = await res.json();
-      if (!res.ok || !data.ok) throw new Error(data.error || "Error");
-      if (Array.isArray(data.watchlists)) setWatchlists(data.watchlists);
+      if (!res.ok || !data.ok) throw new Error("No se pudo actualizar la alerta.");
+      if (Array.isArray(data.watchlists)) setRules(data.watchlists);
       if (data.user) setOnlyHighImpact(Boolean(data.user.onlyHighImpact));
-      if (data.tenant) {
-        setTenantLabel(`${data.tenant.orgSlug} · limite diario ${data.tenant.dailyNotificationLimit}`);
-      }
-      setMessage("Listo");
+      if (data.tenant) setTenantLabel(`Organización ${data.tenant.orgSlug}`);
+      setMessage(publicMessage(String(body.action || "list")));
       return data;
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : String(error));
+    } catch {
+      setMessage("No se pudo actualizar la alerta. Verifica el correo y vuelve a intentar.");
       return null;
     } finally {
       setLoading(false);
@@ -58,14 +97,14 @@ export default function WatchlistsPage() {
     await post({ action: "list" });
   }
 
-  async function addWatch(event: FormEvent) {
+  async function addRule(event: FormEvent) {
     event.preventDefault();
     await post({ action: "add", type, value });
     setValue("");
     await loadList();
   }
 
-  async function removeWatch(id: string) {
+  async function removeRule(id: string) {
     await post({ action: "remove", id });
     await loadList();
   }
@@ -75,139 +114,152 @@ export default function WatchlistsPage() {
     await post({ action: "settings", onlyHighImpact: next });
   }
 
-  async function sendTest() {
-    setLoading(true);
-    setMessage("");
-    try {
-      const res = await fetch("/api/notify/test", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, orgSlug }),
-      });
-      const data = await res.json();
-      if (!res.ok || !data.ok) throw new Error(data.error || "Error");
-      setMessage(`Prueba enviada. Email=${data.emailOk ? "ok" : "no"} Webhook=${data.webhookOk ? "ok" : "no"}`);
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : String(error));
-    } finally {
-      setLoading(false);
-    }
-  }
-
   return (
-    <main style={{ padding: 24, fontFamily: "system-ui, sans-serif", maxWidth: 820, margin: "0 auto" }}>
-      <Link href="/" style={{ color: "#111", fontWeight: 700 }}>
-        Volver
-      </Link>
-      <h1 style={{ fontSize: 30, marginBottom: 6 }}>Alertas regulatorias</h1>
-      <p style={{ color: "#4b5563", marginTop: 0 }}>
-        Crea reglas por keyword, norma o tema para recibir digests cuando una publicacion oficial sea relevante.
-      </p>
+    <>
+      <div className="bg-gradient"></div>
 
-      <section style={{ border: "1px solid #e5e7eb", borderRadius: 8, padding: 16, marginBottom: 16 }}>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 10, marginBottom: 10 }}>
-          <label style={{ display: "grid", gap: 6, fontSize: 13, fontWeight: 700 }}>
-            Organización
-            <input
-              value={orgSlug}
-              onChange={(event) => setOrgSlug(event.target.value)}
-              placeholder="institucion-demo"
-              style={inputStyle}
-            />
-          </label>
-          <label style={{ display: "grid", gap: 6, fontSize: 13, fontWeight: 700 }}>
-            Email
-            <input
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-              placeholder="tu@email.com"
-              type="email"
-              style={inputStyle}
-            />
-          </label>
-        </div>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-          <button disabled={loading || !email} onClick={loadList} style={buttonStyle}>
-            Cargar
-          </button>
-          <button disabled={loading || !email} onClick={sendTest} style={buttonStyle}>
-            Probar
-          </button>
-          {tenantLabel ? <span style={{ fontSize: 12, color: "#4b5563", fontWeight: 700 }}>{tenantLabel}</span> : null}
-        </div>
-      </section>
-
-      <section style={{ border: "1px solid #e5e7eb", borderRadius: 8, padding: 16, marginBottom: 16 }}>
-        <label style={{ display: "flex", alignItems: "center", gap: 10, fontWeight: 700 }}>
-          <input
-            type="checkbox"
-            checked={onlyHighImpact}
-            onChange={(event) => saveSettings(event.target.checked)}
-            disabled={!email || loading}
-          />
-          Solo alto impacto
+      <header className="header">
+        <Link href="/" className="logo">
+          <div className="logo-icon"></div>
+          Jurídico Radar
+        </Link>
+        <input type="checkbox" id="alerts-menu-toggle" className="menu-toggle" />
+        <label htmlFor="alerts-menu-toggle" className="menu-icon" aria-label="Abrir menu">
+          <span></span>
+          <span></span>
+          <span></span>
         </label>
-      </section>
+        <nav className="nav-menu">
+          <Link href="/">Dashboard</Link>
+          <Link href="/search">Búsqueda</Link>
+          <Link href="/documents">Documentos</Link>
+          <Link href="/monitoreo">Monitoreo</Link>
+          <Link href="/watchlists">Alertas</Link>
+          <Link href="/legal-hub">Centro Jurídico</Link>
+        </nav>
+      </header>
 
-      <form onSubmit={addWatch} style={{ border: "1px solid #e5e7eb", borderRadius: 8, padding: 16, marginBottom: 16 }}>
-        <div style={{ display: "grid", gridTemplateColumns: "160px 1fr auto", gap: 8 }}>
-          <select value={type} onChange={(event) => setType(event.target.value)} style={inputStyle}>
-            <option value="keyword">Keyword</option>
-            <option value="norma">Norma</option>
-            <option value="tema">Tema</option>
-          </select>
-          <input
-            value={value}
-            onChange={(event) => setValue(event.target.value)}
-            placeholder="ej. amparo, CFF, fiscal"
-            style={inputStyle}
-          />
-          <button disabled={loading || !email || !value} style={buttonStyle}>
-            Agregar
-          </button>
-        </div>
-      </form>
+      <main className="container alerts-shell">
+        <section className="alerts-hero">
+          <span className="badge">Alertas</span>
+          <h1>Mis alertas legales</h1>
+          <p className="subtitle">
+            Crea reglas por materia, norma o palabra clave para revisar cambios relevantes sin perder de vista
+            la fuente oficial.
+          </p>
+        </section>
 
-      {message ? <div style={{ marginBottom: 12, color: "#374151", fontWeight: 700 }}>{message}</div> : null}
+        <section className="alerts-layout">
+          <div className="glass-card alerts-panel">
+            <div className="alerts-panel-heading">
+              <span className="document-label">Crear alerta</span>
+              <h2>Crear alerta</h2>
+              <p className="document-muted">
+                Usa términos concretos como amparo, CNPCF, Código de Comercio o penal.
+              </p>
+            </div>
 
-      <section>
-        <h2 style={{ fontSize: 18 }}>Reglas activas</h2>
-        <ul style={{ listStyle: "none", padding: 0 }}>
-          {watchlists.map((watch) => (
-            <li key={watch.id} style={{ display: "flex", justifyContent: "space-between", gap: 12, border: "1px solid #e5e7eb", borderRadius: 8, padding: 12, marginBottom: 8 }}>
-              <span>
-                <strong>{watch.type}</strong>: {watch.value}
-              </span>
-              <button disabled={loading} onClick={() => removeWatch(watch.id)} style={buttonStyle}>
-                Quitar
+            <div className="alerts-account-grid">
+              <label>
+                Organización
+                <input value={orgSlug} onChange={(event) => setOrgSlug(event.target.value)} placeholder="demo" />
+              </label>
+              <label>
+                Correo
+                <input value={email} onChange={(event) => setEmail(event.target.value)} placeholder="abogado@despacho.com" type="email" />
+              </label>
+            </div>
+
+            <div className="alerts-actions-row">
+              <button type="button" disabled={loading || !email} onClick={loadList} className="btn-doc-secondary">
+                Consultar alertas
               </button>
-            </li>
-          ))}
-          {watchlists.length === 0 ? (
-            <li style={{ border: "1px dashed #d1d5db", borderRadius: 8, padding: 16, color: "#6b7280" }}>
-              Carga un email para listar o agrega tu primera watchlist.
-            </li>
-          ) : null}
-        </ul>
-      </section>
-    </main>
+              {tenantLabel ? <span className="alerts-tenant">{tenantLabel}</span> : null}
+            </div>
+
+            <label className="alerts-check">
+              <input
+                type="checkbox"
+                checked={onlyHighImpact}
+                onChange={(event) => saveSettings(event.target.checked)}
+                disabled={!email || loading}
+              />
+              Avisarme solo cuando el cambio sea relevante
+            </label>
+
+            <form onSubmit={addRule} className="alerts-rule-form">
+              <select value={type} onChange={(event) => setType(event.target.value)}>
+                <option value="keyword">Palabra clave</option>
+                <option value="norma">Norma</option>
+                <option value="tema">Materia</option>
+              </select>
+              <input value={value} onChange={(event) => setValue(event.target.value)} placeholder="ej. amparo, CNPCF, mercantil" />
+              <button disabled={loading || !email || !value} className="btn-doc-primary">
+                Guardar alerta
+              </button>
+            </form>
+
+            {message ? <div className="alerts-message">{message}</div> : null}
+          </div>
+
+          <div className="glass-card alerts-panel">
+            <div className="alerts-panel-heading">
+              <span className="document-label">Reglas activas</span>
+              <h2>Reglas activas</h2>
+              <p className="document-muted">
+                Estas reglas sirven para revisar cambios indexados y preparar seguimiento jurídico.
+              </p>
+            </div>
+
+            <div className="alerts-rule-list">
+              {rules.map((rule) => (
+                <article key={rule.id} className="alerts-rule-card">
+                  <div>
+                    <strong>{TYPE_LABELS[rule.type] || rule.type}</strong>
+                    <span>{rule.value}</span>
+                  </div>
+                  <button disabled={loading} onClick={() => removeRule(rule.id)} className="btn-doc-secondary">
+                    Quitar
+                  </button>
+                </article>
+              ))}
+              {rules.length === 0 ? (
+                <div className="alerts-empty">
+                  Ingresa tu correo y consulta tus reglas, o crea una alerta nueva.
+                </div>
+              ) : null}
+            </div>
+          </div>
+        </section>
+
+        <section className="glass-card alerts-panel">
+          <div className="alerts-panel-heading">
+            <span className="document-label">Cambios recientes</span>
+            <h2>Cambios recientes</h2>
+            <p className="document-muted">
+              Señales detectadas por el monitor. Antes de actuar, abre y revisa la fuente oficial.
+            </p>
+          </div>
+
+          <div className="alerts-change-list">
+            {changes.map((change) => (
+              <article key={change.id} className="alerts-change-card">
+                <div>
+                  <strong>{change.document?.title || "Documento monitoreado"}</strong>
+                  <p>{change.changeDescription}</p>
+                  <small>{change.matter || "materia pendiente"} · {new Date(change.detectedAt).toLocaleDateString("es-MX")}</small>
+                </div>
+                <a href={change.sourceUrl || change.document?.officialUrl || "#"} target="_blank" rel="noreferrer" className="btn-doc-secondary">
+                  Abrir fuente
+                </a>
+              </article>
+            ))}
+            {changes.length === 0 ? (
+              <div className="alerts-empty">No hay cambios indexados para el periodo consultado.</div>
+            ) : null}
+          </div>
+        </section>
+      </main>
+    </>
   );
 }
-
-const inputStyle = {
-  minHeight: 44,
-  padding: "10px 12px",
-  border: "1px solid #d1d5db",
-  borderRadius: 6,
-} as const;
-
-const buttonStyle = {
-  minHeight: 44,
-  padding: "10px 14px",
-  borderRadius: 6,
-  border: "1px solid #111",
-  background: "#111",
-  color: "#fff",
-  fontWeight: 700,
-  cursor: "pointer",
-} as const;

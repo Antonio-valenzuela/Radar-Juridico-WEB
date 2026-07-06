@@ -61,9 +61,14 @@ export async function POST(req: NextRequest) {
     });
     const user = await prisma.user.findUnique({ where: { id: tenant.userId } });
     return NextResponse.json({ ok: true, action: "list", tenant, user, watchlists });
-  } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : String(error);
-    return NextResponse.json({ ok: false, error: message }, { status: 400 });
+  } catch {
+    return NextResponse.json(
+      {
+        ok: false,
+        error: "No se pudo actualizar la alerta. Revisa los datos e intenta de nuevo.",
+      },
+      { status: 400 },
+    );
   }
 }
 
