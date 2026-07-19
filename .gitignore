@@ -12,6 +12,8 @@
 
 # testing
 /coverage
+__pycache__/
+.venv/
 
 # next.js
 /.next/
@@ -19,6 +21,7 @@
 
 # production
 /build
+/dist
 
 # misc
 .DS_Store
@@ -41,6 +44,7 @@ yarn-error.log*
 next-env.d.ts
 
 /app/generated/prisma
+/.codegraph/
 
 # local generated files
 *.log
