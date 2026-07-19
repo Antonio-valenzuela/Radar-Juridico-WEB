@@ -272,7 +272,7 @@ export async function validateUrlSafety(urlStr: string): Promise<{ safe: boolean
 /**
  * Perform a safe fetch with SSRF mitigation.
  * Limits response size, redirects, and sets a custom timeout.
- * Bypasses unauthorized TLS certificates locally to support Mexican government websites.
+ * Uses the scoped official-source transport without changing global TLS policy.
  */
 export async function safeFetch(urlStr: string, options: RequestInit = {}): Promise<Response> {
   const safety = await validateUrlSafety(urlStr);
@@ -414,9 +414,6 @@ export async function testOfficialSourceConnection(source: { baseUrl: string; na
       "Accept": "*/*"
     };
 
-    const originalReject = process.env.NODE_TLS_REJECT_UNAUTHORIZED;
-    process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
-
     try {
       // 1. Try HEAD request
       response = await fetch(source.baseUrl, {
@@ -453,7 +450,6 @@ export async function testOfficialSourceConnection(source: { baseUrl: string; na
         });
         clearTimeout(getTimer);
       } catch (getErr: any) {
-        process.env.NODE_TLS_REJECT_UNAUTHORIZED = originalReject;
         clearTimeout(timerId);
 
         let errorCategory = "network_error";
@@ -479,7 +475,6 @@ export async function testOfficialSourceConnection(source: { baseUrl: string; na
       }
     }
 
-    process.env.NODE_TLS_REJECT_UNAUTHORIZED = originalReject;
     clearTimeout(timerId);
 
     // Follow redirects manually with SSRF checks
@@ -509,7 +504,6 @@ export async function testOfficialSourceConnection(source: { baseUrl: string; na
       redirectCount++;
       currentUrl = redirectUrl;
 
-      process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
       const redirectController = new AbortController();
       const redirectTimer = setTimeout(() => redirectController.abort(), timeoutMs);
 
@@ -521,7 +515,6 @@ export async function testOfficialSourceConnection(source: { baseUrl: string; na
           redirect: "manual"
         });
       } catch (err: any) {
-        process.env.NODE_TLS_REJECT_UNAUTHORIZED = originalReject;
         clearTimeout(redirectTimer);
         return {
           ok: false,
@@ -535,7 +528,6 @@ export async function testOfficialSourceConnection(source: { baseUrl: string; na
         };
       }
 
-      process.env.NODE_TLS_REJECT_UNAUTHORIZED = originalReject;
       clearTimeout(redirectTimer);
     }
 
