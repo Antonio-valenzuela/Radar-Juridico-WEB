@@ -2,9 +2,14 @@
 
 import { WebSocketServer, WebSocket } from 'ws';
 import { prisma } from '@/lib/prisma';
+import { assertRuntimeEnv } from '@/lib/config/env';
+import { checkDatabase } from '@/lib/health/checks';
+import { closeHealthServer, startHealthServer } from '@/lib/health/server';
 
+assertRuntimeEnv();
 const PORT = process.env.WEBSOCKET_PORT || 3002;
 const wss = new WebSocketServer({ port: Number(PORT) });
+let shuttingDown = false;
 
 interface Client {
   ws: WebSocket;
@@ -118,6 +123,35 @@ async function getSourceStatus(): Promise<Record<string, boolean>> {
 }
 
 // Broadcast cada 5 segundos
-setInterval(broadcastDashboardMetrics, 5000);
+const broadcastInterval = setInterval(broadcastDashboardMetrics, 5000);
+
+const healthServer = startHealthServer({
+  name: 'dashboard-websocket',
+  port: Number(process.env.DASHBOARD_HEALTH_PORT || 9103),
+  readiness: async () => {
+    const db = await checkDatabase(prisma);
+    return {
+      ok: !shuttingDown && db.ok && wss.address() !== null,
+      checks: { db, websocket: wss.address() !== null, clients: clients.length, shuttingDown },
+    };
+  },
+});
+
+async function shutdown(signal: NodeJS.Signals) {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  console.log(`[Dashboard WebSocket] ${signal} recibido; cerrando servidor`);
+  clearInterval(broadcastInterval);
+  await closeHealthServer(healthServer);
+  for (const { ws } of clients) ws.close(1001, 'server shutdown');
+  await new Promise<void>((resolve) => wss.close(() => resolve()));
+  await prisma.$disconnect();
+}
+
+for (const signal of ['SIGTERM', 'SIGINT'] as const) {
+  process.once(signal, () => {
+    void shutdown(signal).then(() => process.exit(0));
+  });
+}
 
 console.log(`[Dashboard WebSocket] Servidor escuchando en el puerto ${PORT}`);

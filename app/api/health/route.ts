@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { connection, getQueueSnapshots } from "../../../lib/queue";
+import { getQueueSnapshots } from "../../../lib/queue";
+import { checkDatabase, checkRedis } from "@/lib/health/checks";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const db = await checkDb();
+  const db = await checkDatabase();
   const redis = await checkRedis();
   const [latestIngest, totalItems] = await Promise.all([
     prisma.ingestRun.findFirst({ orderBy: { startedAt: "desc" } }).catch(() => null),
@@ -37,22 +38,4 @@ export async function GET() {
       : null,
     totalItems,
   });
-}
-
-async function checkDb() {
-  try {
-    await prisma.$queryRaw`SELECT 1`;
-    return { ok: true };
-  } catch (error) {
-    return { ok: false, error: error instanceof Error ? error.message : String(error) };
-  }
-}
-
-async function checkRedis() {
-  try {
-    const pong = await connection.ping();
-    return { ok: pong === "PONG" };
-  } catch (error) {
-    return { ok: false, error: error instanceof Error ? error.message : String(error) };
-  }
 }

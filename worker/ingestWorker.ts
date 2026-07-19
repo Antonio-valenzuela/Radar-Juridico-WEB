@@ -11,15 +11,23 @@ import {
 } from "@/lib/ingest/sourceRunners";
 import {
   QUEUE_NAMES,
+  connection as queueConnection,
   failedJobsQueue,
   ingestQueue,
   notificationsQueue,
 } from "@/lib/queue";
 import { prisma } from "@/lib/prisma";
+import { assertRuntimeEnv } from "@/lib/config/env";
+import { checkDatabase, checkRedis } from "@/lib/health/checks";
+import { closeHealthServer, startHealthServer } from "@/lib/health/server";
 
-const connection = new IORedis(process.env.REDIS_URL || "redis://localhost:6379", {
+assertRuntimeEnv();
+
+const workerConnection = new IORedis(process.env.REDIS_URL || "redis://localhost:6379", {
   maxRetriesPerRequest: null,
 });
+const workers: Worker[] = [];
+let shuttingDown = false;
 
 function createTrackedWorker<T>(
   queueName: string,
@@ -58,13 +66,14 @@ function createTrackedWorker<T>(
         throw error;
       }
     },
-    { connection: connection as any }
+    { connection: workerConnection as any }
   );
 
   worker.on("failed", (job, error) => {
     void recordDeadLetter(queueName, job, error);
   });
 
+  workers.push(worker);
   return worker;
 }
 
@@ -137,6 +146,39 @@ createTrackedWorker(QUEUE_NAMES.failedJobs, async (job) => {
   console.log(JSON.stringify({ event: "worker.dlq.received", id: job.id, payload: job.data }));
   return { ok: true, retained: true };
 });
+
+const healthServer = startHealthServer({
+  name: "ingest-worker",
+  port: Number(process.env.WORKER_HEALTH_PORT || 9101),
+  readiness: async () => {
+    const [db, redis] = await Promise.all([
+      checkDatabase(prisma),
+      checkRedis(workerConnection),
+    ]);
+    return {
+      ok: !shuttingDown && db.ok && redis.ok && workers.length > 0,
+      checks: { db, redis, workers: workers.length, shuttingDown },
+    };
+  },
+});
+
+async function shutdown(signal: NodeJS.Signals) {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  console.log(`[worker] ${signal} received; closing workers`);
+
+  await closeHealthServer(healthServer);
+  await Promise.allSettled(workers.map((worker) => worker.close()));
+  workerConnection.disconnect();
+  queueConnection.disconnect();
+  await prisma.$disconnect();
+}
+
+for (const signal of ["SIGTERM", "SIGINT"] as const) {
+  process.once(signal, () => {
+    void shutdown(signal).then(() => process.exit(0));
+  });
+}
 
 console.log("[worker] workers running");
 console.log("[worker] queues: ingest | pdf-processing | embeddings | notifications | failed-jobs");
