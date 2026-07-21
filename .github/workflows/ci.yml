@@ -17,6 +17,7 @@ jobs:
   verify:
     runs-on: ubuntu-latest
     timeout-minutes: 45
+
     env:
       POSTGRES_USER: radar_ci
       POSTGRES_PASSWORD: ci-postgres-password-2026
@@ -44,12 +45,13 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 10
+
       redis:
         image: redis:7.4-bookworm
         ports:
           - 6379:6379
         options: >-
-          --health-cmd "redis-cli --no-auth-warning -a ci-redis-password-2026 ping"
+          --health-cmd "redis-cli ping"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 10
@@ -64,6 +66,11 @@ jobs:
           node-version: "22"
           cache: npm
 
+      - name: Install Redis CLI
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y redis-tools
+
       - name: Install locked dependencies
         run: |
           npm ci --ignore-scripts
@@ -72,12 +79,23 @@ jobs:
       - name: Enable and verify Redis authentication
         shell: bash
         run: |
+          set -euo pipefail
+
           redis-cli CONFIG SET requirepass "$REDIS_PASSWORD"
-          test "$(redis-cli --no-auth-warning -a "$REDIS_PASSWORD" ping)" = "PONG"
-          set +e
-          unauthenticated="$(redis-cli --raw ping 2>&1)"
-          set -e
-          test "$unauthenticated" != "PONG"
+
+          authenticated="$(
+            redis-cli \
+              --no-auth-warning \
+              -a "$REDIS_PASSWORD" \
+              ping
+          )"
+
+          test "$authenticated" = "PONG"
+
+          unauthenticated="$(redis-cli --raw ping 2>&1 || true)"
+
+          echo "$unauthenticated"
+          grep -q "NOAUTH" <<< "$unauthenticated"
 
       - name: Apply database migrations
         run: npm run db:migrate
