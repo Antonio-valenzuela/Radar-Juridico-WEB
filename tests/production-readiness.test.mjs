@@ -51,3 +51,18 @@ test("production compose keeps stateful services private and authenticated", () 
   assert.ok((compose.match(/restart: unless-stopped/g) || []).length >= 7);
   assert.doesNotMatch(compose, /npm install/);
 });
+
+test("CI uses Node 22 and never suppresses lint failures", () => {
+  const ci = fs.readFileSync(".github/workflows/ci.yml", "utf8");
+
+  assert.match(ci, /actions\/checkout@v4/);
+  assert.match(ci, /actions\/setup-node@v4/);
+  assert.match(ci, /node-version:\s*["']?22["']?/);
+  assert.doesNotMatch(ci, /npm run lint\s*\|\|\s*true/);
+  assert.match(ci, /npm run typecheck/);
+  assert.match(ci, /npm run db:migrate/);
+  assert.match(ci, /npm audit --omit=dev/);
+  assert.match(ci, /docker compose -f docker-compose\.prod\.yml config --quiet/);
+  assert.match(ci, /requirepass|CONFIG SET requirepass/);
+  assert.doesNotMatch(ci, /POSTGRES_PASSWORD:\s*apppass/);
+});
