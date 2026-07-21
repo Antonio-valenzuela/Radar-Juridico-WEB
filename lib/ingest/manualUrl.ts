@@ -7,7 +7,12 @@ import { classifyItem } from "@/lib/classifier";
 import { cleanText, canonicalizeUrl, parseMxDate } from "@/lib/ingest/normalize";
 import { DEFAULT_HEADERS } from "@/lib/sources/http";
 import { INGEST_FETCH_MS } from "@/lib/config/timeouts";
-import { validatePublicHttpUrl, validateRedirectTarget } from "@/lib/security/urlValidation";
+import {
+  fetchPinnedPublicHttpUrl,
+  readResponseBodyWithLimit,
+  validatePublicHttpUrl,
+  validateRedirectTarget,
+} from "@/lib/security/urlValidation";
 import { indexDocumentVersion as defaultIndexDocumentVersion } from "@/lib/documents/indexDocument";
 import { extractDiputadosPdfItems } from "@/lib/sources/diputados";
 
@@ -170,7 +175,7 @@ function cleanChromeText(text: string) {
   return cleanText(cleaned);
 }
 
-function decodeResponseBody(body: ArrayBuffer, contentType: string) {
+function decodeResponseBody(body: Uint8Array, contentType: string) {
   const charset = contentType.match(/charset=([^;]+)/i)?.[1]?.trim().replace(/^["']|["']$/g, "");
   const preferredEncoding = charset || "utf-8";
 
@@ -256,7 +261,7 @@ export async function fetchManualUrlText(url: string): Promise<ManualFetchResult
     const controller = new AbortController();
     const timer = timeoutMs > 0 ? setTimeout(() => controller.abort(), timeoutMs) : undefined;
     try {
-      const response = await fetch(current, {
+      const response = await fetchPinnedPublicHttpUrl(current, {
         redirect: "manual",
         cache: "no-store",
         headers: {
@@ -266,8 +271,6 @@ export async function fetchManualUrlText(url: string): Promise<ManualFetchResult
         },
         signal: controller.signal,
       });
-      if (timer) clearTimeout(timer);
-
       console.error(`[manual-url-ingest] fetched-status ${response.status} url="${current}"`);
 
       if ([301, 302, 303, 307, 308].includes(response.status)) {
@@ -288,8 +291,8 @@ export async function fetchManualUrlText(url: string): Promise<ManualFetchResult
       const contentType = response.headers.get("content-type") || "text/plain";
       console.error(`[manual-url-ingest] content-type "${contentType}"`);
 
-      const arrayBuffer = await response.arrayBuffer();
-      const byteLength = arrayBuffer.byteLength;
+      const responseBody = await readResponseBodyWithLimit(response, MAX_PDF_BYTES);
+      const byteLength = responseBody.byteLength;
       console.error(`[manual-url-ingest] content-length ${byteLength}`);
 
       let body = "";
@@ -304,7 +307,7 @@ export async function fetchManualUrlText(url: string): Promise<ManualFetchResult
         }
         console.error(`[manual-url-ingest] pdf-extract-start`);
         try {
-          const buffer = Buffer.from(arrayBuffer);
+          const buffer = Buffer.from(responseBody);
           const mod = await import("pdf-parse");
           const pdfParse = ("default" in mod ? mod.default : mod) as unknown as (
             input: Buffer
@@ -320,13 +323,12 @@ export async function fetchManualUrlText(url: string): Promise<ManualFetchResult
           return { ok: false, finalUrl: current, error: "Error al extraer texto del PDF: " + pdfErr.message };
         }
       } else {
-        body = decodeResponseBody(arrayBuffer, contentType);
+        body = decodeResponseBody(responseBody, contentType);
         console.error(`[manual-url-ingest] text-length ${body.length}`);
       }
 
       return { ok: true, finalUrl: current, contentType, body };
     } catch (error: any) {
-      if (timer) clearTimeout(timer);
       console.error(`[manual-url-ingest] failed fetch`, error.message);
       return {
         ok: false,
@@ -336,6 +338,8 @@ export async function fetchManualUrlText(url: string): Promise<ManualFetchResult
           : "No se pudo descargar la URL",
         detail: error.message || String(error),
       };
+    } finally {
+      if (timer) clearTimeout(timer);
     }
   }
 

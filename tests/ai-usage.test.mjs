@@ -259,12 +259,12 @@ test("GET /api/ai/usage sin registros devuelve summary en ceros y requiere token
       await prisma.aiUsageLog.deleteMany();
 
       // Test 1: Without admin token (Unauthorized)
-      const reqNoToken = new Request("http://localhost:3000/api/ai/usage");
+      const reqNoToken = new Request("http://localhost:3000/api/ai/usage?date=1999-01-01");
       const resNoToken = await GET(reqNoToken);
       const dataNoToken = await resNoToken.json();
 
       // Test 2: With valid admin token (Success, returns zeros)
-      const reqToken = new Request("http://localhost:3000/api/ai/usage", {
+      const reqToken = new Request("http://localhost:3000/api/ai/usage?date=1999-01-01", {
         headers: { "x-admin-token": "dev-admin-token" }
       });
       const resToken = await GET(reqToken);
@@ -299,4 +299,3 @@ test("/ai render variables previene crashes de limitsResult y summary", () => {
   assert.match(fileContent, /limitsResult\?.providers/);
   assert.match(fileContent, /usageSummary\.totalAttempts/);
 });
-

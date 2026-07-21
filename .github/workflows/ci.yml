@@ -1,6 +1,4 @@
-# .github/workflows/ci.yml
-
-name: CI/CD
+name: CI
 
 on:
   push:
@@ -8,65 +6,123 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  tests:
+  verify:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    env:
+      POSTGRES_USER: radar_ci
+      POSTGRES_PASSWORD: ci-postgres-password-2026
+      POSTGRES_DB: radar_ci
+      REDIS_PASSWORD: ci-redis-password-2026
+      DATABASE_URL: postgresql://radar_ci:ci-postgres-password-2026@127.0.0.1:5432/radar_ci?schema=public
+      REDIS_URL: redis://:ci-redis-password-2026@127.0.0.1:6379/0
+      ADMIN_TOKEN: 0123456789abcdef0123456789abcdef
+      NEXT_PUBLIC_APP_URL: http://127.0.0.1:3000
+      NEXT_PUBLIC_ENABLE_PUBLIC_DEMO: "false"
+      NEXT_TELEMETRY_DISABLED: "1"
+      LLM_PROVIDER: local
+
     services:
       postgres:
         image: pgvector/pgvector:pg16
         env:
-          POSTGRES_USER: app
-          POSTGRES_PASSWORD: apppass
-          POSTGRES_DB: juridico
+          POSTGRES_USER: radar_ci
+          POSTGRES_PASSWORD: ci-postgres-password-2026
+          POSTGRES_DB: radar_ci
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U app -d juridico"
+          --health-cmd "pg_isready -U radar_ci -d radar_ci"
           --health-interval 10s
           --health-timeout 5s
-          --health-retries 5
+          --health-retries 10
+
       redis:
-        image: redis:7
+        image: redis:7.4-bookworm
+        ports:
+          - 6379:6379
         options: >-
           --health-cmd "redis-cli ping"
           --health-interval 10s
           --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 6379:6379
+          --health-retries 10
 
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v3
+      - name: Setup Node.js 22
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
-          node-version: '20'
-          cache: 'npm'
+          node-version: "22"
+          cache: npm
 
-      - name: Install dependencies
-        run: npm ci
+      - name: Install Redis CLI
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y redis-tools
 
-      - name: Generate Prisma Client
-        run: npx prisma generate
+      - name: Install locked dependencies
+        run: |
+          npm ci --ignore-scripts
+          npm run postinstall
 
-      - name: Push Database Schema
-        run: npx prisma db push --skip-generate
-        env:
-          DATABASE_URL: postgresql://app:apppass@localhost:5432/juridico?schema=public
+      - name: Enable and verify Redis authentication
+        shell: bash
+        run: |
+          set -euo pipefail
 
-      - name: Run tests
+          redis-cli CONFIG SET requirepass "$REDIS_PASSWORD"
+
+          authenticated="$(
+            redis-cli \
+              --no-auth-warning \
+              -a "$REDIS_PASSWORD" \
+              ping
+          )"
+
+          test "$authenticated" = "PONG"
+
+          unauthenticated="$(redis-cli --raw ping 2>&1 || true)"
+
+          echo "$unauthenticated"
+          grep -q "NOAUTH" <<< "$unauthenticated"
+
+      - name: Apply database migrations
+        run: npm run db:migrate
+
+      - name: TypeScript
+        run: npm run typecheck
+
+      - name: ESLint
+        run: npm run lint
+
+      - name: Test suite
         run: npm test
-        env:
-          DATABASE_URL: postgresql://app:apppass@localhost:5432/juridico?schema=public
-          REDIS_URL: redis://localhost:6379
 
-      - name: Run linting
-        run: npm run lint || true
-
-      - name: Build
+      - name: Production build
         run: npm run build
-        env:
-          DATABASE_URL: postgresql://app:apppass@localhost:5432/juridico?schema=public
-          REDIS_URL: redis://localhost:6379
-          GEMINI_API_KEY: mock-key
+
+      - name: Full dependency audit
+        run: npm audit
+
+      - name: Production dependency audit
+        run: npm audit --omit=dev
+
+      - name: Validate production Compose
+        run: docker compose -f docker-compose.prod.yml config --quiet
+
+      - name: Build production images
+        run: |
+          docker build --target web-runtime -t juridico-radar:web-ci .
+          docker build --target worker-runtime -t juridico-radar:worker-ci .
+          docker build --target migrate -t juridico-radar:migrate-ci .

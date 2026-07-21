@@ -2,6 +2,14 @@
   "name": "juridico-radar",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": "22.x"
+  },
+  "overrides": {
+    "next": {
+      "postcss": "8.5.10"
+    }
+  },
   "scripts": {
     "dev": "next dev --webpack --port 3100",
     "build": "npx prisma generate && next build",
@@ -10,6 +18,7 @@
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "test": "node --test tests/*.test.mjs",
+    "env:check": "tsx scripts/validateRuntimeEnv.ts",
     "db:migrate": "prisma migrate deploy",
     "db:seed": "tsx prisma/seed.ts",
     "postinstall": "prisma generate",
@@ -27,12 +36,14 @@
     "bullmq": "^5.67.1",
     "cheerio": "^1.2.0",
     "ioredis": "^5.9.2",
-    "next": "16.1.4",
+    "next": "16.2.10",
     "nodemailer": "^9.0.1",
     "pdf-parse": "^2.4.5",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "recharts": "^3.8.1",
+    "tsx": "^4.21.0",
+    "undici": "^7.28.0",
     "ws": "^8.21.0"
   },
   "devDependencies": {
@@ -43,10 +54,9 @@
     "@types/react-dom": "^19",
     "@types/ws": "^8.18.1",
     "eslint": "^9",
-    "eslint-config-next": "16.1.4",
+    "eslint-config-next": "16.2.10",
     "prisma": "^6.19.2",
     "tailwindcss": "^4",
-    "tsx": "^4.21.0",
     "typescript": "^5"
   }
 }
