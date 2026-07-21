@@ -18,6 +18,7 @@ test("production images are reproducible multi-stage runtimes", () => {
   const dockerfile = fs.readFileSync("Dockerfile", "utf8");
   const nextConfig = fs.readFileSync("next.config.ts", "utf8");
   const dockerignore = fs.readFileSync(".dockerignore", "utf8");
+  const productionStart = fs.readFileSync("scripts/start-prod.sh", "utf8");
 
   assert.match(dockerfile, /node:22-bookworm-slim/);
   assert.match(dockerfile, /FROM base AS deps/);
@@ -25,9 +26,12 @@ test("production images are reproducible multi-stage runtimes", () => {
   assert.match(dockerfile, /AS web-runtime/);
   assert.match(dockerfile, /AS worker-runtime/);
   assert.match(dockerfile, /AS migrate/);
+  assert.match(dockerfile, /FROM web-runtime AS production\s*$/);
   assert.match(dockerfile, /RUN npm ci/);
   assert.match(dockerfile, /USER node/);
   assert.doesNotMatch(dockerfile, /(?:CMD|ENTRYPOINT)[^\n]*npm install/i);
+  assert.doesNotMatch(productionStart, /(?:npm install|prisma migrate|next build)/i);
+  assert.match(productionStart, /exec npm run start/);
   assert.match(nextConfig, /output:\s*["']standalone["']/);
 
   for (const ignored of [".env*", "tests", "docs", ".codegraph", "node_modules", ".next"]) {
@@ -65,4 +69,29 @@ test("CI uses Node 22 and never suppresses lint failures", () => {
   assert.match(ci, /docker compose -f docker-compose\.prod\.yml config --quiet/);
   assert.match(ci, /requirepass|CONFIG SET requirepass/);
   assert.doesNotMatch(ci, /POSTGRES_PASSWORD:\s*apppass/);
+});
+
+test("operations guide covers portable Render and VPS lifecycle", () => {
+  const guide = fs.readFileSync("docs/DEPLOYMENT.md", "utf8");
+  const caddy = fs.readFileSync("docs/Caddyfile.example", "utf8");
+
+  for (const topic of [
+    "Render",
+    "VPS",
+    "migrate",
+    "health/ready",
+    "logs",
+    "pg_dump",
+    "pg_restore",
+    "rollback",
+    "worker",
+    "HTTPS",
+    "SSH",
+    "secret",
+  ]) {
+    assert.ok(guide.toLowerCase().includes(topic.toLowerCase()), `missing deployment topic: ${topic}`);
+  }
+
+  assert.match(caddy, /reverse_proxy/);
+  assert.match(caddy, /localhost:3000/);
 });

@@ -40,7 +40,6 @@ test("web and background processes expose health and graceful shutdown hooks", (
   for (const file of [
     "worker/ingestWorker.ts",
     "worker/legalReportWorker.ts",
-    "worker/dashboardWorker.ts",
   ]) {
     const source = fs.readFileSync(file, "utf8");
     assert.match(source, /startHealthServer/);
@@ -48,4 +47,21 @@ test("web and background processes expose health and graceful shutdown hooks", (
     assert.match(source, /SIGINT/);
     assert.match(source, /\$disconnect/);
   }
+
+  const dashboard = fs.readFileSync("worker/dashboardWorker.ts", "utf8");
+  assert.match(dashboard, /createHealthServer/);
+  assert.match(dashboard, /new WebSocketServer\(\{ server:/);
+  assert.match(dashboard, /SIGTERM/);
+  assert.match(dashboard, /SIGINT/);
+  assert.match(dashboard, /\$disconnect/);
+});
+
+test("dashboard websocket has a configurable public URL", () => {
+  const page = fs.readFileSync("app/admin/dashboard/page.tsx", "utf8");
+  const dockerfile = fs.readFileSync("Dockerfile", "utf8");
+  const compose = fs.readFileSync("docker-compose.prod.yml", "utf8");
+
+  assert.match(page, /NEXT_PUBLIC_WEBSOCKET_URL/);
+  assert.match(dockerfile, /ARG NEXT_PUBLIC_WEBSOCKET_URL/);
+  assert.match(compose, /NEXT_PUBLIC_WEBSOCKET_URL/);
 });

@@ -66,7 +66,7 @@ graph TD
 
 ### Requisitos
 - Docker y Docker Compose
-- Node.js 20+
+- Node.js 22.x
 
 ### Instalación
 
@@ -74,7 +74,8 @@ graph TD
 ```bash
 git clone <tu-repo>
 cd juridico-radar
-npm install
+nvm use 22
+npm ci
 ```
 
 2. Configura las variables de entorno:
@@ -82,15 +83,14 @@ npm install
 cp .env.example .env
 ```
 
-3. Levanta la infraestructura con Docker (Postgres, Redis y pgvector):
+3. Ajusta las URLs locales como se explica en `docs/DEPLOYMENT.md` y levanta PostgreSQL, Redis y pgvector:
 ```bash
-docker-compose up -d
+docker compose up -d postgres redis
 ```
 
-4. Ejecuta las migraciones de Prisma:
+4. Ejecuta las migraciones versionadas de Prisma:
 ```bash
-npx prisma generate
-npx prisma db push
+npm run db:migrate
 ```
 
 5. Inicia el servidor local:
@@ -107,3 +107,5 @@ npm run worker
 ```bash
 npm test
 ```
+
+La guía completa de desarrollo, pruebas de producción, backups, Render y VPS está en [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md). `docker-compose.yml` es sólo para desarrollo; producción usa `docker-compose.prod.yml`.

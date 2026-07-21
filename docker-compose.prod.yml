@@ -3,6 +3,7 @@ x-app-environment: &app-environment
   NEXT_TELEMETRY_DISABLED: "1"
   NEXT_PUBLIC_APP_URL: "${NEXT_PUBLIC_APP_URL:?NEXT_PUBLIC_APP_URL is required}"
   NEXT_PUBLIC_ENABLE_PUBLIC_DEMO: "${NEXT_PUBLIC_ENABLE_PUBLIC_DEMO:-false}"
+  NEXT_PUBLIC_WEBSOCKET_URL: "${NEXT_PUBLIC_WEBSOCKET_URL:-}"
   DATABASE_URL: "${DATABASE_URL:?DATABASE_URL is required}"
   REDIS_URL: "${REDIS_URL:?REDIS_URL is required}"
   ADMIN_TOKEN: "${ADMIN_TOKEN:?ADMIN_TOKEN is required}"
@@ -107,6 +108,7 @@ services:
       args:
         NEXT_PUBLIC_APP_URL: "${NEXT_PUBLIC_APP_URL:?NEXT_PUBLIC_APP_URL is required}"
         NEXT_PUBLIC_ENABLE_PUBLIC_DEMO: "${NEXT_PUBLIC_ENABLE_PUBLIC_DEMO:-false}"
+        NEXT_PUBLIC_WEBSOCKET_URL: "${NEXT_PUBLIC_WEBSOCKET_URL:-}"
     environment:
       <<: *app-environment
       PORT: "3000"
@@ -139,6 +141,7 @@ services:
       args:
         NEXT_PUBLIC_APP_URL: "${NEXT_PUBLIC_APP_URL:?NEXT_PUBLIC_APP_URL is required}"
         NEXT_PUBLIC_ENABLE_PUBLIC_DEMO: "${NEXT_PUBLIC_ENABLE_PUBLIC_DEMO:-false}"
+        NEXT_PUBLIC_WEBSOCKET_URL: "${NEXT_PUBLIC_WEBSOCKET_URL:-}"
     environment:
       <<: *app-environment
       PORT: "3001"
@@ -230,11 +233,8 @@ services:
     environment:
       <<: *app-environment
       WEBSOCKET_PORT: "3002"
-      DASHBOARD_HEALTH_PORT: "9103"
     ports:
       - "127.0.0.1:${WEBSOCKET_PORT:-3002}:3002"
-    expose:
-      - "9103"
     networks:
       - public
       - private
@@ -244,7 +244,7 @@ services:
       redis:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:9103/health/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3002/health/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 15s
       timeout: 5s
       retries: 5

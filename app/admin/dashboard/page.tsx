@@ -35,7 +35,8 @@ export default function DashboardPage() {
 
     const connectWebSocket = () => {
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const wsUrl = `${protocol}//${window.location.hostname}:3002`;
+      const configuredWsUrl = process.env.NEXT_PUBLIC_WEBSOCKET_URL?.trim();
+      const wsUrl = configuredWsUrl || `${protocol}//${window.location.hostname}:3002`;
       console.log('Intentando conectar WebSocket a:', wsUrl);
 
       ws = new WebSocket(wsUrl);
