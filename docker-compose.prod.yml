@@ -1,0 +1,279 @@
+x-app-environment: &app-environment
+  NODE_ENV: production
+  NEXT_TELEMETRY_DISABLED: "1"
+  NEXT_PUBLIC_APP_URL: "${NEXT_PUBLIC_APP_URL:?NEXT_PUBLIC_APP_URL is required}"
+  NEXT_PUBLIC_ENABLE_PUBLIC_DEMO: "${NEXT_PUBLIC_ENABLE_PUBLIC_DEMO:-false}"
+  DATABASE_URL: "${DATABASE_URL:?DATABASE_URL is required}"
+  REDIS_URL: "${REDIS_URL:?REDIS_URL is required}"
+  ADMIN_TOKEN: "${ADMIN_TOKEN:?ADMIN_TOKEN is required}"
+  ENABLE_PUBLIC_DEMO: "${ENABLE_PUBLIC_DEMO:-false}"
+  ENABLE_PUBLIC_AI: "${ENABLE_PUBLIC_AI:-false}"
+  ENABLE_PUBLIC_SEARCH: "${ENABLE_PUBLIC_SEARCH:-false}"
+  ENABLE_PUBLIC_DOCUMENTS: "${ENABLE_PUBLIC_DOCUMENTS:-false}"
+  SIDOF_BASE_URL: "${SIDOF_BASE_URL:-https://sidof.segob.gob.mx/dof/sidof}"
+  SJF_START_ID: "${SJF_START_ID:-2033000}"
+  LEGAL_RADAR_LOOKBACK_DAYS: "${LEGAL_RADAR_LOOKBACK_DAYS:-7}"
+  CRAWLER_TIMEOUT_MS: "${CRAWLER_TIMEOUT_MS:-30000}"
+  LLM_PROVIDER: "${LLM_PROVIDER:-local}"
+  AI_PROVIDER_CHAIN: "${AI_PROVIDER_CHAIN:-gemini,groq,openrouter,local}"
+  AI_PROVIDER_TIMEOUT_MS: "${AI_PROVIDER_TIMEOUT_MS:-8000}"
+  AI_GLOBAL_TIMEOUT_MS: "${AI_GLOBAL_TIMEOUT_MS:-20000}"
+  AI_REQUEST_TIMEOUT_MS: "${AI_REQUEST_TIMEOUT_MS:-20000}"
+  AI_ENABLE_USAGE_TRACKING: "${AI_ENABLE_USAGE_TRACKING:-true}"
+  AI_ENABLE_EXTERNAL_CONTEXT: "${AI_ENABLE_EXTERNAL_CONTEXT:-false}"
+  AI_ENABLE_VISION: "${AI_ENABLE_VISION:-false}"
+  AI_USAGE_TIMEZONE: "${AI_USAGE_TIMEZONE:-America/Mexico_City}"
+  GEMINI_API_KEY: "${GEMINI_API_KEY:-}"
+  GEMINI_MODEL: "${GEMINI_MODEL:-gemini-2.5-flash}"
+  GROQ_API_KEY: "${GROQ_API_KEY:-}"
+  GROQ_MODEL: "${GROQ_MODEL:-llama-3.1-8b-instant}"
+  OPENROUTER_API_KEY: "${OPENROUTER_API_KEY:-}"
+  OPENROUTER_MODEL: "${OPENROUTER_MODEL:-openai/gpt-oss-20b:free}"
+  OPENAI_API_KEY: "${OPENAI_API_KEY:-}"
+  TAVILY_API_KEY: "${TAVILY_API_KEY:-}"
+  EMBEDDINGS_PROVIDER: "${EMBEDDINGS_PROVIDER:-local}"
+  EMBEDDINGS_MODEL: "${EMBEDDINGS_MODEL:-text-embedding-ada-002}"
+  RESEND_API_KEY: "${RESEND_API_KEY:-}"
+  FROM_EMAIL: "${FROM_EMAIL:-alerts@juridico-radar.local}"
+  WEBHOOK_URL: "${WEBHOOK_URL:-}"
+  TELEGRAM_BOT_TOKEN: "${TELEGRAM_BOT_TOKEN:-}"
+  TELEGRAM_CHAT_ID: "${TELEGRAM_CHAT_ID:-}"
+  SMTP_HOST: "${SMTP_HOST:-}"
+  SMTP_PORT: "${SMTP_PORT:-587}"
+  SMTP_USER: "${SMTP_USER:-}"
+  SMTP_PASS: "${SMTP_PASS:-}"
+
+x-app-security: &app-security
+  init: true
+  security_opt:
+    - no-new-privileges:true
+  cap_drop:
+    - ALL
+  logging:
+    driver: json-file
+    options:
+      max-size: 10m
+      max-file: "3"
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: "${POSTGRES_USER:?POSTGRES_USER is required}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}"
+      POSTGRES_DB: "${POSTGRES_DB:?POSTGRES_DB is required}"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - private
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    restart: unless-stopped
+    shm_size: 256mb
+
+  redis:
+    image: redis:7.4-bookworm
+    environment:
+      REDIS_PASSWORD: "${REDIS_PASSWORD:?REDIS_PASSWORD is required}"
+    command:
+      - sh
+      - -ec
+      - |
+        umask 077
+        printf 'bind 0.0.0.0\nprotected-mode yes\nappendonly yes\nrequirepass %s\n' "$$REDIS_PASSWORD" > /tmp/redis.conf
+        exec redis-server /tmp/redis.conf
+    volumes:
+      - redis_data:/data
+    networks:
+      - private
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli --no-auth-warning -a \"$$REDIS_PASSWORD\" ping | grep -q PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+
+  web:
+    <<: *app-security
+    image: juridico-radar-web:${IMAGE_TAG:-local}
+    build:
+      context: .
+      target: web-runtime
+      args:
+        NEXT_PUBLIC_APP_URL: "${NEXT_PUBLIC_APP_URL:?NEXT_PUBLIC_APP_URL is required}"
+        NEXT_PUBLIC_ENABLE_PUBLIC_DEMO: "${NEXT_PUBLIC_ENABLE_PUBLIC_DEMO:-false}"
+    environment:
+      <<: *app-environment
+      PORT: "3000"
+      HOSTNAME: 0.0.0.0
+    ports:
+      - "127.0.0.1:${APP_PORT:-3000}:3000"
+    networks:
+      - public
+      - private
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+    stop_grace_period: 30s
+
+  api:
+    <<: *app-security
+    image: juridico-radar-web:${IMAGE_TAG:-local}
+    build:
+      context: .
+      target: web-runtime
+      args:
+        NEXT_PUBLIC_APP_URL: "${NEXT_PUBLIC_APP_URL:?NEXT_PUBLIC_APP_URL is required}"
+        NEXT_PUBLIC_ENABLE_PUBLIC_DEMO: "${NEXT_PUBLIC_ENABLE_PUBLIC_DEMO:-false}"
+    environment:
+      <<: *app-environment
+      PORT: "3001"
+      HOSTNAME: 0.0.0.0
+    expose:
+      - "3001"
+    networks:
+      - public
+      - private
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3001/api/health/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+    stop_grace_period: 30s
+
+  worker:
+    <<: *app-security
+    image: juridico-radar-worker:${IMAGE_TAG:-local}
+    build:
+      context: .
+      target: worker-runtime
+    command: ["node", "node_modules/tsx/dist/cli.mjs", "worker/ingestWorker.ts"]
+    environment:
+      <<: *app-environment
+      WORKER_HEALTH_PORT: "9101"
+    expose:
+      - "9101"
+    networks:
+      - public
+      - private
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:9101/health/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+    stop_grace_period: 2m
+
+  worker-legal-reports:
+    <<: *app-security
+    image: juridico-radar-worker:${IMAGE_TAG:-local}
+    build:
+      context: .
+      target: worker-runtime
+    command: ["node", "node_modules/tsx/dist/cli.mjs", "worker/legalReportWorker.ts"]
+    environment:
+      <<: *app-environment
+      LEGAL_REPORT_WORKER_HEALTH_PORT: "9102"
+    expose:
+      - "9102"
+    networks:
+      - public
+      - private
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:9102/health/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+    stop_grace_period: 2m
+
+  dashboard-ws:
+    <<: *app-security
+    image: juridico-radar-worker:${IMAGE_TAG:-local}
+    build:
+      context: .
+      target: worker-runtime
+    command: ["node", "node_modules/tsx/dist/cli.mjs", "worker/dashboardWorker.ts"]
+    environment:
+      <<: *app-environment
+      WEBSOCKET_PORT: "3002"
+      DASHBOARD_HEALTH_PORT: "9103"
+    ports:
+      - "127.0.0.1:${WEBSOCKET_PORT:-3002}:3002"
+    expose:
+      - "9103"
+    networks:
+      - public
+      - private
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:9103/health/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+    stop_grace_period: 30s
+
+  migrate:
+    image: juridico-radar-migrate:${IMAGE_TAG:-local}
+    build:
+      context: .
+      target: migrate
+    profiles: ["migrate"]
+    environment:
+      <<: *app-environment
+    networks:
+      - private
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: "no"
+
+networks:
+  public:
+  private:
+    internal: true
+
+volumes:
+  postgres_data:
+  redis_data:

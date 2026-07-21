@@ -1,6 +1,7 @@
-﻿.git
+.git
 .gitignore
 .dockerignore
+.codegraph
 
 node_modules
 .next
@@ -8,6 +9,8 @@ node_modules
 out
 build
 coverage
+tests
+docs
 
 *.log
 npm-debug.log*
@@ -16,9 +19,7 @@ yarn-error.log*
 .pnpm-debug.log*
 tsconfig.tsbuildinfo
 
-.env
-.env.*
-!.env.example
+.env*
 
 .DS_Store
 *.pem
