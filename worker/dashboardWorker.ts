@@ -1,13 +1,19 @@
 // worker/dashboardWorker.ts
 
 import { WebSocketServer, WebSocket } from 'ws';
+import { timingSafeEqual } from 'node:crypto';
 import { prisma } from '@/lib/prisma';
 import { assertRuntimeEnv } from '@/lib/config/env';
 import { checkDatabase } from '@/lib/health/checks';
 import { closeHealthServer, createHealthServer } from '@/lib/health/server';
+import { getExpectedAdminToken } from '@/lib/security/adminAuth';
 
 assertRuntimeEnv();
 const PORT = process.env.WEBSOCKET_PORT || 3002;
+const configuredMaxClients = Number(process.env.DASHBOARD_MAX_CLIENTS || 100);
+const DASHBOARD_MAX_CLIENTS = Number.isFinite(configuredMaxClients) && configuredMaxClients > 0
+  ? Math.floor(configuredMaxClients)
+  : 100;
 let shuttingDown = false;
 
 interface Client {
@@ -16,6 +22,37 @@ interface Client {
 }
 
 const clients: Client[] = [];
+
+function tokenMatches(provided: string) {
+  const expected = getExpectedAdminToken();
+  if (!expected || !provided) return false;
+
+  const expectedBuffer = Buffer.from(expected);
+  const providedBuffer = Buffer.from(provided);
+  return expectedBuffer.length === providedBuffer.length && timingSafeEqual(expectedBuffer, providedBuffer);
+}
+
+function hasValidOrigin(origin: string) {
+  try {
+    return new URL(process.env.NEXT_PUBLIC_APP_URL || '').origin === origin;
+  } catch {
+    return false;
+  }
+}
+
+function readProtocolToken(header: string | string[] | undefined) {
+  const protocols = (Array.isArray(header) ? header.join(',') : header || '')
+    .split(',')
+    .map((value) => value.trim());
+  const encoded = protocols.find((value) => value.startsWith('auth.'))?.slice(5);
+  if (!encoded) return '';
+
+  try {
+    return Buffer.from(encoded, 'base64url').toString('utf8');
+  } catch {
+    return '';
+  }
+}
 
 const healthServer = createHealthServer({
   name: 'dashboard-websocket',
@@ -27,7 +64,28 @@ const healthServer = createHealthServer({
     };
   },
 });
-const wss = new WebSocketServer({ server: healthServer });
+const wss = new WebSocketServer({
+  server: healthServer,
+  verifyClient: (info, done) => {
+    if (shuttingDown || clients.length >= DASHBOARD_MAX_CLIENTS) {
+      done(false, 503, 'WebSocket capacity unavailable');
+      return;
+    }
+
+    if (!hasValidOrigin(info.origin)) {
+      done(false, 403, 'Origin not allowed');
+      return;
+    }
+
+    const token = readProtocolToken(info.req.headers['sec-websocket-protocol']);
+    if (!tokenMatches(token)) {
+      done(false, 401, 'Unauthorized');
+      return;
+    }
+
+    done(true);
+  },
+});
 
 healthServer.listen(Number(PORT), '0.0.0.0', () => {
   console.log(`[Dashboard WebSocket] Servidor y healthchecks escuchando en el puerto ${PORT}`);

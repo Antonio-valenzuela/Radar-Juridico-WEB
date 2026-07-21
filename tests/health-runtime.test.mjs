@@ -50,7 +50,8 @@ test("web and background processes expose health and graceful shutdown hooks", (
 
   const dashboard = fs.readFileSync("worker/dashboardWorker.ts", "utf8");
   assert.match(dashboard, /createHealthServer/);
-  assert.match(dashboard, /new WebSocketServer\(\{ server:/);
+  assert.match(dashboard, /new WebSocketServer\(\{/);
+  assert.match(dashboard, /server:\s*healthServer/);
   assert.match(dashboard, /SIGTERM/);
   assert.match(dashboard, /SIGINT/);
   assert.match(dashboard, /\$disconnect/);

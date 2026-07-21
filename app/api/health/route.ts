@@ -12,13 +12,12 @@ export async function GET() {
     prisma.ingestRun.findFirst({ orderBy: { startedAt: "desc" } }).catch(() => null),
     prisma.item.count().catch(() => 0),
   ]);
-  const queues = await getQueueSnapshots().catch((error) => [
-    {
-      name: "queues",
-      ok: false,
-      error: error instanceof Error ? error.message : String(error),
-    },
-  ]);
+  const queues = await getQueueSnapshots().catch((error) => {
+    console.error("[health] queue snapshot failed", {
+      kind: error instanceof Error ? error.name : typeof error,
+    });
+    return [{ name: "queues", ok: false, error: "queues_unavailable" }];
+  });
 
   return NextResponse.json({
     ok: db.ok && redis.ok,

@@ -14,6 +14,12 @@ COPY prisma.config.ts ./
 RUN npm ci --ignore-scripts \
   && DATABASE_URL=postgresql://build:build-password@localhost:5432/build?schema=public npm run postinstall
 
+FROM deps AS env-check-builder
+COPY lib/config/env.ts ./lib/config/env.ts
+COPY scripts/validateRuntimeEnv.ts ./scripts/validateRuntimeEnv.ts
+RUN node node_modules/esbuild/bin/esbuild scripts/validateRuntimeEnv.ts \
+  --bundle --platform=node --format=esm --outfile=runtime-env-check.mjs
+
 FROM deps AS builder
 ARG NEXT_PUBLIC_APP_URL=http://localhost:3000
 ARG NEXT_PUBLIC_ENABLE_PUBLIC_DEMO=false
@@ -38,9 +44,10 @@ ENV NODE_ENV=production \
 COPY --from=builder --chown=node:node /app/public ./public
 COPY --from=builder --chown=node:node /app/.next/standalone ./
 COPY --from=builder --chown=node:node /app/.next/static ./.next/static
+COPY --from=env-check-builder --chown=node:node /app/runtime-env-check.mjs ./runtime-env-check.mjs
 USER node
 EXPOSE 3000
-CMD ["node", "server.js"]
+CMD ["sh", "-c", "node runtime-env-check.mjs && exec node server.js"]
 
 FROM base AS worker-runtime
 ENV NODE_ENV=production

@@ -23,4 +23,13 @@ tsconfig.tsbuildinfo
 
 .DS_Store
 *.pem
+*.key
+*.crt
+*.cer
+*.p12
+*.pfx
+*.jks
+id_rsa
+id_ed25519
+secrets
 .vercel

@@ -15,6 +15,7 @@ x-app-environment: &app-environment
   SJF_START_ID: "${SJF_START_ID:-2033000}"
   LEGAL_RADAR_LOOKBACK_DAYS: "${LEGAL_RADAR_LOOKBACK_DAYS:-7}"
   CRAWLER_TIMEOUT_MS: "${CRAWLER_TIMEOUT_MS:-30000}"
+  DASHBOARD_MAX_CLIENTS: "${DASHBOARD_MAX_CLIENTS:-100}"
   LLM_PROVIDER: "${LLM_PROVIDER:-local}"
   AI_PROVIDER_CHAIN: "${AI_PROVIDER_CHAIN:-gemini,groq,openrouter,local}"
   AI_PROVIDER_TIMEOUT_MS: "${AI_PROVIDER_TIMEOUT_MS:-8000}"
@@ -46,6 +47,9 @@ x-app-environment: &app-environment
 
 x-app-security: &app-security
   init: true
+  mem_limit: 1g
+  cpus: 1.0
+  pids_limit: 256
   security_opt:
     - no-new-privileges:true
   cap_drop:
@@ -75,6 +79,16 @@ services:
       start_period: 20s
     restart: unless-stopped
     shm_size: 256mb
+    mem_limit: 2g
+    cpus: 2.0
+    pids_limit: 256
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
 
   redis:
     image: redis:7.4-bookworm
@@ -98,6 +112,16 @@ services:
       retries: 10
       start_period: 10s
     restart: unless-stopped
+    mem_limit: 512m
+    cpus: 0.5
+    pids_limit: 128
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
 
   web:
     <<: *app-security

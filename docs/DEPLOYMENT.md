@@ -199,7 +199,7 @@ No coloque la URL en el historial del shell. Render también admite pre-deploy c
 
 ### 4. Comandos de los servicios
 
-- Web: use el `CMD` de la imagen (`node server.js`).
+- Web: use el `CMD` de la imagen (`node runtime-env-check.mjs && node server.js`); valida credenciales antes de aceptar tráfico.
 - Worker de ingesta: `node node_modules/tsx/dist/cli.mjs worker/ingestWorker.ts`.
 - Worker de reportes: `node node_modules/tsx/dist/cli.mjs worker/legalReportWorker.ts`.
 - WebSocket: `/bin/sh -c 'WEBSOCKET_PORT="$PORT" node node_modules/tsx/dist/cli.mjs worker/dashboardWorker.ts'`; health path `/health/ready`.

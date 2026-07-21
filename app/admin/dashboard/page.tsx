@@ -37,9 +37,24 @@ export default function DashboardPage() {
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
       const configuredWsUrl = process.env.NEXT_PUBLIC_WEBSOCKET_URL?.trim();
       const wsUrl = configuredWsUrl || `${protocol}//${window.location.hostname}:3002`;
+      const token = localStorage.getItem('juridico_admin_token') ||
+        (process.env.NODE_ENV === 'development' ? 'dev-admin-token' : '');
       console.log('Intentando conectar WebSocket a:', wsUrl);
 
-      ws = new WebSocket(wsUrl);
+      if (!token) {
+        console.error('Falta el token administrativo para conectar el WebSocket');
+        setConnected(false);
+        return;
+      }
+
+      const tokenBytes = new TextEncoder().encode(token);
+      let tokenBinary = '';
+      tokenBytes.forEach((byte) => { tokenBinary += String.fromCharCode(byte); });
+      const encodedToken = btoa(tokenBinary)
+        .replaceAll('+', '-')
+        .replaceAll('/', '_')
+        .replace(/=+$/, '');
+      ws = new WebSocket(wsUrl, ['juridico-radar', `auth.${encodedToken}`]);
 
       ws.onopen = () => {
         console.log('Conectado al WebSocket de Telemetría');

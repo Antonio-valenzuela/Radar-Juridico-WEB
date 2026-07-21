@@ -28,6 +28,19 @@ interface Message {
   isError?: boolean;
 }
 
+function escapeHtml(value: string) {
+  return value.replace(/[&<>'"]/g, (character) => {
+    const entities: Record<string, string> = {
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      "'": '&#39;',
+      '"': '&quot;',
+    };
+    return entities[character];
+  });
+}
+
 export default function FloatingLegalChat() {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -207,9 +220,8 @@ export default function FloatingLegalChat() {
   };
 
   const handleDownloadPdf = (content: string) => {
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) return;
-    printWindow.document.write(`
+    const safeContent = escapeHtml(content);
+    const reportHtml = `
       <html>
         <head>
           <title>Radar Jurídico - Análisis IA</title>
@@ -222,7 +234,7 @@ export default function FloatingLegalChat() {
         </head>
         <body>
           <h1>Radar Jurídico - Reporte de Análisis</h1>
-          <div style="font-size: 1.1rem; white-space: pre-wrap;">${content}</div>
+          <div style="font-size: 1.1rem; white-space: pre-wrap;">${safeContent}</div>
           <footer>
             Este análisis es orientativo y debe contrastarse con la fuente oficial y el caso concreto.
           </footer>
@@ -234,8 +246,11 @@ export default function FloatingLegalChat() {
           </script>
         </body>
       </html>
-    `);
-    printWindow.document.close();
+    `;
+    const reportBlob = new Blob([reportHtml], { type: 'text/html;charset=utf-8' });
+    const reportUrl = URL.createObjectURL(reportBlob);
+    window.open(reportUrl, '_blank', 'noopener,noreferrer');
+    window.setTimeout(() => URL.revokeObjectURL(reportUrl), 60_000);
   };
 
   const handleActionClick = (action: ActionBtn) => {

@@ -28,6 +28,8 @@ test("production images are reproducible multi-stage runtimes", () => {
   assert.match(dockerfile, /AS migrate/);
   assert.match(dockerfile, /FROM web-runtime AS production\s*$/);
   assert.match(dockerfile, /RUN npm ci/);
+  assert.match(dockerfile, /runtime-env-check\.mjs/);
+  assert.match(dockerfile, /node runtime-env-check\.mjs && exec node server\.js/);
   assert.match(dockerfile, /USER node/);
   assert.doesNotMatch(dockerfile, /(?:CMD|ENTRYPOINT)[^\n]*npm install/i);
   assert.doesNotMatch(productionStart, /(?:npm install|prisma migrate|next build)/i);
@@ -59,8 +61,8 @@ test("production compose keeps stateful services private and authenticated", () 
 test("CI uses Node 22 and never suppresses lint failures", () => {
   const ci = fs.readFileSync(".github/workflows/ci.yml", "utf8");
 
-  assert.match(ci, /actions\/checkout@v4/);
-  assert.match(ci, /actions\/setup-node@v4/);
+  assert.match(ci, /actions\/checkout@[a-f0-9]{40}\s+# v4/);
+  assert.match(ci, /actions\/setup-node@[a-f0-9]{40}\s+# v4/);
   assert.match(ci, /node-version:\s*["']?22["']?/);
   assert.doesNotMatch(ci, /npm run lint\s*\|\|\s*true/);
   assert.match(ci, /npm run typecheck/);

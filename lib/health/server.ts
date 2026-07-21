@@ -40,11 +40,14 @@ export function createHealthServer(options: HealthServerOptions): Server {
           checkedAt: new Date().toISOString(),
         });
       } catch (error) {
+        console.error(`[${options.name}] readiness check failed`, {
+          kind: error instanceof Error ? error.name : typeof error,
+        });
         sendJson(response, 503, {
           ok: false,
           service: options.name,
           checkedAt: new Date().toISOString(),
-          error: error instanceof Error ? error.message : String(error),
+          error: "readiness_unavailable",
         });
       }
       return;
@@ -68,4 +71,3 @@ export async function closeHealthServer(server: Server): Promise<void> {
     server.close((error) => (error ? reject(error) : resolve()));
   });
 }
-

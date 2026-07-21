@@ -43,6 +43,7 @@
     "react-dom": "19.2.3",
     "recharts": "^3.8.1",
     "tsx": "^4.21.0",
+    "undici": "^7.28.0",
     "ws": "^8.21.0"
   },
   "devDependencies": {

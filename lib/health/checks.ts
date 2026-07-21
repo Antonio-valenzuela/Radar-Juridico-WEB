@@ -14,7 +14,10 @@ export async function checkDatabase(client: DatabaseClient = prisma) {
     await client.$queryRawUnsafe("SELECT 1");
     return { ok: true };
   } catch (error) {
-    return { ok: false, error: error instanceof Error ? error.message : String(error) };
+    console.error("[health] database check failed", {
+      kind: error instanceof Error ? error.name : typeof error,
+    });
+    return { ok: false, error: "database_unavailable" };
   }
 }
 
@@ -23,7 +26,10 @@ export async function checkRedis(client: RedisClient = connection) {
     const pong = await client.ping();
     return { ok: pong === "PONG" };
   } catch (error) {
-    return { ok: false, error: error instanceof Error ? error.message : String(error) };
+    console.error("[health] redis check failed", {
+      kind: error instanceof Error ? error.name : typeof error,
+    });
+    return { ok: false, error: "redis_unavailable" };
   }
 }
 
@@ -34,4 +40,3 @@ export async function checkCoreReadiness() {
     checks: { db, redis },
   };
 }
-

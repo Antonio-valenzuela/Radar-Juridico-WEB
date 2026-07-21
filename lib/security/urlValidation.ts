@@ -1,10 +1,7 @@
 import dns from "dns";
 import { isIP } from "node:net";
-import { promisify } from "util";
-import { fetchOfficialUrl } from "@/lib/sources/officialFetch";
+import { Agent } from "undici";
 import { INGEST_FETCH_MS } from "@/lib/config/timeouts";
-
-const lookup = promisify(dns.lookup);
 
 export type UrlValidationResult =
   | { ok: true; url: string; parsed: URL }
@@ -25,25 +22,6 @@ const FORBIDDEN_PORTS = [
   27, 23, 25, // Telnet, SMTP sin autenticación
 ];
 
-const FORBIDDEN_HOSTS = [
-  'localhost',
-  '127.0.0.1',
-  '[::1]',
-  '0.0.0.0',
-];
-
-const PRIVATE_IP_RANGES = [
-  { min: '10.0.0.0', max: '10.255.255.255' },        // 10.0.0.0/8
-  { min: '172.16.0.0', max: '172.31.255.255' },      // 172.16.0.0/12
-  { min: '192.168.0.0', max: '192.168.255.255' },    // 192.168.0.0/16
-  { min: '169.254.0.0', max: '169.254.255.255' },    // Link-local (169.254.x.x)
-  { min: '127.0.0.0', max: '127.255.255.255' },      // Loopback
-];
-
-const CLOUD_METADATA_IPS = [
-  '169.254.169.254', // AWS metadata
-];
-
 const MANUAL_BLOCKED_HOSTS = new Set([
   "localhost",
   "metadata.google.internal",
@@ -51,32 +29,10 @@ const MANUAL_BLOCKED_HOSTS = new Set([
   "169.254.169.254",
 ]);
 
-function isManualPrivateIpv4(host: string) {
-  const parts = host.split(".").map((part) => Number(part));
-  if (parts.length !== 4 || parts.some((part) => !Number.isInteger(part) || part < 0 || part > 255)) {
-    return false;
-  }
-
-  const [a, b] = parts;
-  return (
-    a === 0 ||
-    a === 10 ||
-    a === 127 ||
-    (a === 169 && b === 254) ||
-    (a === 172 && b >= 16 && b <= 31) ||
-    (a === 192 && b === 168)
-  );
-}
-
-function isManualPrivateIpv6(host: string) {
-  const normalized = host.toLowerCase();
-  return (
-    normalized === "::1" ||
-    normalized.startsWith("fc") ||
-    normalized.startsWith("fd") ||
-    normalized.startsWith("fe80:")
-  );
-}
+type ResolvedAddress = { address: string; family: number };
+type PinnedAgentEntry = { signature: string; agent: Agent };
+const MAX_PINNED_AGENTS = 50;
+const pinnedAgents = new Map<string, PinnedAgentEntry>();
 
 export function validatePublicHttpUrl(rawUrl: string): UrlValidationResult {
   let parsed: URL;
@@ -94,21 +50,23 @@ export function validatePublicHttpUrl(rawUrl: string): UrlValidationResult {
     return { ok: false, reason: "URL con credenciales no permitida" };
   }
 
-  const hostname = parsed.hostname.toLowerCase().replace(/\.$/, "");
+  const hostname = parsed.hostname.toLowerCase().replace(/^\[|\]$/g, "").replace(/\.$/, "");
   if (!hostname) return { ok: false, reason: "host vacío" };
   if (MANUAL_BLOCKED_HOSTS.has(hostname) || hostname.endsWith(".localhost")) {
     return { ok: false, reason: "host localhost o metadata cloud bloqueado" };
   }
 
   const ipVersion = isIP(hostname);
-  if (ipVersion === 4 && isManualPrivateIpv4(hostname)) {
+  if (ipVersion > 0 && isNonPublicIp(hostname)) {
     return { ok: false, reason: "IP privada o reservada bloqueada" };
   }
-  if (ipVersion === 6 && isManualPrivateIpv6(hostname)) {
-    return { ok: false, reason: "IP privada o loopback bloqueada" };
+
+  const port = Number(parsed.port || (parsed.protocol === "https:" ? 443 : 80));
+  if (FORBIDDEN_PORTS.includes(port)) {
+    return { ok: false, reason: `puerto prohibido: ${port}` };
   }
 
-  parsed.hostname = hostname;
+  if (ipVersion !== 6) parsed.hostname = hostname;
   return { ok: true, url: parsed.toString(), parsed };
 }
 
@@ -128,108 +86,232 @@ export async function validateUrlSecurity(urlString: string): Promise<{
   timeout?: number;
 }> {
   try {
-    const url = new URL(urlString);
+    const validation = validatePublicHttpUrl(urlString);
+    if (!validation.ok) return { valid: false, error: validation.reason };
+    await resolvePublicAddresses(validation.parsed.hostname);
 
-    // 1. Validar protocolo
-    if (!['http:', 'https:'].includes(url.protocol)) {
-      return { valid: false, error: 'Solo HTTP/HTTPS permitidos' };
-    }
-
-    // 2. Validar hostname
-    const hostname = url.hostname;
-    if (FORBIDDEN_HOSTS.includes(hostname.toLowerCase())) {
-      return { valid: false, error: 'Host prohibido (localhost)' };
-    }
-
-    // 3. Validar puerto
-    const port = parseInt(url.port || (url.protocol === 'https:' ? '443' : '80'));
-    if (FORBIDDEN_PORTS.includes(port)) {
-      return { valid: false, error: `Puerto prohibido: ${port}` };
-    }
-
-    // 4. Validar IPs privadas / metadata cloud
-    if (CLOUD_METADATA_IPS.includes(hostname)) {
-      return { valid: false, error: 'Acceso a metadata cloud prohibido' };
-    }
-
-    // 5. Resolver DNS y validar IP resultante
-    try {
-      const addresses = await dns.promises.resolve4(hostname);
-      for (const ip of addresses) {
-        if (isPrivateIP(ip)) {
-          return { valid: false, error: `IP privada detectada: ${ip}` };
-        }
-      }
-    } catch (e) {
-      return { valid: false, error: 'No se pudo resolver hostname' };
-    }
-
-    // 6. Timeout máximo de 30 segundos (por variable de entorno)
     return {
       valid: true,
       timeout: parseInt(process.env.CRAWLER_TIMEOUT_MS || '30000'),
     };
-  } catch (e) {
-    return { valid: false, error: 'URL inválida' };
+  } catch (error) {
+    return {
+      valid: false,
+      error: error instanceof Error ? error.message : 'URL inválida',
+    };
   }
-}
-
-export function isPrivateIP(ip: string): boolean {
-  const parts = ip.split('.').map(Number);
-  if (parts.length !== 4) return false;
-
-  for (const range of PRIVATE_IP_RANGES) {
-    const minParts = range.min.split('.').map(Number);
-    const maxParts = range.max.split('.').map(Number);
-    
-    let inRange = true;
-    for (let i = 0; i < 4; i++) {
-      if (parts[i] < minParts[i] || parts[i] > maxParts[i]) {
-        inRange = false;
-        break;
-      }
-    }
-    if (inRange) return true;
-  }
-  return false;
 }
 
 export function normalizeUserAgent(): string {
   return 'JuridicoRadar/1.0 (Regulatoria; +https://juridico-radar.app)';
 }
 
-function isPrivateIp(ip: string): boolean {
-  // IPv4 loopback, broadcast, private, link-local, testnet
-  if (/^(10\.|192\.168\.|127\.|169\.254\.|0\.)/.test(ip)) {
-    return true;
-  }
-  const parts = ip.split(".");
-  if (parts.length === 4) {
-    const first = parseInt(parts[0], 10);
-    const second = parseInt(parts[1], 10);
-    if (first === 172 && second >= 16 && second <= 31) {
-      return true;
-    }
-  }
-
-  // IPv6 loopback, unique local, link-local, private
-  const ipLower = ip.toLowerCase().trim();
+function parseIpv4(address: string): number[] | null {
+  const octets = address.split(".").map(Number);
   if (
-    ipLower === "::1" ||
-    ipLower.startsWith("fe80:") ||
-    ipLower.startsWith("fc00:") ||
-    ipLower.startsWith("fd00:")
+    octets.length !== 4 ||
+    octets.some((octet) => !Number.isInteger(octet) || octet < 0 || octet > 255)
   ) {
-    return true;
+    return null;
+  }
+  return octets;
+}
+
+function parseIpv6(address: string): number[] | null {
+  let normalized = address.toLowerCase().split("%")[0];
+  if (normalized.includes(".")) {
+    const lastColon = normalized.lastIndexOf(":");
+    const ipv4 = parseIpv4(normalized.slice(lastColon + 1));
+    if (!ipv4) return null;
+    normalized = `${normalized.slice(0, lastColon)}:${(
+      (ipv4[0] << 8) |
+      ipv4[1]
+    ).toString(16)}:${((ipv4[2] << 8) | ipv4[3]).toString(16)}`;
   }
 
-  // IPv4-mapped IPv6 (e.g. ::ffff:127.0.0.1)
-  if (ipLower.startsWith("::ffff:")) {
-    const mappedIpv4 = ipLower.replace("::ffff:", "");
-    return isPrivateIp(mappedIpv4);
+  const compression = normalized.indexOf("::");
+  if (compression !== normalized.lastIndexOf("::")) return null;
+  const [leftText, rightText = ""] = compression >= 0
+    ? [normalized.slice(0, compression), normalized.slice(compression + 2)]
+    : [normalized, ""];
+  const left = leftText ? leftText.split(":") : [];
+  const right = rightText ? rightText.split(":") : [];
+  const missing = 8 - left.length - right.length;
+  if ((compression < 0 && missing !== 0) || (compression >= 0 && missing < 1)) return null;
+
+  const groups = [...left, ...Array(missing).fill("0"), ...right];
+  if (
+    groups.length !== 8 ||
+    groups.some((group) => !/^[0-9a-f]{1,4}$/.test(group))
+  ) {
+    return null;
   }
 
+  return groups.flatMap((group) => {
+    const value = Number.parseInt(group, 16);
+    return [value >> 8, value & 0xff];
+  });
+}
+
+function isNonPublicIpv4(octets: number[]) {
+  const [a, b, c] = octets;
+  return (
+    a === 0 ||
+    a === 10 ||
+    (a === 100 && b >= 64 && b <= 127) ||
+    a === 127 ||
+    (a === 169 && b === 254) ||
+    (a === 172 && b >= 16 && b <= 31) ||
+    (a === 192 && b === 0 && c === 0) ||
+    (a === 192 && b === 0 && c === 2) ||
+    (a === 192 && b === 88 && c === 99) ||
+    (a === 192 && b === 168) ||
+    (a === 198 && (b === 18 || b === 19)) ||
+    (a === 198 && b === 51 && c === 100) ||
+    (a === 203 && b === 0 && c === 113) ||
+    a >= 224
+  );
+}
+
+/** True unless the address is globally routable unicast Internet space. */
+export function isNonPublicIp(address: string): boolean {
+  const normalized = address.toLowerCase().trim().replace(/^\[|\]$/g, "");
+  const family = isIP(normalized);
+  if (family === 4) {
+    const octets = parseIpv4(normalized);
+    return !octets || isNonPublicIpv4(octets);
+  }
+  if (family !== 6) return true;
+
+  const bytes = parseIpv6(normalized);
+  if (!bytes) return true;
+
+  const isMappedIpv4 = bytes.slice(0, 10).every((byte) => byte === 0)
+    && bytes[10] === 0xff
+    && bytes[11] === 0xff;
+  if (isMappedIpv4) return isNonPublicIpv4(bytes.slice(12));
+
+  // IPv4-compatible IPv6 is obsolete and must not bypass IPv4 filtering.
+  if (bytes.slice(0, 12).every((byte) => byte === 0)) return true;
+
+  // IPv6 global unicast is 2000::/3. Reject special-use subranges within it.
+  if ((bytes[0] & 0xe0) !== 0x20) return true;
+  const firstGroup = (bytes[0] << 8) | bytes[1];
+  const secondGroup = (bytes[2] << 8) | bytes[3];
+  if (firstGroup === 0x2001 && (secondGroup <= 0x01ff || secondGroup === 0x0db8)) return true;
+  if (firstGroup === 0x2002) return true;
+  if (firstGroup === 0x3fff && (secondGroup & 0xf000) === 0) return true;
   return false;
+}
+
+async function resolvePublicAddresses(hostname: string): Promise<ResolvedAddress[]> {
+  const normalized = hostname.toLowerCase().replace(/^\[|\]$/g, "");
+  const literalFamily = isIP(normalized);
+  const addresses = literalFamily
+    ? [{ address: normalized, family: literalFamily }]
+    : await dns.promises.lookup(normalized, { all: true, verbatim: true });
+
+  if (addresses.length === 0) {
+    throw new Error("No se pudo resolver hostname");
+  }
+  if (addresses.some(({ address }) => isNonPublicIp(address))) {
+    throw new Error("La URL resuelve a una dirección privada o reservada");
+  }
+
+  return addresses;
+}
+
+async function getPinnedAgent(parsed: URL) {
+  const addresses = await resolvePublicAddresses(parsed.hostname);
+  const signature = addresses
+    .map(({ address, family }) => `${family}:${address}`)
+    .sort()
+    .join(",");
+  const key = `${parsed.protocol}//${parsed.hostname}:${parsed.port || (parsed.protocol === "https:" ? "443" : "80")}`;
+  const existing = pinnedAgents.get(key);
+  if (existing?.signature === signature) return existing.agent;
+
+  if (existing) {
+    pinnedAgents.delete(key);
+    void existing.agent.close();
+  }
+  while (pinnedAgents.size >= MAX_PINNED_AGENTS) {
+    const oldestKey = pinnedAgents.keys().next().value as string | undefined;
+    if (!oldestKey) break;
+    const oldest = pinnedAgents.get(oldestKey);
+    pinnedAgents.delete(oldestKey);
+    if (oldest) void oldest.agent.close();
+  }
+
+  const lookupPinned = (
+    _hostname: string,
+    options: { all?: boolean },
+    callback: (
+      error: NodeJS.ErrnoException | null,
+      address: string | ResolvedAddress[],
+      family?: number,
+    ) => void,
+  ) => {
+    if (options?.all) {
+      callback(null, addresses);
+      return;
+    }
+    const selected = addresses[0];
+    callback(null, selected.address, selected.family);
+  };
+
+  const agent = new Agent({
+    connections: 4,
+    pipelining: 1,
+    connect: { lookup: lookupPinned as never },
+  });
+  pinnedAgents.set(key, { signature, agent });
+  return agent;
+}
+
+export async function fetchPinnedPublicHttpUrl(
+  urlStr: string,
+  init: RequestInit = {},
+): Promise<Response> {
+  const validation = validatePublicHttpUrl(urlStr);
+  if (!validation.ok) throw new Error(`Intento SSRF bloqueado: ${validation.reason}`);
+
+  const dispatcher = await getPinnedAgent(validation.parsed);
+  return fetch(validation.url, {
+    ...init,
+    redirect: "manual",
+    dispatcher,
+  } as RequestInit & { dispatcher: Agent });
+}
+
+export async function readResponseBodyWithLimit(response: Response, maxBytes: number) {
+  const declaredLength = Number(response.headers.get("content-length") || 0);
+  if (Number.isFinite(declaredLength) && declaredLength > maxBytes) {
+    throw new Error(`La respuesta excede el límite de ${maxBytes} bytes`);
+  }
+
+  if (!response.body) {
+    const body = new Uint8Array(await response.arrayBuffer());
+    if (body.byteLength > maxBytes) {
+      throw new Error(`La respuesta excede el límite de ${maxBytes} bytes`);
+    }
+    return body;
+  }
+
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let totalBytes = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    totalBytes += value.byteLength;
+    if (totalBytes > maxBytes) {
+      await reader.cancel();
+      throw new Error(`La respuesta excede el límite de ${maxBytes} bytes`);
+    }
+    chunks.push(value);
+  }
+  return new Uint8Array(Buffer.concat(chunks.map((chunk) => Buffer.from(chunk))));
 }
 
 export async function validateUrlSafety(urlStr: string): Promise<{ safe: boolean; error?: string; ip?: string }> {
@@ -247,23 +329,11 @@ export async function validateUrlSafety(urlStr: string): Promise<{ safe: boolean
       return { safe: false, error: "El protocolo debe ser HTTPS" };
     }
 
-    // Hostname checks
-    const hostname = parsed.hostname.toLowerCase();
-    if (["localhost", "0.0.0.0", "127.0.0.1", "169.254.169.254"].includes(hostname)) {
-      return { safe: false, error: "Dominio/dirección IP privada o local no permitida" };
-    }
+    const validation = validatePublicHttpUrl(urlStr);
+    if (!validation.ok) return { safe: false, error: validation.reason };
 
-    // DNS Lookup
-    const result = await lookup(parsed.hostname).catch((err) => {
-      throw new Error(`Error en resolución DNS: ${err.message}`);
-    });
-
-    const ip = result.address;
-    if (isPrivateIp(ip)) {
-      return { safe: false, error: `La dirección IP resuelta (${ip}) es privada o local` };
-    }
-
-    return { safe: true, ip };
+    const addresses = await resolvePublicAddresses(validation.parsed.hostname);
+    return { safe: true, ip: addresses[0].address };
   } catch (err: any) {
     return { safe: false, error: err.message || "URL inválida" };
   }
@@ -286,16 +356,13 @@ export async function safeFetch(urlStr: string, options: RequestInit = {}): Prom
   const id = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
-    const { response } = await fetchOfficialUrl(urlStr, {
+    let currentResponse = await fetchPinnedPublicHttpUrl(urlStr, {
       ...options,
       signal: controller.signal,
       redirect: "manual", // handle redirects manually to enforce validation on each step
     });
 
-    clearTimeout(id);
-
     // Enforce redirect limits (max 3)
-    let currentResponse = response;
     let redirectCount = 0;
     let currentUrl = urlStr;
     
@@ -314,305 +381,24 @@ export async function safeFetch(urlStr: string, options: RequestInit = {}): Prom
 
       redirectCount++;
       currentUrl = redirectUrl;
-      const redirectId = setTimeout(() => controller.abort(), timeoutMs);
-      
-      const redirected = await fetchOfficialUrl(redirectUrl, {
+      currentResponse = await fetchPinnedPublicHttpUrl(redirectUrl, {
         ...options,
         signal: controller.signal,
         redirect: "manual",
       });
-      currentResponse = redirected.response;
-      clearTimeout(redirectId);
     }
 
-    if (redirectCount >= 3) {
+    if ([301, 302, 307, 308].includes(currentResponse.status)) {
       throw new Error("Demasiadas redirecciones (límite 3)");
     }
 
-    // Limit response size
-    const contentLength = currentResponse.headers.get("content-length");
-    if (contentLength && parseInt(contentLength, 10) > maxBytes) {
-      throw new Error("El tamaño de la respuesta excede el límite de 5MB");
-    }
-
-    // Wrap the response text method to check size on actual download
-    const originalText = currentResponse.text.bind(currentResponse);
-    currentResponse.text = async () => {
-      const text = await originalText();
-      if (Buffer.byteLength(text, "utf8") > maxBytes) {
-        throw new Error("El tamaño de la respuesta descargada excede el límite de 5MB");
-      }
-      return text;
-    };
-
-    return currentResponse;
-  } catch (err: any) {
-    clearTimeout(id);
-    throw err;
-  }
-}
-
-/**
- * Validates, tests and diagnoses an official source connection based on its crawlMode.
- */
-export async function testOfficialSourceConnection(source: { baseUrl: string; name: string; crawlMode: string }): Promise<any> {
-  const startTime = Date.now();
-  const diagnostic = {
-    dnsResolved: false,
-    ssrfPassed: false,
-    redirectsFollowed: 0,
-    blockedReason: null as string | null
-  };
-
-  try {
-    // 1. SSRF check before requesting
-    const safety = await validateUrlSafety(source.baseUrl);
-    diagnostic.dnsResolved = safety.safe || safety.error?.includes("IP") === false;
-    diagnostic.ssrfPassed = safety.safe;
-    
-    if (!safety.safe) {
-      return {
-        ok: false,
-        status: null,
-        durationMs: Date.now() - startTime,
-        errorCategory: "blocked_by_ssrf",
-        message: `Bloqueado por políticas SSRF: ${safety.error}`,
-        technicalHint: safety.error || "SSRF validation failed",
-        safeDetails: { hostname: new URL(source.baseUrl).hostname, methodAttempted: "HEAD/GET" },
-        diagnostic
-      };
-    }
-
-    // 2. Hostname details
-    const parsed = new URL(source.baseUrl);
-    const hostname = parsed.hostname;
-
-    // 3. Special handling for search_only
-    if (source.crawlMode === "search_only") {
-      return {
-        ok: true,
-        status: 200,
-        finalUrl: source.baseUrl,
-        contentType: "text/html",
-        durationMs: Date.now() - startTime,
-        methodUsed: "NONE",
-        message: "Fuente válida para búsqueda externa restringida; no se ingesta automáticamente.",
-        safeDetails: { hostname, methodAttempted: "NONE" },
-        diagnostic: { ...diagnostic, dnsResolved: true, ssrfPassed: true }
-      };
-    }
-
-    const timeoutMs = 8000;
-    const controller = new AbortController();
-    const timerId = setTimeout(() => controller.abort(), timeoutMs);
-
-    let methodUsed = "HEAD";
-    let response: Response;
-
-    const headers = {
-      "User-Agent": "JuridicoRadarBot/1.0 (+admin-configured-source-test)",
-      "Accept": "*/*"
-    };
-
-    try {
-      // 1. Try HEAD request
-      response = await fetch(source.baseUrl, {
-        method: "HEAD",
-        headers,
-        signal: controller.signal,
-        redirect: "manual"
-      });
-
-      // If HEAD returns error status, retry with GET
-      if (!response.ok || [405, 403, 400].includes(response.status)) {
-        methodUsed = "GET";
-        const getController = new AbortController();
-        const getTimer = setTimeout(() => getController.abort(), timeoutMs);
-        response = await fetch(source.baseUrl, {
-          method: "GET",
-          headers,
-          signal: getController.signal,
-          redirect: "manual"
-        });
-        clearTimeout(getTimer);
-      }
-    } catch (fetchErr: any) {
-      // If HEAD fails due to network/method, retry with GET
-      try {
-        methodUsed = "GET";
-        const getController = new AbortController();
-        const getTimer = setTimeout(() => getController.abort(), timeoutMs);
-        response = await fetch(source.baseUrl, {
-          method: "GET",
-          headers,
-          signal: getController.signal,
-          redirect: "manual"
-        });
-        clearTimeout(getTimer);
-      } catch (getErr: any) {
-        clearTimeout(timerId);
-
-        let errorCategory = "network_error";
-        let techHint = getErr.message || String(getErr);
-        if (getErr.name === "AbortError" || getErr.message?.includes("timeout") || getErr.message?.includes("aborted")) {
-          errorCategory = "timeout";
-        } else if (getErr.message?.includes("cert") || getErr.message?.includes("TLS") || getErr.message?.includes("signature") || getErr.code === "UNABLE_TO_VERIFY_LEAF_SIGNATURE") {
-          errorCategory = "tls_error";
-        } else if (getErr.message?.includes("ENOTFOUND") || getErr.message?.includes("dns")) {
-          errorCategory = "dns_error";
-        }
-
-        return {
-          ok: false,
-          status: null,
-          durationMs: Date.now() - startTime,
-          errorCategory,
-          message: "No se pudo conectar con la fuente oficial.",
-          technicalHint: techHint,
-          safeDetails: { hostname, methodAttempted: "GET" },
-          diagnostic
-        };
-      }
-    }
-
-    clearTimeout(timerId);
-
-    // Follow redirects manually with SSRF checks
-    let currentResponse = response;
-    let redirectCount = 0;
-    let currentUrl = source.baseUrl;
-
-    while ([301, 302, 307, 308].includes(currentResponse.status) && redirectCount < 3) {
-      const location = currentResponse.headers.get("location");
-      if (!location) break;
-
-      const redirectUrl = new URL(location, currentUrl).toString();
-      const redirectSafety = await validateUrlSafety(redirectUrl);
-      if (!redirectSafety.safe) {
-        return {
-          ok: false,
-          status: currentResponse.status,
-          durationMs: Date.now() - startTime,
-          errorCategory: "blocked_by_ssrf",
-          message: `Redirección bloqueada por políticas SSRF: ${redirectSafety.error}`,
-          technicalHint: redirectSafety.error,
-          safeDetails: { hostname: new URL(redirectUrl).hostname, methodAttempted: methodUsed },
-          diagnostic: { ...diagnostic, redirectsFollowed: redirectCount }
-        };
-      }
-
-      redirectCount++;
-      currentUrl = redirectUrl;
-
-      const redirectController = new AbortController();
-      const redirectTimer = setTimeout(() => redirectController.abort(), timeoutMs);
-
-      try {
-        currentResponse = await fetch(redirectUrl, {
-          method: "GET",
-          headers,
-          signal: redirectController.signal,
-          redirect: "manual"
-        });
-      } catch (err: any) {
-        clearTimeout(redirectTimer);
-        return {
-          ok: false,
-          status: null,
-          durationMs: Date.now() - startTime,
-          errorCategory: err.code === "UNABLE_TO_VERIFY_LEAF_SIGNATURE" ? "tls_error" : "network_error",
-          message: `Error al conectar con la redirección: ${currentUrl}`,
-          technicalHint: err.message,
-          safeDetails: { hostname: new URL(currentUrl).hostname, methodAttempted: "GET" },
-          diagnostic: { ...diagnostic, redirectsFollowed: redirectCount }
-        };
-      }
-
-      clearTimeout(redirectTimer);
-    }
-
-    diagnostic.redirectsFollowed = redirectCount;
-
-    if (redirectCount >= 3) {
-      return {
-        ok: false,
-        status: currentResponse.status,
-        durationMs: Date.now() - startTime,
-        errorCategory: "timeout",
-        message: "Demasiadas redirecciones (límite 3)",
-        technicalHint: "Max redirects reached",
-        safeDetails: { hostname: new URL(currentUrl).hostname, methodAttempted: methodUsed },
-        diagnostic
-      };
-    }
-
-    // Check status
-    if (!currentResponse.ok) {
-      return {
-        ok: false,
-        status: currentResponse.status,
-        durationMs: Date.now() - startTime,
-        errorCategory: currentResponse.status === 403 || currentResponse.status === 401 ? "forbidden" : "bad_status",
-        message: `La fuente respondió con estatus de error: ${currentResponse.status} ${currentResponse.statusText}`,
-        technicalHint: `HTTP Status ${currentResponse.status}`,
-        safeDetails: { hostname: new URL(currentUrl).hostname, methodAttempted: methodUsed },
-        diagnostic
-      };
-    }
-
-    const contentType = currentResponse.headers.get("content-type") || "";
-
-    // Validate crawlMode match
-    if (source.crawlMode === "rss" && !contentType.includes("xml") && !contentType.includes("rss") && !contentType.includes("atom")) {
-      return {
-        ok: false,
-        status: currentResponse.status,
-        durationMs: Date.now() - startTime,
-        errorCategory: "unsupported_crawl_mode",
-        message: `El tipo de contenido (${contentType}) no corresponde a un feed XML/RSS válido.`,
-        technicalHint: `Expected XML/RSS, got ${contentType}`,
-        safeDetails: { hostname: new URL(currentUrl).hostname, methodAttempted: methodUsed },
-        diagnostic
-      };
-    }
-
-    // Warn if manual_url is set with homepage URL
-    if (source.crawlMode === "manual_url" && (parsed.pathname === "/" || parsed.pathname === "")) {
-      return {
-        ok: true,
-        status: currentResponse.status,
-        finalUrl: currentUrl,
-        contentType,
-        durationMs: Date.now() - startTime,
-        methodUsed,
-        message: "Conexión exitosa. Advertencia: Se configuró como 'manual_url' pero apunta a una página de inicio (homepage) en lugar de una publicación específica.",
-        safeDetails: { hostname: new URL(currentUrl).hostname, methodAttempted: methodUsed },
-        diagnostic
-      };
-    }
-
-    return {
-      ok: true,
+    const body = await readResponseBodyWithLimit(currentResponse, maxBytes);
+    return new Response(body.byteLength > 0 ? body : null, {
       status: currentResponse.status,
-      finalUrl: currentUrl,
-      contentType,
-      durationMs: Date.now() - startTime,
-      methodUsed,
-      message: `Conexión exitosa a '${source.name}' (${currentResponse.status} ${currentResponse.statusText}) en ${Date.now() - startTime}ms.`,
-      safeDetails: { hostname: new URL(currentUrl).hostname, methodAttempted: methodUsed },
-      diagnostic
-    };
-
-  } catch (err: any) {
-    return {
-      ok: false,
-      status: null,
-      durationMs: Date.now() - startTime,
-      errorCategory: "network_error",
-      message: "Error interno al probar la conexión.",
-      technicalHint: err.message || String(err),
-      safeDetails: { hostname: new URL(source.baseUrl).hostname, methodAttempted: "GET" },
-      diagnostic
-    };
+      statusText: currentResponse.statusText,
+      headers: currentResponse.headers,
+    });
+  } finally {
+    clearTimeout(id);
   }
 }
