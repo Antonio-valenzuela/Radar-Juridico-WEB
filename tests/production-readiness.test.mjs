@@ -6,9 +6,13 @@ test("production runtime is pinned and Next is patched", () => {
   const pkg = JSON.parse(fs.readFileSync("package.json", "utf8"));
 
   assert.equal(pkg.engines?.node, "22.x");
-  assert.equal(pkg.dependencies.next, "16.2.10");
-  assert.equal(pkg.devDependencies["eslint-config-next"], "16.2.10");
-  assert.equal(pkg.overrides.next.postcss, "8.5.10");
+  assert.equal(pkg.dependencies.next, "16.2.12");
+  assert.equal(pkg.devDependencies["eslint-config-next"], "16.2.12");
+  assert.equal(pkg.overrides.sharp, "0.35.3");
+  assert.equal(pkg.overrides.postcss, "8.5.22");
+  assert.equal(pkg.overrides["brace-expansion"], "5.0.8");
+  assert.equal(pkg.devDependencies["patch-package"], "8.0.1");
+  assert.equal(pkg.scripts.postinstall, "patch-package --error-on-fail && prisma generate");
   assert.equal(pkg.dependencies.tsx, "^4.21.0");
   assert.equal(pkg.devDependencies.tsx, undefined);
   assert.equal(fs.readFileSync(".nvmrc", "utf8").trim(), "22");
@@ -28,6 +32,7 @@ test("production images are reproducible multi-stage runtimes", () => {
   assert.match(dockerfile, /AS migrate/);
   assert.match(dockerfile, /FROM web-runtime AS production\s*$/);
   assert.match(dockerfile, /RUN npm ci/);
+  assert.match(dockerfile, /COPY patches \.\/patches/);
   assert.match(dockerfile, /runtime-env-check\.mjs/);
   assert.match(dockerfile, /node runtime-env-check\.mjs && exec node server\.js/);
   assert.match(dockerfile, /USER node/);
