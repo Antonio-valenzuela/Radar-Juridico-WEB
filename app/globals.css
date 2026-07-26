@@ -901,6 +901,8 @@ nav a:hover {
   font-family: Georgia, "Times New Roman", serif;
   font-size: 1rem;
   line-height: 1.72;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
   resize: vertical;
   outline: none;
   box-shadow: 0 22px 54px rgba(2, 6, 23, 0.32);

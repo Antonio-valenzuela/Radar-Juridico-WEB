@@ -9,7 +9,9 @@ function runTs(code) {
     {
       encoding: "utf8",
       env: { ...process.env, NODE_ENV: "test", LLM_PROVIDER: "local" },
-      timeout: 15_000,
+      // Windows CI and the full concurrent suite can spend several seconds
+      // loading Prisma/tsx before the worker body begins.
+      timeout: 30_000,
     }
   );
 

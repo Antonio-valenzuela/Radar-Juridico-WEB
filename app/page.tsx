@@ -5,12 +5,39 @@ import Link from "next/link";
 export const dynamic = 'force-dynamic';
 
 export default async function Home() {
-  // Fetch real stats from the database
-  const [itemCount, canonicalDocumentsCount, alertsCount, rulesCount] = await Promise.all([
+  const [
+    itemCount,
+    canonicalDocumentsCount,
+    alertsCount,
+    rulesCount,
+    verifiedNormCount,
+    verifiedJurisprudenciaCount,
+    activeCaseCount,
+    pendingCaseAlertCount,
+    sourceErrorCount,
+    lastNormMonitorRun,
+  ] = await Promise.all([
     prisma.item.count().catch(() => 0),
     prisma.document.count().catch(() => 0),
     prisma.notification.count().catch(() => 0),
     prisma.alertRule.count().catch(() => 0),
+    prisma.norma.count({ where: { verificationStatus: 'verified' } }).catch(() => 0),
+    prisma.jurisprudencia.count({ where: { verificationStatus: 'verified' } }).catch(() => 0),
+    prisma.matter.count({ where: { status: 'open' } }).catch(() => 0),
+    prisma.caseAlert.count({ where: { read: false } }).catch(() => 0),
+    prisma.officialSource.count({
+      where: { isActive: true, lastErrorCategory: { not: null } },
+    }).catch(() => 0),
+    prisma.processingJob.findFirst({
+      where: { queueName: 'norm-monitoring' },
+      orderBy: { createdAt: 'desc' },
+      select: {
+        status: true,
+        finishedAt: true,
+        createdAt: true,
+        error: true,
+      },
+    }).catch(() => null),
   ]);
   const documentsCount = Math.max(itemCount, canonicalDocumentsCount);
 
@@ -106,7 +133,7 @@ export default async function Home() {
               <Link href="/ai" style={{ borderLeft: '1px solid rgba(255,255,255,0.1)', paddingLeft: '0.75rem' }}>IA Sandbox</Link>
               <Link href="/metrics">Métricas</Link>
               <Link href="/admin/ingest/manual-url" style={{ border: '1px solid var(--accent)', padding: '0.2rem 0.5rem', borderRadius: '4px', color: 'var(--accent)', fontWeight: 'bold' }}>Agregar link jurídico</Link>
-              <Link href="/admin/sources" style={{ border: '1px dashed var(--secondary)', padding: '0.2rem 0.5rem', borderRadius: '4px', color: 'var(--secondary)' }}>⚙ Fuentes Admin</Link>
+              <Link href="/admin/sources" style={{ border: '1px dashed var(--secondary)', padding: '0.2rem 0.5rem', borderRadius: '4px', color: 'var(--secondary)' }}>Fuentes Admin</Link>
             </>
           )}
         </nav>
@@ -130,10 +157,10 @@ export default async function Home() {
           </div>
         </section>
 
-        <section className="grid">
+        <section className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
           <div className="glass-card">
             <span className="stat-value">{documentsCount.toLocaleString()}</span>
-            <span className="stat-label">Documentos Indexados</span>
+            <span className="stat-label">Documentos</span>
           </div>
           <div className="glass-card">
             <span className="stat-value">{rulesCount.toLocaleString()}</span>
@@ -143,6 +170,38 @@ export default async function Home() {
             <span className="stat-value">{alertsCount.toLocaleString()}</span>
             <span className="stat-label">Alertas Generadas</span>
           </div>
+          <div className="glass-card">
+            <span className="stat-value">{verifiedNormCount.toLocaleString()}</span>
+            <span className="stat-label">Normas verificadas</span>
+          </div>
+          <div className="glass-card">
+            <span className="stat-value">{verifiedJurisprudenciaCount.toLocaleString()}</span>
+            <span className="stat-label">Criterios verificados</span>
+          </div>
+          <div className="glass-card">
+            <span className="stat-value">{activeCaseCount.toLocaleString()}</span>
+            <span className="stat-label">Expedientes activos</span>
+          </div>
+          <div className="glass-card">
+            <span className="stat-value">{pendingCaseAlertCount.toLocaleString()}</span>
+            <span className="stat-label">Avisos de expediente</span>
+          </div>
+          <div className="glass-card">
+            <span className="stat-value">{sourceErrorCount.toLocaleString()}</span>
+            <span className="stat-label">Fuentes con error</span>
+          </div>
+        </section>
+
+        <section className="glass-card" style={{ marginBottom: '2rem' }}>
+          <h2>Monitoreo normativo</h2>
+          {lastNormMonitorRun ? (
+            <p className="text-muted">
+              Última ejecución: {new Date(lastNormMonitorRun.finishedAt || lastNormMonitorRun.createdAt).toLocaleString('es-MX')} · Estado: {lastNormMonitorRun.status}
+              {lastNormMonitorRun.error ? ' · Requiere atención' : ''}
+            </p>
+          ) : (
+            <p className="text-muted">Aún no hay una ejecución registrada del worker de normas.</p>
+          )}
         </section>
 
         <section className="glass-card" style={{ marginBottom: '4rem' }}>
