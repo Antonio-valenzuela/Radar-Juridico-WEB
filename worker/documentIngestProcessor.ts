@@ -11,7 +11,13 @@ import {
   completeIngestionJob,
   IngestionStatus,
 } from '@/lib/ingestion/ingestionJob';
-import { validateUrlSecurity, normalizeUserAgent } from '@/lib/security/urlValidation';
+import {
+  fetchPinnedPublicHttpUrl,
+  normalizeUserAgent,
+  readResponseBodyWithLimit,
+  validateRedirectTarget,
+  validateUrlSecurity,
+} from '@/lib/security/urlValidation';
 import { createOrUpdateDocumentVersion } from '@/lib/documents/versionControl';
 import { indexDocumentVersion } from '@/lib/documents/indexDocument';
 import { analyzeLegalDocumentWithProvider } from '@/lib/ai/provider';
@@ -47,25 +53,38 @@ export async function processDocumentIngestion(job: Job) {
       'Accept': 'application/pdf,text/html,text/plain,*/*'
     };
 
-    let response: Response;
+    let response: Response | undefined;
+    let contentType = '';
+    let buffer: Buffer;
+    let currentUrl = documentUrl;
     try {
-      response = await fetch(documentUrl, {
-        headers,
-        signal: controller.signal,
-      });
+      for (let redirectCount = 0; redirectCount <= 5; redirectCount++) {
+        response = await fetchPinnedPublicHttpUrl(currentUrl, {
+          headers,
+          signal: controller.signal,
+          redirect: 'manual',
+        });
+        if (![301, 302, 303, 307, 308].includes(response.status)) break;
+
+        const redirect = validateRedirectTarget(currentUrl, response.headers.get('location'));
+        if (!redirect.ok) throw new Error(`Redirección bloqueada: ${redirect.reason}`);
+        currentUrl = redirect.url;
+        response = undefined;
+      }
+
+      if (!response) throw new Error('Demasiadas redirecciones al descargar el documento');
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      contentType = (response.headers.get('content-type') || '').toLowerCase();
+      const responseBody = await readResponseBodyWithLimit(response, 20 * 1024 * 1024);
+      buffer = Buffer.from(responseBody);
     } catch (err: any) {
-      clearTimeout(timerId);
       throw new Error(`Fallo de conexión o timeout al descargar: ${err.message}`);
+    } finally {
+      clearTimeout(timerId);
     }
-    clearTimeout(timerId);
-
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-    }
-
-    const contentType = (response.headers.get('content-type') || '').toLowerCase();
-    const arrayBuffer = await response.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
     await logIngestionEvent(ingestionJobId, `Descarga completa: ${buffer.byteLength} bytes. Content-Type: ${contentType}`);
 
     // 3. EXTRAYENDO_TEXTO

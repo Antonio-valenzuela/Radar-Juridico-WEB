@@ -7,7 +7,7 @@ services:
       POSTGRES_PASSWORD: apppass
       POSTGRES_DB: juridico
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -20,7 +20,7 @@ services:
     image: redis:7
     container_name: juridico_redis
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -56,7 +56,7 @@ services:
       TAVILY_API_KEY: ${TAVILY_API_KEY:-}
       LEGAL_RADAR_LOOKBACK_DAYS: ${LEGAL_RADAR_LOOKBACK_DAYS:-7}
     ports:
-      - "${FRONTEND_PORT:-3100}:3000"
+      - "127.0.0.1:${FRONTEND_PORT:-3100}:3000"
     volumes:
       - .:/app
       - frontend_node_modules:/app/node_modules
@@ -96,7 +96,7 @@ services:
       TAVILY_API_KEY: ${TAVILY_API_KEY:-}
       LEGAL_RADAR_LOOKBACK_DAYS: ${LEGAL_RADAR_LOOKBACK_DAYS:-7}
     ports:
-      - "3001:3001"
+      - "127.0.0.1:3001:3001"
     volumes:
       - .:/app
       - backend_node_modules:/app/node_modules
@@ -138,9 +138,12 @@ services:
       NODE_ENV: development
       DATABASE_URL: postgresql://app:apppass@postgres:5432/juridico?schema=public
       REDIS_URL: redis://redis:6379
+      ADMIN_TOKEN: ${ADMIN_TOKEN:-dev-admin-token}
+      NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3100}
       WEBSOCKET_PORT: 3002
+      DASHBOARD_MAX_CLIENTS: ${DASHBOARD_MAX_CLIENTS:-100}
     ports:
-      - "3002:3002"
+      - "127.0.0.1:3002:3002"
     volumes:
       - .:/app
       - dashboard_node_modules:/app/node_modules

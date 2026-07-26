@@ -1,30 +1,24 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { requireAdmin } from "@/lib/security/adminAuth";
 
 export const dynamic = "force-dynamic";
 
-// GET /api/alerts?email=... (list own) or admin all
+// Alert management is administrative until the app has authenticated user identities.
 export async function GET(req: Request) {
-    const { searchParams } = new URL(req.url);
-    const email = searchParams.get("email");
-    const token = req.headers.get("x-admin-token");
+    const auth = requireAdmin(req);
+    if (!auth.ok) return auth.response;
 
-    if (token === process.env.ADMIN_TOKEN) {
-        const alerts = await prisma.alert.findMany();
-        return NextResponse.json({ ok: true, alerts });
-    }
-
-    if (!email) {
-        return NextResponse.json({ ok: false, error: "Falta email o token" }, { status: 401 });
-    }
-
-    const alerts = await prisma.alert.findMany({ where: { email } });
+    const alerts = await prisma.alert.findMany();
     return NextResponse.json({ ok: true, alerts });
 }
 
 // POST /api/alerts { email, keyword }
 export async function POST(req: Request) {
     try {
+        const auth = requireAdmin(req);
+        if (!auth.ok) return auth.response;
+
         const { email, keyword } = await req.json();
         if (!email || !keyword) return NextResponse.json({ ok: false, error: "Datos incompletos" }, { status: 400 });
 
@@ -33,7 +27,8 @@ export async function POST(req: Request) {
         });
 
         return NextResponse.json({ ok: true, alert });
-    } catch (e: any) {
-        return NextResponse.json({ ok: false, error: e.message }, { status: 500 });
+    } catch (error: unknown) {
+        console.error("POST /api/alerts error:", error);
+        return NextResponse.json({ ok: false, error: "No se pudo crear la alerta" }, { status: 500 });
     }
 }

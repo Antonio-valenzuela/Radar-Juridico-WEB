@@ -153,7 +153,11 @@ test("Worker processLegalReport ejecuta busquedas, IA y serializa JSON-safe", ()
 
       // We dynamically load the worker processor function to invoke it
       // we pass a mock BullMQ Job
-      const { processLegalReport } = await import("./worker/legalReportWorker");
+      const workerModule = await import("./worker/legalReportWorker");
+      const processLegalReport = workerModule.processLegalReport || workerModule.default?.processLegalReport;
+      if (typeof processLegalReport !== "function") {
+        throw new Error("processLegalReport export no disponible");
+      }
       
       const mockJob = {
         data: {

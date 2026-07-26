@@ -22,6 +22,9 @@ import {
   PER_SOURCE_MS,
   AI_SYNTHESIS_MS,
 } from "@/lib/config/timeouts";
+import { assertRuntimeEnv } from "@/lib/config/env";
+import { checkDatabase, checkRedis } from "@/lib/health/checks";
+import { closeHealthServer, startHealthServer } from "@/lib/health/server";
 
 interface LegalReportPayload {
   processingJobId: string;
@@ -280,5 +283,34 @@ const isDirectWorkerRun =
   normalizedEntryPoint.endsWith("/worker/legalReportWorker.js");
 
 if (isDirectWorkerRun) {
-  startLegalReportWorker();
+  assertRuntimeEnv();
+  const worker = startLegalReportWorker();
+  let shuttingDown = false;
+  const healthServer = startHealthServer({
+    name: "legal-report-worker",
+    port: Number(process.env.LEGAL_REPORT_WORKER_HEALTH_PORT || 9102),
+    readiness: async () => {
+      const [db, redis] = await Promise.all([checkDatabase(prisma), checkRedis(connection)]);
+      return {
+        ok: !shuttingDown && db.ok && redis.ok,
+        checks: { db, redis, shuttingDown },
+      };
+    },
+  });
+
+  const shutdown = async (signal: NodeJS.Signals) => {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    console.log(`[legal-report-worker] ${signal} received; closing worker`);
+    await closeHealthServer(healthServer);
+    await worker.close();
+    connection.disconnect();
+    await prisma.$disconnect();
+  };
+
+  for (const signal of ["SIGTERM", "SIGINT"] as const) {
+    process.once(signal, () => {
+      void shutdown(signal).then(() => process.exit(0));
+    });
+  }
 }

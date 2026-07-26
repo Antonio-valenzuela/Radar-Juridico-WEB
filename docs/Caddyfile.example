@@ -1,0 +1,25 @@
+radar.example.com {
+	encode zstd gzip
+	reverse_proxy localhost:3000
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+}
+
+# La interfaz actual usa un endpoint WebSocket configurable. Si conserva el
+# puerto 3002, permita ese puerto en el firewall y configure
+# NEXT_PUBLIC_WEBSOCKET_URL=wss://radar.example.com:3002 al construir la web.
+radar.example.com:3002 {
+	encode zstd gzip
+	reverse_proxy localhost:3002
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		-Server
+	}
+}
