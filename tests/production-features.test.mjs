@@ -43,6 +43,42 @@ test("SSRF: Bloquear local e IP privada, permitir externa", () => {
   assert.equal(result.validRes.valid, true);
 });
 
+test("SSRF: bloquear todas las redes IP no públicas relevantes", () => {
+  const result = runTs(`
+    import { isNonPublicIp } from "./lib/security/urlValidation";
+    const blocked = [
+      "0.0.0.0",
+      "100.100.100.200",
+      "192.0.2.1",
+      "198.18.0.1",
+      "224.0.0.1",
+      "255.255.255.255",
+      "::",
+      "::1",
+      "::ffff:127.0.0.1",
+      "fc12::1",
+      "fd12::1",
+      "fe90::1",
+      "ff02::1",
+      "2001:db8::1",
+    ].map((address) => [address, isNonPublicIp(address)]);
+    const publicAddresses = [
+      "8.8.8.8",
+      "1.1.1.1",
+      "2606:4700:4700::1111",
+      "2a00:1450:4009:80b::200e",
+    ].map((address) => [address, isNonPublicIp(address)]);
+    console.log(JSON.stringify({ blocked, publicAddresses }));
+  `);
+
+  for (const [address, blocked] of result.blocked) {
+    assert.equal(blocked, true, `${address} debe bloquearse`);
+  }
+  for (const [address, blocked] of result.publicAddresses) {
+    assert.equal(blocked, false, `${address} debe aceptarse como global unicast`);
+  }
+});
+
 test("Diff: Comparar documentos y cambios numéricos", () => {
   const result = runTs(`
     import { compareDocuments } from "./lib/documents/diff";
