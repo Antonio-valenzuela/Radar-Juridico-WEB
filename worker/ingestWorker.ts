@@ -15,7 +15,12 @@ import {
   failedJobsQueue,
   ingestQueue,
   notificationsQueue,
+  normMonitoringQueue,
 } from "@/lib/queue";
+import {
+  runNormMonitor,
+  shouldRetryNormMonitor,
+} from "@/worker/normMonitorWorker";
 import { prisma } from "@/lib/prisma";
 import { assertRuntimeEnv } from "@/lib/config/env";
 import { checkDatabase, checkRedis } from "@/lib/health/checks";
@@ -142,6 +147,16 @@ createTrackedWorker(QUEUE_NAMES.notifications, async (job) => {
   });
 });
 
+createTrackedWorker(QUEUE_NAMES.normMonitoring, async () => {
+  const result = await runNormMonitor();
+  if (shouldRetryNormMonitor(result.results)) {
+    throw new Error(
+      `El monitoreo normativo tuvo ${result.errors} error(es) transitorio(s).`
+    );
+  }
+  return result;
+});
+
 createTrackedWorker(QUEUE_NAMES.failedJobs, async (job) => {
   console.log(JSON.stringify({ event: "worker.dlq.received", id: job.id, payload: job.data }));
   return { ok: true, retained: true };
@@ -181,7 +196,7 @@ for (const signal of ["SIGTERM", "SIGINT"] as const) {
 }
 
 console.log("[worker] workers running");
-console.log("[worker] queues: ingest | pdf-processing | embeddings | notifications | failed-jobs");
+console.log("[worker] queues: ingest | pdf-processing | embeddings | notifications | norm-monitoring | failed-jobs");
 
 void bootstrapWorker();
 
@@ -201,6 +216,11 @@ async function bootstrapWorker() {
       "schedule-notify-daily",
       { pattern: "30 7 * * *", tz: "America/Mexico_City" },
       { name: "notify-daily", data: { days: 1 } }
+    );
+    await normMonitoringQueue.upsertJobScheduler(
+      "schedule-norm-monitor-daily",
+      { pattern: "0 6 * * *", tz: "America/Mexico_City" },
+      { name: "monitor-norms", data: { type: "norm-monitor" } }
     );
 
     await runPriority1Ingest(1);
