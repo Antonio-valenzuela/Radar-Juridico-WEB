@@ -31,6 +31,9 @@ export type RawSourceItem = {
   url: string;
   canonicalUrl?: string;
   published: Date;
+  /** Distinguish source publication/reform dates from retrieval time. */
+  publicationDate?: Date | null;
+  lastReformDate?: Date | null;
   summary?: string | null;
   tipo?: string | null;
   tema?: string | null;
@@ -38,6 +41,9 @@ export type RawSourceItem = {
   keywordsHit?: string[];
   rawRef?: string | null;
   raw?: Record<string, unknown>;
+  /** Quality gate metadata; suspicious items are quarantined before persistence. */
+  qualityStatus?: "valid" | "suspicious";
+  qualityReasons?: string[];
 };
 
 export type SourceFetchResult = {

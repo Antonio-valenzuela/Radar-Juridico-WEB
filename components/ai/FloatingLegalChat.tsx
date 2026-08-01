@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { normalizeLegalDisplayText } from '@/lib/text/normalizeLegalDisplayText';
+import { getAdminToken, getAdminTokenHeaders } from '@/lib/client/adminToken';
 
 interface Citation {
   id?: string;
@@ -143,14 +144,9 @@ export default function FloatingLegalChat() {
 
     try {
       const currentPath = typeof window !== 'undefined' ? window.location.pathname : '';
-      const token = localStorage.getItem('juridico_admin_token') || 'dev-admin-token';
-
       const res = await fetch('/api/ai/chat-bubble', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-admin-token': token,
-        },
+        headers: getAdminTokenHeaders({ 'Content-Type': 'application/json' }, getAdminToken()),
         signal: controller.signal,
         body: JSON.stringify({
           message: userMsg.content,

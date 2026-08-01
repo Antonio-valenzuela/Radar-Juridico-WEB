@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { normalizeLegalDisplayText } from '@/lib/text/normalizeLegalDisplayText';
+import { adminFetch, getAdminToken, getAdminTokenHeaders, setAdminToken } from '@/lib/client/adminToken';
 
 type TaskDef = {
   id: string;
@@ -116,11 +117,8 @@ export default function SearchPage() {
 
     const intervalId = setInterval(async () => {
       try {
-        const token = typeof window !== 'undefined' ? (localStorage.getItem('adminToken') || 'dev-admin-token') : 'dev-admin-token';
         const res = await fetch(`/api/legal-reports/${reportJobId}`, {
-          headers: {
-            'x-admin-token': token,
-          }
+          headers: getAdminTokenHeaders(),
         });
         if (!res.ok) {
           throw new Error('No se pudo obtener el estado del reporte');
@@ -156,15 +154,12 @@ export default function SearchPage() {
     setReportError('');
     setReportResult(null);
 
-    let token = typeof window !== 'undefined' ? (localStorage.getItem('adminToken') || 'dev-admin-token') : 'dev-admin-token';
+    const token = getAdminToken();
 
     try {
       const res = await fetch('/api/legal-reports', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-admin-token': token,
-        },
+        headers: getAdminTokenHeaders({ 'Content-Type': 'application/json' }, token),
         body: JSON.stringify({
           query,
           filters: {
@@ -194,7 +189,7 @@ export default function SearchPage() {
         if (res.status === 401) {
           const newToken = prompt('Ingresa el token de administrador:', token);
           if (newToken) {
-            localStorage.setItem('adminToken', newToken);
+            setAdminToken(newToken);
             handleCreateReport();
             return;
           }
@@ -408,23 +403,17 @@ export default function SearchPage() {
   };
 
   const handleEnrich = async (itemId: string) => {
-    let token = typeof window !== 'undefined' ? (localStorage.getItem('adminToken') || 'dev-admin-token') : 'dev-admin-token';
+    let token = getAdminToken();
     const newToken = prompt('Ingresa el token de administrador:', token);
     if (newToken === null) return;
     if (newToken) {
-      token = newToken;
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('adminToken', token);
-      }
+      token = setAdminToken(newToken);
     }
 
     try {
       const res = await fetch('/api/admin/enrich-item', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-admin-token': token
-        },
+        headers: getAdminTokenHeaders({ 'Content-Type': 'application/json' }, token),
         body: JSON.stringify({ itemId })
       });
 
@@ -731,11 +720,17 @@ export default function SearchPage() {
               className="btn-primary" 
               onClick={async () => {
                 try {
+                  let token = getAdminToken();
+                  if (!token) {
+                    const entered = window.prompt('Ingresa el token de administrador para crear alertas:');
+                    if (entered === null) throw new Error('ADMIN_TOKEN_REQUIRED');
+                    token = setAdminToken(entered);
+                  }
+                  if (!token) throw new Error('ADMIN_TOKEN_REQUIRED');
                   const type = query ? 'keyword' : 'tema';
                   const value = query || matter || 'general';
-                  const res = await fetch('/api/watchlist', {
+                  const res = await adminFetch('/api/watchlist', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                       email: alertEmail,
                       orgSlug: 'demo',
@@ -755,7 +750,7 @@ export default function SearchPage() {
                     setAlertMessage(`Error: ${data.error}`);
                   }
                 } catch (err: any) {
-                  setAlertMessage(`Error: ${err.message}`);
+                  setAlertMessage(err?.message === 'ADMIN_TOKEN_REQUIRED' ? 'Ingresa un token administrativo válido.' : `Error: ${err?.message || 'No fue posible crear la alerta.'}`);
                 }
               }}
               style={{ padding: '0.5rem 1.5rem', fontSize: '0.9rem' }}

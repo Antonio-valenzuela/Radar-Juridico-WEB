@@ -48,7 +48,7 @@ npm run worker:legal-reports
 npm run dashboard
 ```
 
-El dashboard WebSocket queda en `ws://localhost:3002`. El archivo `docker-compose.yml` sigue siendo el entorno de desarrollo con bind mounts y hot reload; no debe usarse en producción.
+El dashboard web consulta telemetría por HTTP (`GET /api/admin/telemetry`) cada 15 segundos y no necesita publicar el puerto `3002`. El worker WebSocket se conserva sólo para clientes legacy; puede mantenerse desactivado (`ENABLE_DASHBOARD_WS=false`). El archivo `docker-compose.yml` sigue siendo el entorno de desarrollo con bind mounts y hot reload; no debe usarse en producción.
 
 Para apagar sin borrar datos:
 
@@ -118,6 +118,32 @@ Apague esta prueba sin borrar volúmenes:
 ```powershell
 docker compose --env-file .env.production -f docker-compose.prod.yml down
 ```
+
+## Boletín Judicial y migraciones
+
+La migración `20260731120000_add_bulletin_monitoring` agrega vigilancia vinculada a expedientes, publicaciones deduplicadas, ejecuciones y fechas procesales. En una base local o de Render nueva se aplica explícitamente con:
+
+```powershell
+Set-Location C:\Users\yahir\juridico-radar
+npm ci
+npx prisma migrate deploy
+npx prisma generate
+npm run db:seed
+```
+
+Variables mínimas para activar el monitor:
+
+```dotenv
+BULLETIN_MONITOR_ENABLED=true
+BULLETIN_MONITOR_CRON=0 8-18 * * 1-5
+BULLETIN_MONITOR_TIMEZONE=America/Mexico_City
+BULLETIN_SOURCE_TIMEOUT_MS=15000
+BULLETIN_MAX_RETRIES=3
+BULLETIN_MAX_CASES_PER_RUN=100
+BULLETIN_CONCURRENCY=2
+```
+
+El adaptador público de Jalisco usa el endpoint que consume su propia interfaz (`nilo.cjj.gob.mx/api/v1`) y conserva URL, parámetros, hash, estado y advertencias. PJF/CJF y TJAJAL devuelven `AUTH_REQUIRED`, `UNSUPPORTED` o `MANUAL_REVIEW` cuando la consulta exige FIREL, CAPTCHA, credenciales o revisión manual; nunca convierten una falla de red en “no boletinado”. No se almacenan cookies, certificados ni credenciales.
 
 ## Backup, migración y restauración
 

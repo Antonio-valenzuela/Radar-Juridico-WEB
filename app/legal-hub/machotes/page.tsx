@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useEffect } from 'react';
 import Link from 'next/link';
+import { adminFetch, getAdminToken, setAdminToken } from '@/lib/client/adminToken';
 import { templates } from '@/lib/templates/templateDefinitions';
 import type {
   AIAssistResult,
@@ -13,6 +14,7 @@ import {
   validateTemplateValues,
 } from '@/lib/templates/templateRenderer';
 import { generatePrintHtml } from '@/lib/templates/exportPdf';
+import { DRAFT_WARNING, hasPendingMarkers } from '@/lib/templates/templateQuality';
 
 export default function MachotesPage() {
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>(templates[0].id);
@@ -90,6 +92,7 @@ export default function MachotesPage() {
       });
       return;
     }
+    if (hasPendingMarkers(renderToText(selectedTemplate, values)) && !window.confirm(`${DRAFT_WARNING}. ¿Confirmas que revisarás el documento antes de usarlo?`)) return;
     try {
       const doc = renderToDocument(selectedTemplate, values);
       const { exportToDocx } = await import('@/lib/templates/exportDocx');
@@ -118,6 +121,7 @@ export default function MachotesPage() {
       });
       return;
     }
+    if (hasPendingMarkers(renderToText(selectedTemplate, values)) && !window.confirm(`${DRAFT_WARNING}. ¿Confirmas que revisarás el documento antes de usarlo?`)) return;
     const doc = renderToDocument(selectedTemplate, values);
     const html = generatePrintHtml(doc);
     const win = window.open('', '_blank');
@@ -142,6 +146,7 @@ export default function MachotesPage() {
       });
       return;
     }
+    if (hasPendingMarkers(renderToText(selectedTemplate, values)) && !window.confirm(`${DRAFT_WARNING}. ¿Confirmas que revisarás el documento antes de usarlo?`)) return;
     const text = renderToText(selectedTemplate, values);
     const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
     const url = URL.createObjectURL(blob);
@@ -162,6 +167,7 @@ export default function MachotesPage() {
       });
       return;
     }
+    if (hasPendingMarkers(renderToText(selectedTemplate, values)) && !window.confirm(`${DRAFT_WARNING}. ¿Confirmas que revisarás el texto antes de usarlo?`)) return;
     const text = renderToText(selectedTemplate, values);
     try {
       await navigator.clipboard.writeText(text);
@@ -185,12 +191,15 @@ export default function MachotesPage() {
     setAiLoading(sectionId);
     setFeedback(null);
     try {
-      const token = localStorage.getItem('juridico_admin_token');
-      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-      if (token) headers['x-admin-token'] = token;
-      const res = await fetch('/api/templates/ai-assist', {
+      let token = getAdminToken();
+      if (!token) {
+        const entered = window.prompt('Ingresa el token administrativo para usar la asistencia IA:');
+        if (entered === null) throw new Error('ADMIN_TOKEN_REQUIRED');
+        token = setAdminToken(entered);
+      }
+      if (!token) throw new Error('ADMIN_TOKEN_REQUIRED');
+      const res = await adminFetch('/api/templates/ai-assist', {
         method: 'POST',
-        headers,
         body: JSON.stringify({
           templateId: selectedTemplate.id,
           sectionId,
@@ -207,7 +216,9 @@ export default function MachotesPage() {
       setFeedback({
         tone: 'error',
         message:
-          error instanceof Error && error.message
+          error instanceof Error && error.message === 'ADMIN_TOKEN_REQUIRED'
+            ? 'Ingresa el token administrativo para usar la asistencia IA.'
+            : error instanceof Error && error.message
             ? error.message
             : 'No fue posible generar la propuesta asistida.',
       });
@@ -227,6 +238,7 @@ export default function MachotesPage() {
   };
 
   const renderedText = renderToText(selectedTemplate, values);
+  const hasDraftMarkers = hasPendingMarkers(renderedText);
 
   const aiEnabledSections = new Set([
     'hechos',
@@ -284,6 +296,12 @@ export default function MachotesPage() {
             </ul>
           )}
         </div>
+
+        {hasDraftMarkers && (
+          <div className="legal-warning glass-card" role="alert" style={{ marginBottom: '2rem', borderColor: '#f59e0b' }}>
+            <strong>{DRAFT_WARNING}</strong>. El contenido contiene marcadores pendientes y no debe presentarse sin validación profesional.
+          </div>
+        )}
 
         {feedback && (
           <div

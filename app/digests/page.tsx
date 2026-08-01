@@ -2,27 +2,27 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { adminFetch, getAdminToken, setAdminToken } from '@/lib/client/adminToken';
 
 export default function DigestsPage() {
   const [days, setDays] = useState(7);
   const [digest, setDigest] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [token, setToken] = useState('dev-admin-token');
+  const [token, setToken] = useState('');
 
   useEffect(() => {
-    const saved = localStorage.getItem('juridico_admin_token');
-    if (saved) setToken(saved);
+    setToken(getAdminToken());
   }, []);
 
   const handleTokenChange = (v: string) => {
     setToken(v);
-    localStorage.setItem('juridico_admin_token', v);
+    setAdminToken(v);
   };
 
   const handleFetchError = async (res: Response) => {
     if (res.status === 401) {
-      throw new Error('Token inválido o faltante. Usa dev-admin-token en local.');
+      throw new Error('Token administrativo inválido o faltante.');
     }
     const data = await res.json().catch(() => null);
     throw new Error(data?.error || `Error ${res.status}`);
@@ -37,9 +37,7 @@ export default function DigestsPage() {
     setError('');
     setDigest(null);
     try {
-      const res = await fetch(`/api/ai/weekly-digest?days=${days}`, {
-        headers: { 'x-admin-token': token.trim() || 'dev-admin-token' }
-      });
+      const res = await adminFetch(`/api/ai/weekly-digest?days=${days}`);
       if (!res.ok) await handleFetchError(res);
       const data = await res.json();
       setDigest(data.digest || data);
