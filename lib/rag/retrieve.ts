@@ -1,5 +1,6 @@
 import { semanticSearch } from '../search/semanticSearch';
 import { prisma } from '../prisma';
+import { isPubliclySearchableQuality } from '../ingest/quality';
 
 export type Citation = {
   title: string;
@@ -29,7 +30,7 @@ export async function retrieveContext(question: string, limit: number = 5): Prom
     include: { sourceItem: true }
   });
 
-  const versionMap = new Map(versions.map(v => [v.id, v]));
+  const versionMap = new Map(versions.filter((v) => isPubliclySearchableQuality(v.sourceItem?.raw)).map(v => [v.id, v]));
 
   const results: RetrieveResult[] = [];
 

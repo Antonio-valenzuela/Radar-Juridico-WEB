@@ -5,6 +5,7 @@ import { classifyNormalizedItem } from "@/lib/ingest/classify";
 import type { NormalizedItem } from "@/lib/ingest/normalize";
 import { processItemNormaDiff } from "@/lib/normas/process";
 import { embeddingsQueue } from "@/lib/queue";
+import { isQualityStatusSearchable } from "@/lib/ingest/quality";
 
 export function makeItemHash(item: Pick<NormalizedItem, "source" | "title" | "published" | "canonicalUrl">) {
   const payload = [
@@ -23,6 +24,10 @@ async function mirrorItemToDocument(
   classification: ReturnType<typeof classifyNormalizedItem>
 ) {
   try {
+    if (!isQualityStatusSearchable(item.qualityStatus)) {
+      console.warn('[ingest-dedupe] quality-gated item excluded from documents/RAG', dbItem.id);
+      return;
+    }
     const rawText = [
       item.title,
       item.summary,
@@ -135,7 +140,14 @@ export async function saveDedupedItem(item: NormalizedItem) {
     category: classification.category,
     keywordsHit,
     rawRef: item.rawRef,
-    raw: item.raw as Prisma.InputJsonValue | undefined,
+    raw: item.raw || item.qualityStatus
+      ? ({
+          ...(item.raw || {}),
+          ...(item.qualityStatus
+            ? { qualityStatus: item.qualityStatus, qualityReasons: item.qualityReasons || [] }
+            : {}),
+        } as Prisma.InputJsonValue)
+      : undefined,
   };
 
   if (duplicate) {

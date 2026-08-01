@@ -7,6 +7,7 @@ import { assertRuntimeEnv } from '@/lib/config/env';
 import { checkDatabase } from '@/lib/health/checks';
 import { closeHealthServer, createHealthServer } from '@/lib/health/server';
 import { getExpectedAdminToken } from '@/lib/security/adminAuth';
+import { collectTelemetry } from '@/worker/telemetry';
 
 assertRuntimeEnv();
 const PORT = process.env.WEBSOCKET_PORT || process.env.PORT || 3002;
@@ -111,36 +112,7 @@ async function broadcastDashboardMetrics() {
   if (clients.length === 0) return;
 
   try {
-    const [
-      totalProcessed,
-      jobsPending,
-      jobsFailed,
-      avgProcessingTime,
-      sourceStatus,
-    ] = await Promise.all([
-      prisma.ingestionJob.count({
-        where: { status: 'COMPLETADO' },
-      }).catch(() => 0),
-      prisma.ingestionJob.count({
-        where: { status: { in: ['PENDIENTE', 'DESCARGANDO', 'REINTENTANDO', 'EXTRAYENDO_TEXTO', 'GENERANDO_EMBEDDINGS', 'CLASIFICANDO_CON_IA'] } },
-      }).catch(() => 0),
-      prisma.ingestionJob.count({
-        where: { status: 'FALLIDO' },
-      }).catch(() => 0),
-      calculateAvgProcessingTime(),
-      getSourceStatus(),
-    ]);
-
-    const metrics = {
-      timestamp: new Date().toISOString(),
-      documentos_procesados: totalProcessed,
-      jobs_pendientes: jobsPending,
-      jobs_fallidos: jobsFailed,
-      tiempo_promedio_procesamiento: avgProcessingTime,
-      ultimo_procesamiento: new Date().toISOString(),
-      workers_activos: clients.length,
-      estado_fuentes: sourceStatus,
-    };
+    const metrics = await collectTelemetry({ dashboardClients: clients.length });
 
     const payload = JSON.stringify(metrics);
     clients.forEach(({ ws }) => {
@@ -151,48 +123,6 @@ async function broadcastDashboardMetrics() {
   } catch (err) {
     console.error('Error calculando métricas del dashboard:', err);
   }
-}
-
-async function calculateAvgProcessingTime(): Promise<number> {
-  try {
-    const completed = await prisma.ingestionJob.findMany({
-      where: { status: 'COMPLETADO' },
-      select: { createdAt: true, completedAt: true },
-      take: 100,
-    });
-
-    if (completed.length === 0) return 0;
-
-    const totalTime = completed.reduce((sum, job) => {
-      if (!job.completedAt) return sum;
-      return sum + (job.completedAt.getTime() - job.createdAt.getTime());
-    }, 0);
-
-    // Retorna promedio en segundos
-    const avgMs = totalTime / completed.length;
-    return Math.round((avgMs / 1000) * 100) / 100;
-  } catch {
-    return 0;
-  }
-}
-
-async function getSourceStatus(): Promise<Record<string, boolean>> {
-  const sources = ['DOF', 'SCJN', 'SJF'];
-  const status: Record<string, boolean> = {};
-
-  try {
-    for (const source of sources) {
-      const lastJob = await prisma.ingestionJob.findFirst({
-        where: { source },
-        orderBy: { createdAt: 'desc' },
-      });
-      status[source] = lastJob ? lastJob.status === 'COMPLETADO' : true;
-    }
-  } catch {
-    sources.forEach(s => { status[s] = true; });
-  }
-
-  return status;
 }
 
 // Broadcast cada 5 segundos

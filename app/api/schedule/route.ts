@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { ingestQueue } from "../../../lib/queue";
+import { bulletinsQueue, ingestQueue } from "../../../lib/queue";
 import { requireAdmin } from "@/lib/security/adminAuth";
 
 export const dynamic = "force-dynamic";
@@ -39,6 +39,15 @@ const SCHEDULES = [
   },
 ] as const;
 
+const bulletinSchedule = {
+  id: "schedule-bulletin-monitor",
+  pattern: process.env.BULLETIN_MONITOR_CRON || "0 8-18 * * 1-5",
+  tz: process.env.BULLETIN_MONITOR_TIMEZONE || "America/Mexico_City",
+  jobName: "bulletin-monitor",
+  data: { maxCases: Number(process.env.BULLETIN_MAX_CASES_PER_RUN || 100) },
+  description: "Vigilancia del Boletín Judicial con frecuencia configurable",
+};
+
 export async function POST(req: Request) {
   const auth = requireAdmin(req);
   if (!auth.ok) return auth.response;
@@ -58,6 +67,15 @@ export async function POST(req: Request) {
         job: schedule.jobName,
         description: schedule.description,
       });
+    }
+
+    if (process.env.BULLETIN_MONITOR_ENABLED === "true") {
+      await bulletinsQueue.upsertJobScheduler(
+        bulletinSchedule.id,
+        { pattern: bulletinSchedule.pattern, tz: bulletinSchedule.tz },
+        { name: bulletinSchedule.jobName, data: bulletinSchedule.data },
+      );
+      registered.push({ ...bulletinSchedule, job: bulletinSchedule.jobName });
     }
 
     return NextResponse.json({ ok: true, scheduled: registered });

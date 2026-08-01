@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import type { SourceHealthResult, SourceHealthStatus } from '@/lib/sources/sourceHealth';
+import { getAdminToken, getAdminTokenHeaders, setAdminToken } from '@/lib/client/adminToken';
 
 interface FetchLog {
   id: string;
@@ -94,7 +95,7 @@ async function fetchJsonSafe(res: Response): Promise<any> {
 }
 
 export default function AdminSourcesPage() {
-  const [token, setToken] = useState('dev-admin-token');
+  const [token, setToken] = useState('');
   const [sources, setSources] = useState<OfficialSource[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -123,15 +124,12 @@ export default function AdminSourcesPage() {
   const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
-    const saved = localStorage.getItem('juridico_admin_token');
-    if (saved) {
-      setToken(saved);
-    }
+    setToken(getAdminToken());
   }, []);
 
   const handleTokenChange = (v: string) => {
     setToken(v);
-    localStorage.setItem('juridico_admin_token', v);
+    setAdminToken(v);
   };
 
   const fetchSources = useCallback(async () => {
@@ -151,7 +149,7 @@ export default function AdminSourcesPage() {
     setSuccess('');
     try {
       const res = await fetch('/api/admin/sources', {
-        headers: { 'x-admin-token': token.trim() },
+        headers: getAdminTokenHeaders({}, token),
         signal: controller.signal,
       });
       clearTimeout(timeoutId);
@@ -254,10 +252,7 @@ export default function AdminSourcesPage() {
 
       const res = await fetch(url, {
         method,
-        headers: {
-          'Content-Type': 'application/json',
-          'x-admin-token': token.trim(),
-        },
+        headers: getAdminTokenHeaders({ 'Content-Type': 'application/json' }, token),
         body: JSON.stringify(payload),
       });
 
@@ -280,10 +275,7 @@ export default function AdminSourcesPage() {
     try {
       const res = await fetch(`/api/admin/sources/${s.id}`, {
         method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-admin-token': token.trim(),
-        },
+        headers: getAdminTokenHeaders({ 'Content-Type': 'application/json' }, token),
         body: JSON.stringify({ isActive: !s.isActive }),
       });
       const data = await fetchJsonSafe(res);
@@ -306,9 +298,7 @@ export default function AdminSourcesPage() {
     try {
       const res = await fetch(`/api/admin/sources/${id}`, {
         method: 'DELETE',
-        headers: {
-          'x-admin-token': token.trim(),
-        },
+        headers: getAdminTokenHeaders({}, token),
       });
       const data = await fetchJsonSafe(res);
       if (!res.ok) {
@@ -326,10 +316,7 @@ export default function AdminSourcesPage() {
     try {
       const res = await fetch('/api/admin/source-test', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-admin-token': token.trim(),
-        },
+        headers: getAdminTokenHeaders({ 'Content-Type': 'application/json' }, token),
         body: JSON.stringify({ id }),
       });
       const data = await fetchJsonSafe(res);
@@ -345,10 +332,7 @@ export default function AdminSourcesPage() {
     try {
       const res = await fetch('/api/admin/source-ingest', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-admin-token': token.trim(),
-        },
+        headers: getAdminTokenHeaders({ 'Content-Type': 'application/json' }, token),
         body: JSON.stringify({ id }),
       });
       const data = await fetchJsonSafe(res);

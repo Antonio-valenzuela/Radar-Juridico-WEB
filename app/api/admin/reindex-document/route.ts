@@ -10,11 +10,11 @@ export async function POST(req: Request) {
       return adminCheck.response;
     }
 
-    const body = await req.json();
-    const { itemId } = body;
+    const body = await req.json().catch(() => null);
+    const itemId = body && typeof body === 'object' && typeof body.itemId === 'string' ? body.itemId.trim() : '';
 
     if (!itemId) {
-      return NextResponse.json({ ok: false, error: 'itemId is required' }, { status: 400 });
+      return NextResponse.json({ ok: false, error: 'invalid_item', message: 'Falta un identificador de documento válido.' }, { status: 400 });
     }
 
     // Find DocumentVersion associated with this item
@@ -23,7 +23,7 @@ export async function POST(req: Request) {
     });
 
     if (docVersions.length === 0) {
-      return NextResponse.json({ ok: false, error: 'No DocumentVersion found for this itemId' }, { status: 404 });
+      return NextResponse.json({ ok: false, error: 'document_not_found', message: 'No hay una versión indexable para este documento.' }, { status: 404 });
     }
 
     let totalChunks = 0;
@@ -38,10 +38,10 @@ export async function POST(req: Request) {
       ok: true,
       chunks: totalChunks
     });
-  } catch (error: any) {
-    console.error('API /api/admin/reindex-document error:', error);
+  } catch (error: unknown) {
+    console.error('API /api/admin/reindex-document error:', error instanceof Error ? error.message : String(error));
     return NextResponse.json(
-      { ok: false, error: error.message || 'Internal server error' },
+      { ok: false, error: 'reindex_failed', message: 'No fue posible reindexar el documento.' },
       { status: 500 }
     );
   }

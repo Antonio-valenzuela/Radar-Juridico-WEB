@@ -632,6 +632,9 @@ model OfficialSource {
   documents       Document[]
   normas          Norma[]
   jurisprudencias Jurisprudencia[]
+  bulletinWatches CaseBulletinWatch[]
+  bulletinEntries JudicialBulletinEntry[]
+  bulletinRuns    BulletinCheckRun[]
 
   @@index([type])
   @@index([isActive])
@@ -782,14 +785,17 @@ model Matter {
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 
-  caseFiles    CaseFile[]
-  documents    MatterDocument[]
-  notes        MatterNote[]
-  parties      CaseParty[]
-  actuations   CaseActuation[]
-  deadlines    CaseDeadline[]
-  sourceChecks CaseSourceCheck[]
-  caseAlerts   CaseAlert[]
+  caseFiles       CaseFile[]
+  documents       MatterDocument[]
+  notes           MatterNote[]
+  parties         CaseParty[]
+  actuations      CaseActuation[]
+  deadlines       CaseDeadline[]
+  sourceChecks    CaseSourceCheck[]
+  caseAlerts      CaseAlert[]
+  bulletinWatches CaseBulletinWatch[]
+  bulletinEntries JudicialBulletinEntry[]
+  bulletinRuns    BulletinCheckRun[]
 
   @@index([organizationId, status])
   @@index([organizationId, caseNumber])
@@ -935,32 +941,39 @@ model CaseParty {
 }
 
 model CaseActuation {
-  id         String    @id @default(cuid())
-  matterId   String
-  matter     Matter    @relation(fields: [matterId], references: [id], onDelete: Cascade)
-  date       DateTime
-  type       String
-  summary    String
-  sourceUrl  String?
-  reviewed   Boolean   @default(false)
-  reviewedAt DateTime?
-  createdAt  DateTime  @default(now())
+  id              String                 @id @default(cuid())
+  matterId        String
+  matter          Matter                 @relation(fields: [matterId], references: [id], onDelete: Cascade)
+  date            DateTime
+  type            String
+  summary         String
+  sourceUrl       String?
+  bulletinEntryId String?                @unique
+  bulletinEntry   JudicialBulletinEntry? @relation(fields: [bulletinEntryId], references: [id], onDelete: SetNull)
+  reviewed        Boolean                @default(false)
+  reviewedAt      DateTime?
+  createdAt       DateTime               @default(now())
 
   @@index([matterId, date])
 }
 
 model CaseDeadline {
-  id          String    @id @default(cuid())
-  matterId    String
-  matter      Matter    @relation(fields: [matterId], references: [id], onDelete: Cascade)
-  title       String
-  dueDate     DateTime
-  type        String
-  daysTotal   Int?
-  completed   Boolean   @default(false)
-  completedAt DateTime?
-  notes       String?
-  createdAt   DateTime  @default(now())
+  id              String    @id @default(cuid())
+  matterId        String
+  matter          Matter    @relation(fields: [matterId], references: [id], onDelete: Cascade)
+  title           String
+  dueDate         DateTime
+  dueTime         String?
+  timezone        String    @default("America/Mexico_City")
+  dayType         String    @default("calendar_date") // calendar_date | business_day | judicial_calendar
+  calendarStatus  String    @default("unverified") // unverified | verified
+  calculationNote String?
+  type            String
+  daysTotal       Int?
+  completed       Boolean   @default(false)
+  completedAt     DateTime?
+  notes           String?
+  createdAt       DateTime  @default(now())
 
   @@index([matterId, dueDate])
   @@index([completed, dueDate])
@@ -987,8 +1000,99 @@ model CaseAlert {
   title       String
   description String?
   read        Boolean  @default(false)
+  dedupeKey   String?  @unique
   createdAt   DateTime @default(now())
 
   @@index([matterId, read])
   @@index([level, createdAt])
+}
+
+model CaseBulletinWatch {
+  id               String         @id @default(cuid())
+  matterId         String
+  matter           Matter         @relation(fields: [matterId], references: [id], onDelete: Cascade)
+  sourceId         String
+  source           OfficialSource @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  expedienteNumber String
+  expedienteYear   Int?
+  matterLabel      String?
+  judicialDistrict String?
+  court            String?
+  chamber          String?
+  active           Boolean        @default(true)
+  lastCheckedAt    DateTime?
+  lastPublishedAt  DateTime?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  checkRuns BulletinCheckRun[]
+
+  @@unique([matterId, sourceId, expedienteNumber])
+  @@index([sourceId, active])
+  @@index([matterId, active])
+}
+
+model JudicialBulletinEntry {
+  id                 String         @id @default(cuid())
+  sourceId           String
+  source             OfficialSource @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  matterId           String?
+  matter             Matter?        @relation(fields: [matterId], references: [id], onDelete: SetNull)
+  externalId         String?
+  expedienteNumber   String
+  expedienteYear     Int?
+  matterLabel        String?
+  judicialDistrict   String?
+  court              String?
+  chamber            String?
+  bulletinNumber     String?
+  publicationDate    DateTime?
+  agreementDate      DateTime?
+  proceedingType     String?
+  heading            String?
+  extract            String?        @db.Text
+  parties            Json?
+  sourceUrl          String
+  contentHash        String
+  dedupeKey          String         @unique
+  firstSeenAt        DateTime       @default(now())
+  lastSeenAt         DateTime       @default(now())
+  raw                Json?
+  verificationStatus String         @default("official_source")
+  reviewed           Boolean        @default(false)
+  reviewedAt         DateTime?
+  notes              String?
+
+  actuation CaseActuation?
+
+  @@index([sourceId, expedienteNumber])
+  @@index([matterId, publicationDate])
+  @@index([court, expedienteNumber, publicationDate])
+  @@index([contentHash])
+}
+
+model BulletinCheckRun {
+  id           String             @id @default(cuid())
+  sourceId     String
+  source       OfficialSource     @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  matterId     String?
+  matter       Matter?            @relation(fields: [matterId], references: [id], onDelete: SetNull)
+  watchId      String?
+  watch        CaseBulletinWatch? @relation(fields: [watchId], references: [id], onDelete: SetNull)
+  startedAt    DateTime           @default(now())
+  completedAt  DateTime?
+  status       String
+  query        Json
+  resultsFound Int                @default(0)
+  newResults   Int                @default(0)
+  errorCode    String?
+  errorMessage String?
+  responseHash String?
+  sourceUrl    String?
+  httpStatus   Int?
+  durationMs   Int?
+
+  @@index([sourceId, startedAt])
+  @@index([matterId, startedAt])
+  @@index([status, startedAt])
 }

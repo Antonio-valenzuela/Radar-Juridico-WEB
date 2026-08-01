@@ -2,6 +2,7 @@
 
 import { prisma } from '@/lib/prisma';
 import { sendAlertEmail } from '@/lib/email/nodemailer';
+import { isPubliclySearchableQuality } from '@/lib/ingest/quality';
 
 export async function evaluateAlertsForDocument(documentId: string): Promise<void> {
   try {
@@ -11,6 +12,7 @@ export async function evaluateAlertsForDocument(documentId: string): Promise<voi
         versions: {
           orderBy: { versionNumber: 'desc' },
           take: 1,
+          include: { sourceItem: { select: { raw: true } } },
         },
       },
     });
@@ -21,6 +23,10 @@ export async function evaluateAlertsForDocument(documentId: string): Promise<voi
     }
 
     const latestVersion = document.versions[0];
+    if (latestVersion?.sourceItem && !isPubliclySearchableQuality(latestVersion.sourceItem.raw)) {
+      console.info(`[evaluateAlerts] Documento ${documentId} retenido por control de calidad.`);
+      return;
+    }
     const textContent = latestVersion?.originalText || latestVersion?.rawText || '';
 
     // Unificar textos para evaluar palabras clave en minúsculas
@@ -91,4 +97,3 @@ export async function evaluateAlertsForItem(itemId: string): Promise<{ matches: 
   }
   return { matches: [] };
 }
-

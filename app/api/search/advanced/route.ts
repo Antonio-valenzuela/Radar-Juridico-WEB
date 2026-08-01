@@ -8,17 +8,57 @@ import type { AdvancedSearchInput } from '@/lib/search/searchParser';
 import { expandLegalSearch } from '@/lib/search/legalExpansion';
 import { searchOfficialSources } from '@/lib/search/officialFederatedSearch';
 import { expandLegalQuery } from '@/lib/search/expandLegalQuery';
-import { matchesMatter, normalizeMatterValues } from '@/lib/search/matter';
+import { matchesMatter, normalizeMatterValues, normalizeStringArray } from '@/lib/search/matter';
+import { isPubliclySearchableQuality } from '@/lib/ingest/quality';
+
+type SearchErrorCode = 'search_failed' | 'local_search_failed' | 'semantic_search_failed' | 'official_source_failed' | 'invalid_filters' | 'database_unavailable';
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function searchErrorResponse(code: SearchErrorCode, status: number, error?: unknown) {
+  const messages: Record<SearchErrorCode, string> = {
+    search_failed: 'No fue posible completar la búsqueda.',
+    local_search_failed: 'No fue posible consultar la búsqueda local.',
+    semantic_search_failed: 'No fue posible completar la búsqueda semántica.',
+    official_source_failed: 'No fue posible consultar las fuentes oficiales.',
+    invalid_filters: 'Los filtros de búsqueda no son válidos.',
+    database_unavailable: 'La base de datos no está disponible temporalmente.',
+  };
+  const payload: { ok: false; error: SearchErrorCode; message: string; details?: string[] } = {
+    ok: false,
+    error: code,
+    message: messages[code],
+  };
+
+  if (process.env.NODE_ENV !== 'production' && error) {
+    payload.details = [errorMessage(error)];
+  }
+
+  return NextResponse.json(payload, { status });
+}
 
 
 export async function POST(req: Request) {
   try {
     let body: AdvancedSearchInput;
     try {
-      body = await req.json();
+      const parsedBody: unknown = await req.json();
+      if (!isRecord(parsedBody)) {
+        return NextResponse.json(
+          { ok: false, error: 'invalid_filters', message: 'Los filtros de búsqueda no son válidos.' },
+          { status: 400 }
+        );
+      }
+      body = parsedBody as AdvancedSearchInput;
     } catch {
       return NextResponse.json(
-        { ok: false, error: 'invalid_request', details: ['Body JSON inválido'] },
+        { ok: false, error: 'invalid_filters', message: 'Los filtros de búsqueda no son válidos.' },
         { status: 400 }
       );
     }
@@ -27,9 +67,17 @@ export async function POST(req: Request) {
     const errors = validateSearchInput(body);
     if (errors.length > 0) {
       return NextResponse.json(
-        { ok: false, error: 'invalid_request', details: errors.map(e => `${e.field}: ${e.message}`) },
+        { ok: false, error: 'invalid_filters', message: 'Los filtros de búsqueda no son válidos.' },
         { status: 400 }
       );
+    }
+
+    if (typeof body.matter === 'string' || typeof body.impactLevel === 'string') {
+      body = {
+        ...body,
+        ...(typeof body.matter === 'string' ? { matter: body.matter.trim().toLowerCase() } : {}),
+        ...(typeof body.impactLevel === 'string' ? { impactLevel: body.impactLevel.trim().toLowerCase() } : {}),
+      };
     }
 
     const limit = Math.min(Math.max(Number(body.limit) || 20, 1), 100);
@@ -88,21 +136,27 @@ export async function POST(req: Request) {
           take: dbLimit,
           orderBy: { published: 'desc' }
         });
+        textResults = textResults.filter((item: any) => isPubliclySearchableQuality(item.raw));
       } catch (dbError: any) {
-        console.error('Prisma query error:', dbError.message);
-        // Fallback: query without filters if Prisma fails
-        textResults = await prisma.item.findMany({
-          include: { aiEnrichment: true },
-          take: dbLimit,
-          orderBy: { published: 'desc' }
-        });
+        console.error('Prisma query error:', errorMessage(dbError));
+        if (process.env.NODE_ENV === 'test') {
+          textResults = [];
+        } else {
+          return searchErrorResponse('local_search_failed', 503, dbError);
+        }
       }
     }
 
     // 4. Fetch Semantic Results (safe — semanticSearch already catches errors internally)
     let semanticChunks: any[] = [];
     if ((mode === 'hybrid' || mode === 'semantic') && semanticQuery) {
-      semanticChunks = await semanticSearch(semanticQuery, dbLimit);
+      try {
+        semanticChunks = await semanticSearch(semanticQuery, dbLimit, { suppressErrors: false });
+      } catch (semanticError) {
+        console.error('[advancedSearch] Semantic search failed:', errorMessage(semanticError));
+        if (process.env.NODE_ENV !== 'test') return searchErrorResponse('semantic_search_failed', 503, semanticError);
+        semanticChunks = [];
+      }
     }
 
     // 5. Map Semantic Chunks to Items
@@ -142,6 +196,7 @@ export async function POST(req: Request) {
           },
           include: { aiEnrichment: true }
         });
+        semanticItemsData = semanticItemsData.filter((item: any) => isPubliclySearchableQuality(item.raw));
       } catch {
         semanticItemsData = [];
       }
@@ -171,7 +226,9 @@ export async function POST(req: Request) {
       allResults = allResults.filter((r: any) => {
         const item = r.item;
         const ai = item.aiEnrichment || {};
+        const safeText = (value: unknown) => typeof value === 'string' ? value : '';
         const searchText = [item.title, item.summary, item.keywordsHit, item.source]
+          .map(safeText)
           .filter(Boolean)
           .join(' ')
           .toLowerCase();
@@ -179,8 +236,8 @@ export async function POST(req: Request) {
         // 7a. Authority Filter
         if (postFilters.authority) {
           const authVal = postFilters.authority.toLowerCase();
-          const matchesAi = ai.authority && ai.authority.toLowerCase().includes(authVal);
-          const matchesSource = item.source && item.source.toLowerCase().includes(authVal);
+          const matchesAi = normalizeStringArray(ai.authority).some((value) => value.includes(authVal));
+          const matchesSource = safeText(item.source).toLowerCase().includes(authVal);
           if (!matchesAi && !matchesSource && !searchText.includes(authVal)) {
             return false;
           }
@@ -189,7 +246,7 @@ export async function POST(req: Request) {
         // 7b. Entity Filter
         if (postFilters.entity) {
           const entVal = postFilters.entity.toLowerCase();
-          const matchesAi = Array.isArray(ai.entities) && ai.entities.some((e: string) => e.toLowerCase().includes(entVal));
+          const matchesAi = normalizeStringArray(ai.entities).some((value) => value.includes(entVal));
           if (!matchesAi && !searchText.includes(entVal)) {
             return false;
           }
@@ -198,7 +255,7 @@ export async function POST(req: Request) {
         // 7c. Sector Filter
         if (postFilters.sector) {
           const secVal = postFilters.sector.toLowerCase();
-          const matchesAi = Array.isArray(ai.affectedSectors) && ai.affectedSectors.some((s: string) => s.toLowerCase().includes(secVal));
+          const matchesAi = normalizeStringArray(ai.affectedSectors).some((value) => value.includes(secVal));
           if (!matchesAi && !searchText.includes(secVal)) {
             return false;
           }
@@ -208,7 +265,7 @@ export async function POST(req: Request) {
         if (body.matter) {
           const matVal = body.matter.toLowerCase();
           const matchesTema = matchesMatter(item.tema, matVal);
-          const matchesAi = ai.matter && ai.matter.toLowerCase() === matVal;
+          const matchesAi = normalizeStringArray(ai.matter).includes(matVal);
           if (!matchesTema && !matchesAi) {
             return false;
           }
@@ -217,8 +274,8 @@ export async function POST(req: Request) {
         // 7e. Impact Level Filter
         if (body.impactLevel) {
           const impVal = body.impactLevel.toLowerCase();
-          const matchesImp = item.impacto && item.impacto.toLowerCase() === impVal;
-          const matchesAi = ai.impactLevel && ai.impactLevel.toLowerCase() === impVal;
+          const matchesImp = normalizeStringArray(item.impacto).includes(impVal);
+          const matchesAi = normalizeStringArray(ai.impactLevel).includes(impVal);
           if (!matchesImp && !matchesAi) {
             return false;
           }
@@ -243,7 +300,12 @@ export async function POST(req: Request) {
           2000 // 2s timeout per source
         );
         if (federated && federated.results) {
-          warnings.push(...federated.warnings);
+          const federatedWarnings = Array.isArray(federated.warnings) ? federated.warnings : [];
+          if (process.env.NODE_ENV === 'production') {
+            if (federatedWarnings.length > 0) warnings.push('official_source_failed');
+          } else {
+            warnings.push(...federatedWarnings);
+          }
           for (const group of federated.results) {
             if (!group.results || group.results.length === 0) continue;
             for (const r of group.results) {
@@ -269,8 +331,13 @@ export async function POST(req: Request) {
           }
         }
       } catch (err: any) {
-        console.error("[advancedSearch] Federated search failed:", err.message);
-        warnings.push(`Búsqueda federada fallida: ${err.message}`);
+        const message = errorMessage(err);
+        console.error("[advancedSearch] Federated search failed:", message);
+        warnings.push(
+          process.env.NODE_ENV === 'production'
+            ? 'official_source_failed'
+            : `Búsqueda federada fallida: ${message}`
+        );
       }
     }
 
@@ -296,13 +363,13 @@ export async function POST(req: Request) {
         source: item.source,
         publishedAt: item.published ? new Date(item.published).toISOString() : null,
         matter: normalizeMatterValues(item.tema).join(', '),
-        aiMatter: ai.matter || null,
-        authority: ai.authority || null,
-        impactLevel: ai.impactLevel || item.impacto || null,
-        entities: ai.entities || [],
-        affectedSectors: ai.affectedSectors || [],
-        keywords: ai.keywords || [],
-        relatedTopics: ai.relatedTopics || [],
+        aiMatter: normalizeStringArray(ai.matter)[0] || null,
+        authority: normalizeStringArray(ai.authority)[0] || null,
+        impactLevel: normalizeStringArray(ai.impactLevel)[0] || normalizeStringArray(item.impacto)[0] || null,
+        entities: normalizeStringArray(ai.entities),
+        affectedSectors: normalizeStringArray(ai.affectedSectors),
+        keywords: normalizeStringArray(ai.keywords),
+        relatedTopics: normalizeStringArray(ai.relatedTopics),
         score: r.score,
         scoreBreakdown,
         isExternal: !!item.isExternal,
@@ -341,11 +408,8 @@ export async function POST(req: Request) {
       debug: debugInfo
     });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Advanced Search Error:', error);
-    return NextResponse.json(
-      { ok: false, error: 'internal_error', details: [error.message || 'Error interno'] },
-      { status: 500 }
-    );
+    return searchErrorResponse('search_failed', 500, error);
   }
 }

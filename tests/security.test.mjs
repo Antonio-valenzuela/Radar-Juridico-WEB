@@ -59,16 +59,21 @@ test("AI report printing escapes model-controlled HTML", () => {
   assert.doesNotMatch(chat, />\$\{content\}<\/div>/);
 });
 
-test("dashboard WebSocket authenticates clients, validates origin and caps connections", () => {
+test("dashboard HTTP protege la telemetría con token administrativo", () => {
   const worker = fs.readFileSync("worker/dashboardWorker.ts", "utf8");
   const page = fs.readFileSync("app/admin/dashboard/page.tsx", "utf8");
+  const route = fs.readFileSync("app/api/admin/telemetry/route.ts", "utf8");
 
+  // El proceso WebSocket heredado mantiene sus límites, pero la UI ya no depende de él.
   assert.match(worker, /verifyClient/);
   assert.match(worker, /getExpectedAdminToken/);
   assert.match(worker, /DASHBOARD_MAX_CLIENTS/);
   assert.match(worker, /NEXT_PUBLIC_APP_URL/);
-  assert.match(page, /juridico_admin_token/);
-  assert.match(page, /auth\./);
+  assert.match(route, /requireAdmin/);
+  assert.match(route, /collectTelemetry/);
+  assert.match(page, /lib\/client\/adminToken/);
+  assert.match(page, /adminFetch/);
+  assert.doesNotMatch(page, /new\s+WebSocket\s*\(/);
 });
 
 test("acciones de enriquecimiento reutilizan el token administrativo de producción", () => {
@@ -76,10 +81,10 @@ test("acciones de enriquecimiento reutilizan el token administrativo de producci
   const searchPage = fs.readFileSync("app/search/page.tsx", "utf8");
   const itemPage = fs.readFileSync("app/items/[id]/page.tsx", "utf8");
 
-  assert.match(enrichButton, /juridico_admin_token/);
+  assert.match(enrichButton, /lib\/client\/adminToken/);
   assert.doesNotMatch(enrichButton, /localStorage\.getItem\(["']adminToken["']\)/);
   assert.doesNotMatch(enrichButton, /\|\|\s*["']dev-admin-token["']/);
-  assert.match(searchPage, /juridico_admin_token/);
+  assert.match(searchPage, /lib\/client\/adminToken/);
   assert.doesNotMatch(searchPage, /localStorage\.getItem\(["']adminToken["']\)/);
   assert.doesNotMatch(itemPage, /name=["']x-admin-token["']/);
   assert.doesNotMatch(itemPage, /dev-admin-token/);

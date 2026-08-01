@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { getAdminToken, getAdminTokenHeaders, setAdminToken } from '@/lib/client/adminToken';
 
 const EMPTY_USAGE_SUMMARY = {
   totalAttempts: 0,
@@ -15,16 +16,15 @@ const EMPTY_USAGE_SUMMARY = {
 const EMPTY_PROVIDERS: any[] = [];
 
 export default function AILegalPage() {
-  const [token, setToken] = useState('dev-admin-token');
+  const [token, setToken] = useState('');
   
   useEffect(() => {
-    const saved = localStorage.getItem('juridico_admin_token');
-    if (saved) setToken(saved);
+    setToken(getAdminToken());
   }, []);
 
   const handleTokenChange = (v: string) => {
     setToken(v);
-    localStorage.setItem('juridico_admin_token', v);
+    setAdminToken(v);
   };
   
   const [analyzeTitle, setAnalyzeTitle] = useState('Resolución del SAT sobre obligaciones fiscales');
@@ -56,7 +56,7 @@ export default function AILegalPage() {
 
   const handleFetchError = async (res: Response) => {
     if (res.status === 401) {
-      throw new Error('Token inválido o faltante. Usa dev-admin-token en local.');
+      throw new Error('Token inválido o faltante. Ingresa el ADMIN_TOKEN configurado.');
     }
     if (res.status === 400) {
       throw new Error('Solicitud inválida. Revisa los campos enviados.');
@@ -80,10 +80,7 @@ export default function AILegalPage() {
     try {
       const res = await fetch('/api/ai/analyze', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-admin-token': token.trim(),
-        },
+        headers: getAdminTokenHeaders({ 'Content-Type': 'application/json' }, token),
         body: JSON.stringify({ title: analyzeTitle, summary: analyzeSummary }),
       });
       if (!res.ok) await handleFetchError(res);
@@ -107,10 +104,7 @@ export default function AILegalPage() {
     try {
       const res = await fetch('/api/ai/match-alert', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-admin-token': token.trim(),
-        },
+        headers: getAdminTokenHeaders({ 'Content-Type': 'application/json' }, token),
         body: JSON.stringify({
           ruleText: matchRule,
           documentTitle: matchTitle,
@@ -138,9 +132,7 @@ export default function AILegalPage() {
     try {
       const res = await fetch(`/api/ai/weekly-digest?days=${digestDays}`, {
         method: 'GET',
-        headers: {
-          'x-admin-token': token.trim(),
-        },
+        headers: getAdminTokenHeaders({}, token),
       });
       if (!res.ok) await handleFetchError(res);
       setDigestResult(await res.json());
@@ -162,9 +154,7 @@ export default function AILegalPage() {
     try {
       const res = await fetch('/api/ai/usage', {
         method: 'GET',
-        headers: {
-          'x-admin-token': token,
-        },
+        headers: getAdminTokenHeaders({}, token),
       });
       if (res.status === 401) {
         setLimitsError('Este panel requiere Admin Token para consultar métricas internas. Verifica el Admin Token.');

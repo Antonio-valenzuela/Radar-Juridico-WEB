@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { adminFetch, getAdminToken, setAdminToken } from "@/lib/client/adminToken";
 
 export default function RefreshButton() {
   const [loading, setLoading] = useState(false);
@@ -13,7 +14,14 @@ export default function RefreshButton() {
     setMsg("");
 
     try {
-      const res = await fetch("/api/run-now", { method: "POST" });
+      let token = getAdminToken();
+      if (!token) {
+        const entered = window.prompt("Ingresa el token administrativo para actualizar las fuentes:");
+        if (entered === null) throw new Error("ADMIN_TOKEN_REQUIRED");
+        token = setAdminToken(entered);
+      }
+      if (!token) throw new Error("ADMIN_TOKEN_REQUIRED");
+      const res = await adminFetch("/api/run-now", { method: "POST", body: JSON.stringify({}) });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Error desconocido");
 
@@ -22,7 +30,7 @@ export default function RefreshButton() {
       setTimeout(() => window.location.reload(), 3500);
     } catch (error: unknown) {
       setStatus("error");
-      setMsg(error instanceof Error ? error.message : String(error));
+      setMsg(error instanceof Error && error.message === "ADMIN_TOKEN_REQUIRED" ? "Ingresa un token administrativo válido." : "No fue posible actualizar las fuentes.");
     } finally {
       setLoading(false);
     }

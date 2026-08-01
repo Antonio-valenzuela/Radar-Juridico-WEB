@@ -1,3 +1,5 @@
+import { MEXICO_CITY_TIMEZONE, parseProceduralDate } from '@/lib/cases/deadlineDates';
+
 const value = (input: unknown, maxLength: number): string | null => {
   if (typeof input !== 'string') return null;
   const trimmed = input.trim();
@@ -149,20 +151,44 @@ export const validateDeadlineCreate = (
 ): Validation<{
   title: string;
   dueDate: Date;
+  dueTime: string | null;
+  timezone: string;
+  dayType: string;
+  calendarStatus: string;
+  calculationNote: string | null;
   type: string;
   daysTotal: number | null;
   notes: string | null;
 }> => {
   const title = value(input.title, 300);
   const type = value(input.type, 100);
-  const dueDate = new Date(String(input.dueDate || ''));
+  let dueDate: Date;
+  try {
+    dueDate = parseProceduralDate(String(input.dueDate || ''));
+  } catch {
+    return { valid: false, error: 'Título, tipo y fecha límite válida son requeridos.' };
+  }
+  const dueTime = value(input.dueTime, 5);
+  if (dueTime && !/^([01]\d|2[0-3]):[0-5]\d$/.test(dueTime)) {
+    return { valid: false, error: 'La hora límite debe usar HH:mm.' };
+  }
+  const timezone = value(input.timezone, 80) || MEXICO_CITY_TIMEZONE;
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone: timezone }).format(dueDate);
+  } catch {
+    return { valid: false, error: 'La zona horaria no es válida.' };
+  }
+  const dayType = ['calendar_date', 'business_day', 'judicial_calendar'].includes(String(input.dayType))
+    ? String(input.dayType)
+    : 'calendar_date';
+  const calendarStatus = input.calendarStatus === 'verified' ? 'verified' : 'unverified';
   const daysTotal =
     typeof input.daysTotal === 'number' &&
     Number.isInteger(input.daysTotal) &&
     input.daysTotal >= 0
       ? input.daysTotal
       : null;
-  if (!title || !type || Number.isNaN(dueDate.getTime())) {
+  if (!title || !type) {
     return { valid: false, error: 'Título, tipo y fecha límite son requeridos.' };
   }
   return {
@@ -171,6 +197,11 @@ export const validateDeadlineCreate = (
       title,
       type,
       dueDate,
+      dueTime,
+      timezone,
+      dayType,
+      calendarStatus,
+      calculationNote: calendarStatus === 'verified' ? value(input.calculationNote, 500) : 'Cálculo preliminar. Requiere validación profesional.',
       daysTotal,
       notes: value(input.notes, 2_000),
     },

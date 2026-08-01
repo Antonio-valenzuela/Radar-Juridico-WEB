@@ -6,6 +6,7 @@ import { emptySearchPrompt } from "@/lib/ai/prompts/emptySearchPrompt";
 import { ragPrompt } from "@/lib/ai/prompts/ragPrompt";
 import { prisma } from "@/lib/prisma";
 import { normalizeLegalDisplayText } from "@/lib/text/normalizeLegalDisplayText";
+import { requireAdmin } from "@/lib/security/adminAuth";
 
 function sanitizeInput(str: string): string {
   if (!str) return "";
@@ -501,10 +502,8 @@ export async function POST(req: NextRequest) {
 
   // Security check for admin pages
   if (currentPath && typeof currentPath === "string" && currentPath.startsWith("/admin")) {
-    const adminToken = req.headers.get("x-admin-token") || "";
-    if (adminToken !== "dev-admin-token" && process.env.ENABLE_PUBLIC_DEMO !== "true") {
-      return NextResponse.json({ error: "No autorizado para consultar en contexto administrativo." }, { status: 401 });
-    }
+    const adminCheck = requireAdmin(req);
+    if (!adminCheck.ok) return adminCheck.response;
   }
 
   const ip = extractIp(req);

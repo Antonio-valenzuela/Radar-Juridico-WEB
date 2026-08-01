@@ -125,6 +125,14 @@ test("parser genera whereClause con tema para matter", () => {
   assert.deepEqual(result.tema, { has: "fiscal" });
 });
 
+test("parser normaliza materia con mayúsculas y espacios antes de usar Prisma has", () => {
+  const result = runTs(`
+    import { parseAdvancedSearch } from "./lib/search/searchParser";
+    console.log(JSON.stringify(parseAdvancedSearch({ matter: "  CIVIL  " }).whereClause));
+  `);
+  assert.equal(result.tema.has, "civil");
+});
+
 test("parser genera whereClause con impacto para impactLevel", () => {
   const result = runTs(`
     import { parseAdvancedSearch } from "./lib/search/searchParser";
