@@ -1,6 +1,7 @@
 import { prisma } from '../prisma';
 import { chunkText } from './chunking';
 import { generateEmbedding } from '../ai/embeddings';
+import { isPubliclySearchableQuality } from '../ingest/quality';
 
 /**
  * Indexes a document version by chunking its text and generating embeddings.
@@ -19,7 +20,7 @@ export async function indexDocumentVersion(documentVersionId: string) {
   // 2. Fetch the document text
   const docVersion = await prisma.documentVersion.findUnique({
     where: { id: documentVersionId },
-    select: { rawText: true, contentHash: true }
+    select: { rawText: true, contentHash: true, sourceItem: { select: { raw: true } } }
   });
 
   if (!docVersion) {
@@ -29,6 +30,11 @@ export async function indexDocumentVersion(documentVersionId: string) {
   if (!docVersion.rawText) {
     console.log(`DocumentVersion ${documentVersionId} has no rawText to index.`);
     return { ok: true, chunks: 0, skipped: true };
+  }
+
+  if (!isPubliclySearchableQuality(docVersion.sourceItem?.raw)) {
+    console.warn(`DocumentVersion ${documentVersionId} is quality-gated; embeddings skipped.`);
+    return { ok: true, chunks: 0, skipped: true, reason: 'quality_gate' };
   }
 
   // 3. Chunk the text

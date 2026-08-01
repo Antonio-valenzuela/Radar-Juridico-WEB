@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { adminFetch, getAdminToken, setAdminToken } from "@/lib/client/adminToken";
 
 type AdminItemActionButtonProps = {
   itemId: string;
@@ -17,37 +18,35 @@ export default function AdminItemActionButton({
   const [message, setMessage] = useState("");
 
   const handleAction = async () => {
-    const storageKey = "juridico_admin_token";
-    const storedToken = localStorage.getItem(storageKey)?.trim() || "";
-    const token = prompt("Ingresa el token ADMIN_TOKEN configurado en el servidor:", storedToken)?.trim() || "";
+    const storedToken = getAdminToken();
+    const enteredToken = prompt("Ingresa el token ADMIN_TOKEN configurado en el servidor:", storedToken);
+    if (enteredToken === null) return;
+    const token = setAdminToken(enteredToken);
 
     if (!token) {
       setMessage("Se requiere un token administrativo válido.");
       return;
     }
 
-    localStorage.setItem(storageKey, token);
     setPending(true);
     setMessage("");
 
     try {
-      const response = await fetch(endpoint, {
+      const response = await adminFetch(endpoint, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-admin-token": token,
-        },
         body: JSON.stringify({ itemId }),
       });
       const data = await response.json().catch(() => ({}));
 
       if (!response.ok) {
-        throw new Error(data.error || "La acción administrativa no pudo completarse.");
+        throw new Error(data.message || data.error || "La acción administrativa no pudo completarse.");
       }
 
       setMessage("Acción completada.");
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : String(error));
+      setMessage(error instanceof Error && error.message === "ADMIN_TOKEN_REQUIRED"
+        ? "Ingresa el token administrativo para ejecutar esta acción."
+        : error instanceof Error ? error.message : "La acción administrativa no pudo completarse.");
     } finally {
       setPending(false);
     }

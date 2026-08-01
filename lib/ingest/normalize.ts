@@ -7,6 +7,8 @@ export type NormalizedItem = {
   url: string;
   canonicalUrl: string;
   published: Date;
+  publicationDate?: Date | null;
+  lastReformDate?: Date | null;
   retrievedAt: Date;
   summary: string | null;
   tipo: string | null;
@@ -15,6 +17,8 @@ export type NormalizedItem = {
   keywordsHit: string[];
   rawRef: string | null;
   raw: Record<string, unknown> | null;
+  qualityStatus?: "valid" | "suspicious";
+  qualityReasons?: string[];
 };
 
 export function normalizeUnicode(value: string) {
@@ -107,6 +111,8 @@ export function normalizeRawItem(item: RawSourceItem): NormalizedItem {
     url: item.url,
     canonicalUrl,
     published: item.published,
+    publicationDate: item.publicationDate ?? null,
+    lastReformDate: item.lastReformDate ?? null,
     retrievedAt: new Date(),
     summary,
     tipo: item.tipo ? cleanText(item.tipo).toUpperCase() : null,
@@ -115,5 +121,7 @@ export function normalizeRawItem(item: RawSourceItem): NormalizedItem {
     keywordsHit: item.keywordsHit || [],
     rawRef: item.rawRef || item.sourceId || null,
     raw: item.raw || null,
+    qualityStatus: item.qualityStatus,
+    qualityReasons: item.qualityReasons,
   };
 }

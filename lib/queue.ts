@@ -15,6 +15,7 @@ export const QUEUE_NAMES = {
   failedJobs: "failed-jobs",
   documentIngestion: "document-ingestion",
   normMonitoring: "norm-monitoring",
+  bulletins: "bulletins",
 } as const;
 
 export const defaultJobOptions = {
@@ -60,6 +61,13 @@ export const normMonitoringQueue = lazyQueue(QUEUE_NAMES.normMonitoring, {
     backoff: { type: "exponential", delay: 10_000 },
   },
 });
+export const bulletinsQueue = lazyQueue(QUEUE_NAMES.bulletins, {
+  defaultJobOptions: {
+    ...defaultJobOptions,
+    attempts: Number(process.env.BULLETIN_MAX_RETRIES || 3),
+    backoff: { type: "exponential", delay: 10_000 },
+  },
+});
 
 export const domainQueues = [
   ingestQueue,
@@ -68,6 +76,7 @@ export const domainQueues = [
   notificationsQueue,
   documentIngestionQueue,
   normMonitoringQueue,
+  bulletinsQueue,
 ] as const;
 
 export async function getQueueSnapshots() {

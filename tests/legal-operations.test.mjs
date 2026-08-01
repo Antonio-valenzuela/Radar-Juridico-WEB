@@ -94,7 +94,9 @@ test("expedientes persiste CRUD real y reserva localStorage para el borrador", (
   const validation = read("lib/cases/validation.ts");
   const rootApi = read("app/api/cases/route.ts");
 
-  assert.match(page, /fetch\(['"`]\/api\/cases/);
+  // La pantalla usa el wrapper autorizado para adjuntar ADMIN_TOKEN; conserva
+  // compatibilidad con el fetch directo de la implementación anterior.
+  assert.match(page, /(?:authorizedFetch|fetch)\(['"`]\/api\/cases/);
   assert.match(page, /Nuevo expediente/);
   assert.match(page, /Editar/);
   assert.match(page, /Eliminar/);
@@ -111,6 +113,26 @@ test("expedientes persiste CRUD real y reserva localStorage para el borrador", (
   assert.match(rootApi, /organizationId:\s*access\.context\.organizationId/);
   assert.doesNotMatch(validation, /organizationId:\s*input\./);
   assert.doesNotMatch(validation, /userId:\s*input\./);
+});
+
+test("expedientes maneja errores de token en todas las acciones protegidas", () => {
+  const page = read("app/legal-hub/expedientes/page.tsx");
+  const sections = [
+    ["handleDeleteCase", "handleExport"],
+    ["handleExport", "mutateChild"],
+    ["mutateChild", "markCaseReviewed"],
+    ["markCaseReviewed", "filteredCases"],
+  ];
+
+  for (const [name, next] of sections) {
+    const start = page.indexOf(`const ${name}`);
+    const end = page.indexOf(`const ${next}`, start + 1);
+    assert.ok(start >= 0 && end > start, `No se encontró la sección ${name}`);
+    const section = page.slice(start, end);
+    assert.match(section, /try\s*\{/i, `${name} debe envolver la llamada protegida`);
+    assert.match(section, /catch\s*\(error\)/i, `${name} debe manejar errores`);
+    assert.match(section, /friendlyError|ADMIN_TOKEN_REQUIRED/, `${name} debe mostrar un error amigable`);
+  }
 });
 
 test("machotes expone las 15 plantillas y exportadores reales con revisión profesional", () => {

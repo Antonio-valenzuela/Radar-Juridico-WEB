@@ -2,6 +2,9 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import BulletinWatchPanel from '@/app/components/BulletinWatchPanel';
+import { deadlineStatus, proceduralDateLabel, MEXICO_CITY_TIMEZONE } from '@/lib/cases/deadlineDates';
+import { adminFetch, getAdminToken, setAdminToken } from '@/lib/client/adminToken';
 
 interface Party {
   id: string;
@@ -27,6 +30,8 @@ interface Deadline {
   type: string;
   completed: boolean;
   notes?: string | null;
+  timezone?: string | null;
+  calculationNote?: string | null;
 }
 
 interface CaseFile {
@@ -119,12 +124,15 @@ export default function ExpedientesPage() {
     notes: '',
   });
 
-  const requestHeaders = (json = false): HeadersInit => {
-    const headers: Record<string, string> = {};
-    if (json) headers['Content-Type'] = 'application/json';
-    const token = localStorage.getItem('juridico_admin_token');
-    if (token) headers['x-admin-token'] = token;
-    return headers;
+  const authorizedFetch = async (input: RequestInfo | URL, init: RequestInit = {}) => {
+    let token = getAdminToken();
+    if (!token) {
+      const entered = window.prompt('Ingresa el token administrativo para gestionar expedientes:');
+      if (entered === null) throw new Error('ADMIN_TOKEN_REQUIRED');
+      token = setAdminToken(entered);
+    }
+    if (!token) throw new Error('ADMIN_TOKEN_REQUIRED');
+    return adminFetch(input, init);
   };
 
   const errorFromResponse = async (response: Response, fallback: string) => {
@@ -136,11 +144,16 @@ export default function ExpedientesPage() {
     }
   };
 
+  const friendlyError = (error: unknown, fallback: string) =>
+    error instanceof Error && error.message === 'ADMIN_TOKEN_REQUIRED'
+      ? 'Ingresa el token administrativo para gestionar expedientes.'
+      : error instanceof Error ? error.message : fallback;
+
   const fetchCases = async () => {
     setLoading(true);
     setMessage(null);
     try {
-      const response = await fetch('/api/cases', { headers: requestHeaders() });
+      const response = await authorizedFetch('/api/cases');
       if (!response.ok) {
         throw new Error(await errorFromResponse(response, 'No fue posible consultar los expedientes.'));
       }
@@ -150,7 +163,7 @@ export default function ExpedientesPage() {
       setCases([]);
       setMessage({
         tone: 'error',
-        text: error instanceof Error ? error.message : 'No fue posible consultar los expedientes.',
+        text: friendlyError(error, 'No fue posible consultar los expedientes.'),
       });
     } finally {
       setLoading(false);
@@ -161,7 +174,7 @@ export default function ExpedientesPage() {
     setLoading(true);
     setMessage(null);
     try {
-      const response = await fetch(`/api/cases/${id}`, { headers: requestHeaders() });
+      const response = await authorizedFetch(`/api/cases/${id}`);
       if (!response.ok) {
         throw new Error(await errorFromResponse(response, 'No fue posible abrir el expediente.'));
       }
@@ -170,7 +183,7 @@ export default function ExpedientesPage() {
     } catch (error) {
       setMessage({
         tone: 'error',
-        text: error instanceof Error ? error.message : 'No fue posible abrir el expediente.',
+        text: friendlyError(error, 'No fue posible abrir el expediente.'),
       });
     } finally {
       setLoading(false);
@@ -203,9 +216,8 @@ export default function ExpedientesPage() {
     setMessage(null);
     try {
       const url = formValues.id ? `/api/cases/${formValues.id}` : '/api/cases';
-      const response = await fetch(url, {
+      const response = await authorizedFetch(url, {
         method: formValues.id ? 'PUT' : 'POST',
-        headers: requestHeaders(true),
         body: JSON.stringify(formValues),
       });
       if (!response.ok) {
@@ -219,7 +231,7 @@ export default function ExpedientesPage() {
     } catch (error) {
       setMessage({
         tone: 'error',
-        text: error instanceof Error ? error.message : 'No fue posible guardar el expediente.',
+        text: friendlyError(error, 'No fue posible guardar el expediente.'),
       });
     } finally {
       setSaving(false);
@@ -229,41 +241,52 @@ export default function ExpedientesPage() {
   const handleDeleteCase = async () => {
     if (!selectedCase?.id) return;
     if (!window.confirm('¿Eliminar este expediente y todos sus registros asociados?')) return;
-    const response = await fetch(`/api/cases/${selectedCase.id}`, {
-      method: 'DELETE',
-      headers: requestHeaders(),
-    });
-    if (!response.ok) {
+    try {
+      const response = await authorizedFetch(`/api/cases/${selectedCase.id}`, {
+        method: 'DELETE',
+      });
+      if (!response.ok) {
+        setMessage({
+          tone: 'error',
+          text: await errorFromResponse(response, 'No fue posible eliminar el expediente.'),
+        });
+        return;
+      }
+      setSelectedCase(null);
+      setView('list');
+      await fetchCases();
+      setMessage({ tone: 'success', text: 'Expediente eliminado.' });
+    } catch (error) {
       setMessage({
         tone: 'error',
-        text: await errorFromResponse(response, 'No fue posible eliminar el expediente.'),
+        text: friendlyError(error, 'No fue posible eliminar el expediente.'),
       });
-      return;
     }
-    setSelectedCase(null);
-    setView('list');
-    await fetchCases();
-    setMessage({ tone: 'success', text: 'Expediente eliminado.' });
   };
 
   const handleExport = async (id: string) => {
-    const response = await fetch(`/api/cases/${id}/export`, {
-      headers: requestHeaders(),
-    });
-    if (!response.ok) {
+    try {
+      const response = await authorizedFetch(`/api/cases/${id}/export`);
+      if (!response.ok) {
+        setMessage({
+          tone: 'error',
+          text: await errorFromResponse(response, 'No fue posible exportar el expediente.'),
+        });
+        return;
+      }
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = `expediente-${selectedCase?.caseNumber || id}.json`;
+      anchor.click();
+      URL.revokeObjectURL(url);
+    } catch (error) {
       setMessage({
         tone: 'error',
-        text: await errorFromResponse(response, 'No fue posible exportar el expediente.'),
+        text: friendlyError(error, 'No fue posible exportar el expediente.'),
       });
-      return;
     }
-    const blob = await response.blob();
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement('a');
-    anchor.href = url;
-    anchor.download = `expediente-${selectedCase?.caseNumber || id}.json`;
-    anchor.click();
-    URL.revokeObjectURL(url);
   };
 
   const mutateChild = async (
@@ -273,39 +296,52 @@ export default function ExpedientesPage() {
     successMessage: string
   ) => {
     if (!selectedCase?.id) return false;
-    const response = await fetch(`/api/cases/${selectedCase.id}/${segment}`, {
-      method,
-      headers: requestHeaders(true),
-      body: JSON.stringify(body),
-    });
-    if (!response.ok) {
+    try {
+      const response = await authorizedFetch(`/api/cases/${selectedCase.id}/${segment}`, {
+        method,
+        body: JSON.stringify(body),
+      });
+      if (!response.ok) {
+        setMessage({
+          tone: 'error',
+          text: await errorFromResponse(response, 'No fue posible guardar el cambio.'),
+        });
+        return false;
+      }
+      await openDetail(selectedCase.id);
+      setMessage({ tone: 'success', text: successMessage });
+      return true;
+    } catch (error) {
       setMessage({
         tone: 'error',
-        text: await errorFromResponse(response, 'No fue posible guardar el cambio.'),
+        text: friendlyError(error, 'No fue posible guardar el cambio.'),
       });
       return false;
     }
-    await openDetail(selectedCase.id);
-    setMessage({ tone: 'success', text: successMessage });
-    return true;
   };
 
   const markCaseReviewed = async () => {
     if (!selectedCase?.id) return;
-    const response = await fetch(`/api/cases/${selectedCase.id}`, {
-      method: 'PUT',
-      headers: requestHeaders(true),
-      body: JSON.stringify({ markReviewed: true }),
-    });
-    if (!response.ok) {
+    try {
+      const response = await authorizedFetch(`/api/cases/${selectedCase.id}`, {
+        method: 'PUT',
+        body: JSON.stringify({ markReviewed: true }),
+      });
+      if (!response.ok) {
+        setMessage({
+          tone: 'error',
+          text: await errorFromResponse(response, 'No fue posible marcar la revisión.'),
+        });
+        return;
+      }
+      await openDetail(selectedCase.id);
+      setMessage({ tone: 'success', text: 'Revisión del expediente registrada.' });
+    } catch (error) {
       setMessage({
         tone: 'error',
-        text: await errorFromResponse(response, 'No fue posible marcar la revisión.'),
+        text: friendlyError(error, 'No fue posible marcar la revisión.'),
       });
-      return;
     }
-    await openDetail(selectedCase.id);
-    setMessage({ tone: 'success', text: 'Revisión del expediente registrada.' });
   };
 
   const filteredCases = useMemo(() => {
@@ -438,7 +474,7 @@ export default function ExpedientesPage() {
             </div>
 
             <div className="legal-hub-tabs" role="tablist">
-              {['general', 'partes', 'actuaciones', 'plazos', 'documentos'].map((tab) => (
+              {['general', 'partes', 'actuaciones', 'plazos', 'documentos', 'boletin'].map((tab) => (
                 <button
                   type="button"
                   role="tab"
@@ -448,7 +484,7 @@ export default function ExpedientesPage() {
                   onClick={() => setActiveTab(tab)}
                   style={{ textTransform: 'capitalize', minHeight: '44px' }}
                 >
-                  {tab}
+                  {tab === 'boletin' ? 'Boletín Judicial' : tab}
                 </button>
               ))}
             </div>
@@ -521,12 +557,13 @@ export default function ExpedientesPage() {
                     }}>Agregar plazo</button>
                   </div>
                   {selectedCase.deadlines?.map((deadline) => {
-                    const overdue = !deadline.completed && new Date(deadline.dueDate) < new Date();
+                    const overdue = !deadline.completed && deadlineStatus(new Date(deadline.dueDate), { timezone: deadline.timezone || MEXICO_CITY_TIMEZONE }) === 'overdue';
                     return (
                       <div key={deadline.id} className="legal-meta-block">
                         <strong>{deadline.title}</strong>
-                        <p>{new Date(deadline.dueDate).toLocaleDateString('es-MX')} · {deadline.type}</p>
+                        <p>{proceduralDateLabel(new Date(deadline.dueDate), deadline.timezone || MEXICO_CITY_TIMEZONE)} · {deadline.type}</p>
                         <p>{deadline.completed ? 'Completado' : overdue ? 'Vencido' : 'Pendiente'}</p>
+                        {!deadline.completed && <p className="document-muted">{deadline.calculationNote || 'Cálculo preliminar. Requiere validación profesional.'}</p>}
                         <div style={{ display: 'flex', gap: '0.75rem' }}>
                           <button type="button" className="btn-doc-secondary" onClick={() => void mutateChild('deadlines', 'PUT', { deadlineId: deadline.id, completed: !deadline.completed }, 'Estado del plazo actualizado.')}>{deadline.completed ? 'Reabrir' : 'Completar'}</button>
                           <button type="button" className="btn-doc-secondary" onClick={() => void mutateChild('deadlines', 'DELETE', { deadlineId: deadline.id }, 'Plazo eliminado.')}>Eliminar</button>
@@ -559,6 +596,15 @@ export default function ExpedientesPage() {
                   ))}
                   {!selectedCase.caseFiles?.length && <p>No hay documentos registrados.</p>}
                 </div>
+              )}
+
+              {activeTab === 'boletin' && (
+                <BulletinWatchPanel
+                  matterId={selectedCase.id}
+                  caseNumber={selectedCase.caseNumber}
+                  matter={selectedCase.matter}
+                  court={selectedCase.court}
+                />
               )}
             </div>
           </section>

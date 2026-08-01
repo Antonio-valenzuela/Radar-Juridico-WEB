@@ -1,7 +1,7 @@
 "use client";
 
-import Link from "next/link";
 import { FormEvent, useEffect, useState } from "react";
+import { adminFetch, getAdminToken, setAdminToken } from "@/lib/client/adminToken";
 
 type AlertRuleItem = {
   id: string;
@@ -39,6 +39,7 @@ export default function WatchlistsPage() {
   const [message, setMessage] = useState("");
   const [tenantLabel, setTenantLabel] = useState("");
   const [loading, setLoading] = useState(false);
+  const [hasAdminToken, setHasAdminToken] = useState(false);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -46,6 +47,10 @@ export default function WatchlistsPage() {
     const matter = params.get("matter") || "";
     if (query) setValue(query);
     if (matter) setType("tema");
+  }, []);
+
+  useEffect(() => {
+    setHasAdminToken(Boolean(getAdminToken()));
   }, []);
 
   useEffect(() => {
@@ -73,9 +78,16 @@ export default function WatchlistsPage() {
     setLoading(true);
     setMessage("");
     try {
-      const res = await fetch("/api/watchlist", {
+      let token = getAdminToken();
+      if (!token) {
+        const entered = window.prompt("Ingresa el token administrativo para gestionar alertas:");
+        if (entered === null) { setMessage("Ingresa el token administrativo para gestionar alertas."); return null; }
+        token = setAdminToken(entered);
+        setHasAdminToken(Boolean(token));
+      }
+      if (!token) { setMessage("Ingresa el token administrativo para gestionar alertas."); return null; }
+      const res = await adminFetch("/api/watchlist", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, orgSlug, ...body }),
       });
       const data = await res.json();
@@ -85,8 +97,11 @@ export default function WatchlistsPage() {
       if (data.tenant) setTenantLabel(`Organización ${data.tenant.orgSlug}`);
       setMessage(publicMessage(String(body.action || "list")));
       return data;
-    } catch {
-      setMessage("No se pudo actualizar la alerta. Verifica el correo y vuelve a intentar.");
+    } catch (error) {
+      if (error instanceof Error && error.message === "ADMIN_TOKEN_REQUIRED") {
+        setHasAdminToken(false);
+        setMessage("Ingresa un token administrativo válido para gestionar alertas.");
+      } else setMessage("No se pudo actualizar la alerta. Verifica el correo y vuelve a intentar.");
       return null;
     } finally {
       setLoading(false);
@@ -154,6 +169,7 @@ export default function WatchlistsPage() {
                 Consultar alertas
               </button>
               {tenantLabel ? <span className="alerts-tenant">{tenantLabel}</span> : null}
+              {!hasAdminToken ? <span className="document-muted">Se solicitará el token administrativo al consultar.</span> : null}
             </div>
 
             <label className="alerts-check">

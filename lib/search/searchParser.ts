@@ -53,11 +53,35 @@ export type ValidationError = {
   message: string;
 };
 
+const STRING_FIELDS = [
+  'query', 'exact', 'matter', 'source', 'authority', 'impactLevel',
+  'sector', 'entity', 'dateFrom', 'dateTo', 'task', 'watchlistId',
+  'mode', 'sort', 'tipo',
+] as const;
+
 /**
  * Validates the input payload and returns a list of errors, or empty array if valid.
  */
 export function validateSearchInput(input: AdvancedSearchInput): ValidationError[] {
   const errors: ValidationError[] = [];
+
+  if (!input || typeof input !== 'object' || Array.isArray(input)) {
+    return [{ field: 'body', message: 'body debe ser un objeto JSON' }];
+  }
+
+  for (const field of STRING_FIELDS) {
+    const value = input[field];
+    if (value !== undefined && typeof value !== 'string') {
+      errors.push({ field, message: `${field} debe ser texto` });
+    }
+  }
+
+  for (const field of ['limit', 'offset'] as const) {
+    const value = input[field];
+    if (value !== undefined && typeof value !== 'number' && typeof value !== 'string') {
+      errors.push({ field, message: `${field} debe ser un número` });
+    }
+  }
 
   // limit
   if (input.limit !== undefined) {
@@ -188,10 +212,10 @@ export function parseAdvancedSearch(input: AdvancedSearchInput, extraKeywords?: 
   }
 
   // 3. Exact Prisma filters (ONLY fields that exist on Item model)
-  if (input.matter) where.tema = { has: input.matter.toLowerCase() };
-  if (input.source) where.source = input.source;
-  if (input.impactLevel) where.impacto = input.impactLevel;
-  if (input.tipo) where.tipo = input.tipo;
+  if (input.matter) where.tema = { has: input.matter.trim().toLowerCase() };
+  if (input.source) where.source = input.source.trim();
+  if (input.impactLevel) where.impacto = input.impactLevel.trim().toLowerCase();
+  if (input.tipo) where.tipo = input.tipo.trim();
 
   // 4. Dates (only if already validated)
   if (input.dateFrom || input.dateTo) {
