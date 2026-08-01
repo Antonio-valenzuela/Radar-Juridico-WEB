@@ -99,5 +99,5 @@ test("clasificador legacy detecta materia mercantil", () => {
     console.log(JSON.stringify(classifyItem("Ley General de Sociedades Mercantiles", "contrato mercantil y comercio")));
   `);
 
-  assert.equal(result.tema, "mercantil");
+  assert.deepEqual(result.tema, ["mercantil"]);
 });

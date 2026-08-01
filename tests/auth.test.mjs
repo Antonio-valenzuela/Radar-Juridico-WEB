@@ -16,6 +16,7 @@ test("requireAdmin acepta dev-admin-token en desarrollo si no hay ADMIN_TOKEN", 
     import { requireAdmin } from "./lib/security/adminAuth";
     delete process.env.ADMIN_TOKEN;
     process.env.NODE_ENV = "development";
+    process.env.ALLOW_DEV_ADMIN_TOKEN = "true";
     const req = new Request("http://localhost", {
       headers: { "x-admin-token": "dev-admin-token" }
     });

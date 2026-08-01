@@ -155,7 +155,9 @@ export function resolveSourceHealthUrl(source: SourceHealthInput, adapter = reso
 }
 
 function serializeError(error: unknown): SourceHealthError {
-  const value = error instanceof Error ? error : new Error(String(error));
+  const wrapped = error instanceof Error ? error : new Error(String(error));
+  const originalError = (wrapped as Error & { originalError?: unknown }).originalError;
+  const value = originalError instanceof Error ? originalError : wrapped;
   const cause = (value as Error & { cause?: Record<string, unknown> }).cause;
 
   return {
