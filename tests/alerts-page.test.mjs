@@ -18,7 +18,7 @@ test("/watchlists se presenta visualmente como Alertas", () => {
 test("Alertas reutiliza la ruta existente y no duplica pantalla", () => {
   const source = fs.readFileSync(pagePath, "utf8");
 
-  assert.match(source, /fetch\("\/api\/watchlist"/);
+  assert.match(source, /adminFetch\("\/api\/watchlist"/);
   assert.match(source, /fetch\("\/api\/monitoring\/changes/);
   assert.doesNotMatch(source, /\/alertas/);
 });
