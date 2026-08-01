@@ -418,7 +418,7 @@ async function retrieveContextTextual(query: string, matter?: string | null, lim
       text: item.summary || item.title,
       documentTitle: item.title,
       source: item.source || "Publicación",
-      matter: item.tema || "General",
+      matter: Array.isArray(item.tema) && item.tema.length > 0 ? item.tema.join(", ") : "General",
       date: item.published ? item.published.toISOString() : undefined,
       url: item.url || undefined,
       isOfficial: ["dof", "scjn", "sjf", "diputados", "senado", "senado_web"].includes((item.source || "").toLowerCase())

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import EnrichButton from "@/app/components/EnrichButton";
+import AdminItemActionButton from "@/app/components/AdminItemActionButton";
 import { normalizeLegalDisplayText } from "@/lib/text/normalizeLegalDisplayText";
 
 export const dynamic = "force-dynamic";
@@ -226,15 +227,16 @@ export default async function ItemDetailPage({ params }: { params: Promise<{ id:
             <Link href={`/items/${item.id}/consultant`} className="btn-doc-secondary">Ver consultor</Link>
             <Link href={`/items/${item.id}/diff`} className="btn-doc-secondary">Ver diff</Link>
             
-            {/* Quick API actions for admins via basic forms or links for now */}
-            <form action={`/api/admin/reindex-document?id=${item.id}`} method="POST" style={{ display: "inline-block" }}>
-              <input type="hidden" name="x-admin-token" value="dev-admin-token" />
-              <button type="submit" className="btn-doc-secondary">Reindexar</button>
-            </form>
-            <form action="/api/admin/evaluate-alerts" method="POST" style={{ display: "inline-block" }}>
-              <input type="hidden" name="x-admin-token" value="dev-admin-token" />
-              <button type="submit" className="btn-doc-secondary">Evaluar alertas</button>
-            </form>
+            <AdminItemActionButton
+              itemId={item.id}
+              endpoint="/api/admin/reindex-document"
+              label="Reindexar"
+            />
+            <AdminItemActionButton
+              itemId={item.id}
+              endpoint="/api/admin/evaluate-alerts"
+              label="Evaluar alertas"
+            />
           </div>
         </section>
       </div>

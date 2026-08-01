@@ -10,17 +10,22 @@ export default function EnrichButton({ itemId }: { itemId: string }) {
     setLoading(true);
     setError("");
 
-    let token = typeof window !== "undefined" ? (localStorage.getItem("adminToken") || "dev-admin-token") : "dev-admin-token";
-    const newToken = prompt("Ingresa el token de administrador:", token);
+    const storageKey = "juridico_admin_token";
+    let token = typeof window !== "undefined" ? (localStorage.getItem(storageKey)?.trim() || "") : "";
+    const newToken = prompt("Ingresa el token ADMIN_TOKEN configurado en el servidor:", token);
     if (newToken === null) {
       setLoading(false);
       return;
     }
-    if (newToken) {
-      token = newToken;
-      if (typeof window !== "undefined") {
-        localStorage.setItem("adminToken", token);
-      }
+    token = newToken.trim();
+    if (!token) {
+      setError("Se requiere un token administrativo válido para generar el análisis.");
+      setLoading(false);
+      return;
+    }
+
+    if (typeof window !== "undefined") {
+      localStorage.setItem(storageKey, token);
     }
 
     try {
