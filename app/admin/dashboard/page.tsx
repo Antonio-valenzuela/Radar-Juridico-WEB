@@ -3,7 +3,7 @@
 'use client';
 
 import { useEffect, useState, useRef } from 'react';
-import Link from 'next/link';
+
 import {
   AreaChart,
   Area,
@@ -120,27 +120,6 @@ export default function DashboardPage() {
   return (
     <>
       <div className="bg-gradient" style={{ opacity: 0.15 }}></div>
-
-      <header className="header" style={{ position: 'sticky', top: 0, zIndex: 10, backdropFilter: 'blur(12px)', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-        <Link href="/" className="logo">
-          <div className="logo-icon" style={{ background: 'linear-gradient(135deg, #a855f7, #3b82f6)' }}></div>
-          Jurídico Radar <span style={{ fontSize: '10px', background: 'rgba(168, 85, 247, 0.2)', padding: '2px 6px', borderRadius: '10px', color: '#a855f7', marginLeft: '6px' }}>CONSOLE</span>
-        </Link>
-        <input type="checkbox" id="menu-toggle" className="menu-toggle" />
-        <label htmlFor="menu-toggle" className="menu-icon">
-          <span></span>
-          <span></span>
-          <span></span>
-        </label>
-        <nav className="nav-menu">
-          <Link href="/">Dashboard</Link>
-          <Link href="/search">Búsqueda</Link>
-          <Link href="/rag">Consultor RAG</Link>
-          <Link href="/admin/dashboard" style={{ color: 'var(--primary)', fontWeight: 'bold' }}>📡 Telemetría</Link>
-          <Link href="/admin/ingest/manual-url" style={{ border: '1px solid var(--accent)', padding: '0.2rem 0.5rem', borderRadius: '4px', color: 'var(--accent)', fontWeight: 'bold' }}>Agregar link</Link>
-          <Link href="/admin/sources" style={{ border: '1px dashed var(--secondary)', padding: '0.2rem 0.5rem', borderRadius: '4px', color: 'var(--secondary)' }}>⚙ Fuentes</Link>
-        </nav>
-      </header>
 
       <main className="container" style={{ marginTop: '2rem' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>

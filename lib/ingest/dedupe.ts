@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { classifyNormalizedItem } from "@/lib/ingest/classify";
 import type { NormalizedItem } from "@/lib/ingest/normalize";
 import { processItemNormaDiff } from "@/lib/normas/process";
+import { embeddingsQueue } from "@/lib/queue";
 
 export function makeItemHash(item: Pick<NormalizedItem, "source" | "title" | "published" | "canonicalUrl">) {
   const payload = [
@@ -76,13 +77,23 @@ async function mirrorItemToDocument(
         where: { id: existingVersion.id },
         data: versionData,
       });
+      await embeddingsQueue.add("index-document-version", {
+        documentVersionId: existingVersion.id,
+      }).catch((error) => {
+        console.warn("[embeddings] no se pudo encolar indexación", document.id, error);
+      });
     } else {
-      await prisma.documentVersion.create({
+      const createdVersion = await prisma.documentVersion.create({
         data: {
           documentId: document.id,
           versionNumber: 1,
           ...versionData,
         },
+      });
+      await embeddingsQueue.add("index-document-version", {
+        documentVersionId: createdVersion.id,
+      }).catch((error) => {
+        console.warn("[embeddings] no se pudo encolar indexación", document.id, error);
       });
     }
   } catch (error) {

@@ -104,6 +104,22 @@ export const DEFAULT_MONITORED_DOCUMENTS: MonitoredDocumentDefinition[] = [
     documentType: "codigo",
     officialUrl: "https://www.diputados.gob.mx/LeyesBiblio/pdf/CNPP.pdf",
   },
+  {
+    shortCode: "CCJAL",
+    title: "Codigo Civil del Estado de Jalisco",
+    matter: "civil/familiar",
+    jurisdiction: "Jalisco",
+    documentType: "codigo",
+    officialUrl: "https://congresoweb.congresojal.gob.mx/BibliotecaVirtual/legislacion/C%C3%B3digos/Documentos_PDF-C%C3%B3digos/C%C3%B3digo%20Civil%20del%20Estado%20de%20Jalisco-240626.pdf",
+  },
+  {
+    shortCode: "CPJAL",
+    title: "Codigo Penal para el Estado Libre y Soberano de Jalisco",
+    matter: "penal",
+    jurisdiction: "Jalisco",
+    documentType: "codigo",
+    officialUrl: "https://congresoweb.congresojal.gob.mx/BibliotecaVirtual/legislacion/C%C3%B3digos/Documentos_PDF-C%C3%B3digos/C%C3%B3digo%20Penal%20para%20el%20Estado%20Libre%20y%20Soberano%20de%20Jalisco%20-240626.pdf",
+  },
 ];
 
 export function canonicalKeyForMonitoredDocument(document: Pick<MonitoredDocumentDefinition, "shortCode">) {

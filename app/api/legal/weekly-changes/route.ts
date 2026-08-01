@@ -127,7 +127,7 @@ export async function GET(req: Request) {
     }
 
     if (materia) {
-      itemWhere.tema = { equals: materia, mode: "insensitive" };
+      itemWhere.tema = { has: materia };
     }
 
     // ── Query Items ────────────────────────────────────────────────────────────
@@ -153,7 +153,7 @@ export async function GET(req: Request) {
             select: {
               id:          true,
               publishedAt: true,
-              diffsTo:     { select: { id: true, summaryBullets: true, changedArticles: true } },
+              diffsTo:     { select: { id: true, summaryBullets: true } },
             },
             orderBy: { publishedAt: "desc" },
             take: 1,
@@ -166,13 +166,12 @@ export async function GET(req: Request) {
     ]);
 
     // ── Build results ──────────────────────────────────────────────────────────
-    const results: WeeklyResult[] = items.map((item) => {
+    const results = items.map((item) => {
       const latestVersion = item.normaVersions[0];
-      const hasDiff       = latestVersion?.diffsTo && latestVersion.diffsTo.length > 0;
+      const latestDiff = latestVersion?.diffsTo[0];
 
-      // Determine changeType
       let changeType = "publicación";
-      if (hasDiff) {
+      if (latestDiff) {
         changeType = "modificación";
       } else if (item.tipo) {
         const t = item.tipo.toLowerCase();
@@ -183,35 +182,32 @@ export async function GET(req: Request) {
         else if (t.includes("derogacion") || t.includes("derogación")) changeType = "derogación";
       }
 
-      // Extract affected sections from latest diff
       const affectedSections: string[] = [];
-      if (hasDiff && latestVersion?.diffsTo[0]?.changedArticles) {
-        const arts = latestVersion.diffsTo[0].changedArticles as unknown[];
-        if (Array.isArray(arts)) {
-          for (const art of arts) {
-            if (typeof art === "object" && art !== null) {
-              const a = art as Record<string, unknown>;
-              const label = (a.title ?? a.articleId ?? "") as string;
-              if (label) affectedSections.push(label);
-            }
+      if (latestDiff && Array.isArray(latestDiff.summaryBullets)) {
+        for (const bullet of latestDiff.summaryBullets) {
+          if (typeof bullet === "string") {
+            affectedSections.push(bullet);
           }
         }
       }
 
+      const temaList = Array.isArray(item.tema) ? item.tema : [];
+
       return {
-        id:         item.id,
-        title:      item.title,
-        source:     item.source,
+        id:          item.id,
+        title:       item.title,
+        source:      item.source,
         publishedAt: item.published ? item.published.toISOString() : null,
-        updatedAt:  item.retrievedAt ? item.retrievedAt.toISOString() : null,
-        type:       (item.tipo ?? "documento").toLowerCase(),
-        matter:     item.tema ?? null,
-        impact:     item.impacto ?? null,
-        summary:    item.summary ?? null,
-        url:        item.url,
+        updatedAt:   item.retrievedAt ? item.retrievedAt.toISOString() : null,
+        type:        (item.tipo ?? "documento").toLowerCase(),
+        matter:      temaList.length > 0 ? temaList.join(", ") : null,
+        temas:       temaList,
+        impact:      item.impacto ?? null,
+        summary:     item.summary ?? null,
+        url:         item.url,
         changeType,
         affectedSections,
-        origin:     "local" as const,
+        origin:      "local" as const,
       };
     });
 

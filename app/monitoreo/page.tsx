@@ -1,6 +1,11 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { DEFAULT_MONITORED_DOCUMENTS } from "@/lib/monitoring/monitoredDocuments";
+import {
+  legalChangesHref,
+  matchNormaDiffInsight,
+  type NormaDiffCandidate,
+} from "@/lib/monitoring/normaCoverage";
 
 export const dynamic = "force-dynamic";
 
@@ -150,8 +155,50 @@ async function loadChanges(): Promise<PageChange[]> {
   }
 }
 
+async function loadNormaDiffCandidates(): Promise<NormaDiffCandidate[]> {
+  try {
+    const diffs = await prisma.normaDiff.findMany({
+      orderBy: { createdAt: "desc" },
+      take: 250,
+      select: {
+        id: true,
+        summaryBullets: true,
+        createdAt: true,
+        toVersion: {
+          select: {
+            norma: {
+              select: {
+                id: true,
+                nombre: true,
+                sigla: true,
+                aliases: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    return diffs.map((diff) => ({
+      diffId: diff.id,
+      normaId: diff.toVersion.norma.id,
+      nombre: diff.toVersion.norma.nombre,
+      sigla: diff.toVersion.norma.sigla,
+      aliases: diff.toVersion.norma.aliases,
+      summaryBullets: diff.summaryBullets,
+      createdAt: diff.createdAt,
+    }));
+  } catch {
+    return [];
+  }
+}
+
 export default async function MonitoringPage() {
-  const [documents, changes] = await Promise.all([loadDocuments(), loadChanges()]);
+  const [documents, changes, normaDiffCandidates] = await Promise.all([
+    loadDocuments(),
+    loadChanges(),
+    loadNormaDiffCandidates(),
+  ]);
   const changedCount = documents.filter((document) => document.monitoringStatus === "changed").length;
   const reviewCount = documents.filter((document) => ["error", "blocked"].includes(document.monitoringStatus || "")).length;
   const readyCount = documents.filter((document) => ["active", "unchanged"].includes(document.monitoringStatus || "")).length;
@@ -160,34 +207,13 @@ export default async function MonitoringPage() {
     <>
       <div className="bg-gradient"></div>
 
-      <header className="header">
-        <Link href="/" className="logo">
-          <div className="logo-icon"></div>
-          Jurídico Radar
-        </Link>
-        <input type="checkbox" id="monitor-menu-toggle" className="menu-toggle" />
-        <label htmlFor="monitor-menu-toggle" className="menu-icon" aria-label="Abrir menu">
-          <span></span>
-          <span></span>
-          <span></span>
-        </label>
-        <nav className="nav-menu">
-          <Link href="/">Dashboard</Link>
-          <Link href="/search">Búsqueda</Link>
-          <Link href="/documents">Documentos</Link>
-          <Link href="/monitoreo">Monitoreo</Link>
-          <Link href="/watchlists">Alertas</Link>
-          <Link href="/legal-hub">Centro Jurídico</Link>
-        </nav>
-      </header>
-
       <main className="container monitoring-shell">
         <section className="monitoring-hero">
-          <span className="badge">Monitoreo legal</span>
-          <h1>Monitoreo de cambios legales</h1>
+          <span className="badge">Vigilancia documental</span>
+          <h1>Estado de documentos y fuentes oficiales</h1>
           <p className="subtitle">
-            Revisión de leyes clave contra fuentes oficiales. Los cambios detectados se muestran como señales
-            de trabajo y siempre requieren validación profesional antes de usarse en un asunto.
+            Esta vista detecta cambios por hash del documento completo. Cuando existe un NormaDiff relacionado,
+            también muestra su resumen por artículo y enlaza al desglose detallado.
           </p>
         </section>
 
@@ -231,6 +257,7 @@ export default async function MonitoringPage() {
             </div>
             {documents.map((document) => {
               const status = statusInfo(document.monitoringStatus);
+              const insight = matchNormaDiffInsight(document, normaDiffCandidates);
               return (
                 <article className="monitoring-row" role="row" key={document.id}>
                   <div>
@@ -247,9 +274,20 @@ export default async function MonitoringPage() {
                       "Pendiente"
                     )}
                   </span>
-                  <p className="monitoring-row-note">
-                    {document.lastError || document.changeSummary || "Sin observaciones registradas."}
-                  </p>
+                  <div className="monitoring-row-note">
+                    {insight ? (
+                      <>
+                        <strong>Detalle por artículo disponible.</strong>{" "}
+                        {insight.summaryBullets[0] || "NormaDiff registrado para esta norma."}{" "}
+                        <Link href={legalChangesHref(insight)}>Ver último desglose</Link>
+                      </>
+                    ) : (
+                      <>
+                        <strong>Nivel documento completo.</strong>{" "}
+                        {document.lastError || document.changeSummary || "Sin observaciones registradas."}
+                      </>
+                    )}
+                  </div>
                 </article>
               );
             })}
@@ -271,26 +309,57 @@ export default async function MonitoringPage() {
             </div>
           ) : (
             <div className="monitoring-change-list">
-              {changes.map((change) => (
-                <article key={change.id} className="monitoring-change">
-                  <div>
-                    <span className="monitor-status monitor-status-change">Cambio detectado</span>
-                    <h3>{change.documentVersion.document.title}</h3>
-                    <p>{change.changeDescription}</p>
-                    <small>
-                      {change.matter || "materia pendiente"} · {formatDate(change.detectedAt)} · Requiere revision profesional
-                    </small>
-                  </div>
-                  <a
-                    href={change.sourceUrl || change.documentVersion.document.officialUrl || "#"}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="btn-doc-secondary"
-                  >
-                    Abrir fuente oficial
-                  </a>
-                </article>
-              ))}
+              {changes.map((change) => {
+                const document = change.documentVersion.document;
+                const insight = matchNormaDiffInsight(document, normaDiffCandidates);
+                const officialUrl = change.sourceUrl || document.officialUrl;
+
+                return (
+                  <article key={change.id} className="monitoring-change">
+                    <div>
+                      <span className="monitor-status monitor-status-change">
+                        {insight
+                          ? "Desglose por artículo disponible"
+                          : "Cambio detectado — sin desglose por artículo disponible"}
+                      </span>
+                      <h3>{document.title}</h3>
+                      {insight ? (
+                        insight.summaryBullets.length > 0 ? (
+                          <ul>
+                            {insight.summaryBullets.map((bullet, index) => (
+                              <li key={`${insight.diffId}-${index}`}>{bullet}</li>
+                            ))}
+                          </ul>
+                        ) : (
+                          <p>NormaDiff registrado; consulta el detalle de los artículos modificados.</p>
+                        )
+                      ) : (
+                        <p>{change.changeDescription}</p>
+                      )}
+                      <small>
+                        {change.matter || "materia pendiente"} · {formatDate(change.detectedAt)} · Requiere revision profesional
+                      </small>
+                    </div>
+                    <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
+                      {insight && (
+                        <Link href={legalChangesHref(insight)} className="btn-doc-secondary">
+                          Ver cambios por artículo
+                        </Link>
+                      )}
+                      {officialUrl && (
+                        <a
+                          href={officialUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="btn-doc-secondary"
+                        >
+                          Abrir fuente oficial
+                        </a>
+                      )}
+                    </div>
+                  </article>
+                );
+              })}
             </div>
           )}
         </section>

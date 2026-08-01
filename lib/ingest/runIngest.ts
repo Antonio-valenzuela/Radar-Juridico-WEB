@@ -378,9 +378,22 @@ export async function runSourceIngest(
       },
     });
 
+    // Determine a specific error category from the error messages
+    let errorCategory: string | null = null;
+    if (errors.length > 0) {
+      const combined = errors.join(' ').toLowerCase();
+      if (combined.includes('timeout')) errorCategory = 'timeout';
+      else if (combined.includes('html no coincide') || combined.includes('selector esperado')) errorCategory = 'html_structure_changed';
+      else if (combined.includes('http 4') || combined.includes('status 4')) errorCategory = 'http_4xx';
+      else if (combined.includes('http 5') || combined.includes('status 5')) errorCategory = 'http_5xx';
+      else if (combined.includes('tls') || combined.includes('certificado')) errorCategory = 'tls_error';
+      else if (combined.includes('conexión') || combined.includes('network') || combined.includes('dns')) errorCategory = 'network_error';
+      else errorCategory = 'fetch_error';
+    }
+
     await saveFetchLog(
       fetched.ok && errors.length === 0 ? "success" : "failed",
-      errors.length ? "fetch_error" : null
+      errorCategory
     );
 
     logSourceResult({ source: source as SourceName, found, saved, duplicates, errors });
@@ -397,6 +410,12 @@ export async function runSourceIngest(
     };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
+    // Extract specific error category from enriched fetch errors
+    const errorCategory: string =
+      (error as any)?.errorCategory ||
+      (message.toLowerCase().includes('timeout') ? 'timeout' :
+       message.toLowerCase().includes('http') ? 'http_error' :
+       'runtime_error');
     errors.push(message);
     await prisma.ingestRun.update({
       where: { id: run.id },
@@ -410,7 +429,7 @@ export async function runSourceIngest(
         error: message,
       },
     });
-    await saveFetchLog("failed", "runtime_error");
+    await saveFetchLog("failed", errorCategory);
     logSourceResult({ source: source as SourceName, found, saved, duplicates, errors });
     return { source, ok: false, found, saved, duplicates, errors, checkpoint: null, sample };
   }

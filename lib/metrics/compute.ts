@@ -43,10 +43,9 @@ export async function computeMetricsDaily(date = new Date()) {
       where: { published: { gte: day, lt: next }, impacto: { not: null } },
       _count: { _all: true },
     }),
-    prisma.item.groupBy({
-      by: ["tema"],
-      where: { published: { gte: day, lt: next }, tema: { not: null } },
-      _count: { _all: true },
+    prisma.item.findMany({
+      where: { published: { gte: day, lt: next }, tema: { isEmpty: false } },
+      select: { tema: true },
     }),
     prisma.item.groupBy({
       by: ["tipo"],
@@ -77,11 +76,20 @@ export async function computeMetricsDaily(date = new Date()) {
     };
   });
 
+  const topicCounts: Record<string, number> = {};
+  for (const row of topicRows) {
+    if (Array.isArray(row.tema)) {
+      for (const t of row.tema) {
+        topicCounts[t] = (topicCounts[t] || 0) + 1;
+      }
+    }
+  }
+
   const data = {
     date: day,
     sourceCounts: mapCounts(sourceRows, "source"),
     impactCounts: mapCounts(impactRows, "impacto"),
-    topicCounts: mapCounts(topicRows, "tema"),
+    topicCounts: topicCounts as unknown as Prisma.InputJsonValue,
     typeCounts: mapCounts(typeRows, "tipo"),
     topNormas: topNormas as unknown as Prisma.InputJsonValue,
   };

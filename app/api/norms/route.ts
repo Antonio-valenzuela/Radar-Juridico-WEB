@@ -50,6 +50,11 @@ export async function GET(request: Request) {
         take,
         orderBy: [{ lastVerifiedAt: 'desc' }, { nombre: 'asc' }],
         include: {
+          versions: {
+            select: { publishedAt: true },
+            orderBy: { publishedAt: 'desc' },
+            take: 1,
+          },
           _count: {
             select: { versions: true, articles: true, reforms: true },
           },

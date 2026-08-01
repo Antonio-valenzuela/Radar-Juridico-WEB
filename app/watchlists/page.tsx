@@ -118,27 +118,6 @@ export default function WatchlistsPage() {
     <>
       <div className="bg-gradient"></div>
 
-      <header className="header">
-        <Link href="/" className="logo">
-          <div className="logo-icon"></div>
-          Jurídico Radar
-        </Link>
-        <input type="checkbox" id="alerts-menu-toggle" className="menu-toggle" />
-        <label htmlFor="alerts-menu-toggle" className="menu-icon" aria-label="Abrir menu">
-          <span></span>
-          <span></span>
-          <span></span>
-        </label>
-        <nav className="nav-menu">
-          <Link href="/">Dashboard</Link>
-          <Link href="/search">Búsqueda</Link>
-          <Link href="/documents">Documentos</Link>
-          <Link href="/monitoreo">Monitoreo</Link>
-          <Link href="/watchlists">Alertas</Link>
-          <Link href="/legal-hub">Centro Jurídico</Link>
-        </nav>
-      </header>
-
       <main className="container alerts-shell">
         <section className="alerts-hero">
           <span className="badge">Alertas</span>

@@ -13,6 +13,8 @@ interface Norm {
   verificationStatus: string;
   monitoringStatus: string;
   lastVerifiedAt?: string | null;
+  lastReformDate?: string | null;
+  versions?: Array<{ publishedAt: string }>;
   urlBase?: string | null;
   practicalUse?: string | null;
 }
@@ -167,7 +169,13 @@ export default function LeyesVigentesPage() {
                   <br />
                   <strong>Jurisdicción:</strong> {law.jurisdiction}
                   <br />
-                  {law.lastVerifiedAt && <><strong>Última verificación:</strong> {new Date(law.lastVerifiedAt).toLocaleDateString()}<br /></>}
+                  <strong>Última reforma registrada:</strong> {
+                    law.versions?.[0]?.publishedAt 
+                      ? new Date(law.versions[0].publishedAt).toLocaleDateString('es-MX') 
+                      : law.lastVerifiedAt 
+                      ? new Date(law.lastVerifiedAt).toLocaleDateString('es-MX') 
+                      : 'Monitoreo activo'
+                  }
                 </div>
                 {law.urlBase && (
                   <div className="document-actions">

@@ -34,30 +34,6 @@ export default function LegalHubPage() {
     <>
       <div className="bg-gradient"></div>
 
-      <header className="header">
-        <Link href="/" className="logo">
-          <div className="logo-icon"></div>
-          Jurídico Radar
-        </Link>
-        <input type="checkbox" id="legal-menu-toggle" className="menu-toggle" />
-        <label htmlFor="legal-menu-toggle" className="menu-icon" aria-label="Abrir menu">
-          <span></span>
-          <span></span>
-          <span></span>
-        </label>
-        <nav className="nav-menu">
-          <Link href="/">Dashboard</Link>
-          <Link href="/search">Búsqueda</Link>
-          <Link href="/documents">Documentos</Link>
-          <Link href="/monitoreo">Monitoreo</Link>
-          <Link href="/rag">IA Legal</Link>
-          <Link href="/watchlists">Alertas</Link>
-          {process.env.NEXT_PUBLIC_ENABLE_PUBLIC_DEMO !== 'true' && process.env.ENABLE_PUBLIC_DEMO !== 'true' && (
-            <Link href="/admin/sources">Fuentes</Link>
-          )}
-        </nav>
-      </header>
-
       <main className="container legal-hub-shell">
         <section className="legal-hub-hero">
           <span className="badge">Centro Jurídico</span>
@@ -67,6 +43,9 @@ export default function LegalHubPage() {
             SISE/CJF y formatos base de escritos.
           </p>
           <div className="hero-buttons">
+            <Link href="/legal-hub/cambios" className="btn-primary" style={{ background: "var(--accent)", color: "white", textDecoration: "none" }}>
+              Cambios por Materia (IA)
+            </Link>
             <Link href="/legal-hub/leyes-vigentes" className="btn-primary" style={{ textDecoration: "none" }}>
               Leyes vigentes
             </Link>

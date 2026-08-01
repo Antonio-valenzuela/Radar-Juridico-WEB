@@ -15,6 +15,12 @@ export async function runDiputadosIngest(days = 30) {
   return await runSourceIngest("DIPUTADOS", { days: Math.max(1, Math.min(60, days)) });
 }
 
+export async function runJaliscoOfficialIngest(days = 7) {
+  return await runSourceIngest("PERIODICO_OFICIAL_JALISCO", {
+    days: Math.max(1, Math.min(30, days)),
+  });
+}
+
 export async function runPriority1Ingest(days = 1) {
   return await runIngest({ days: Math.max(1, Math.min(30, days)), includePriority2: false });
 }

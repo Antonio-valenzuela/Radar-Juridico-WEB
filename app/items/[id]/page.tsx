@@ -101,7 +101,7 @@ export default async function ItemDetailPage({ params }: { params: Promise<{ id:
             <Badge tone="success">{item.source}</Badge>
             {item.impacto ? <Badge tone={item.impacto === "alto" ? "danger" : item.impacto === "medio" ? "info" : "success"}>{item.impacto}</Badge> : null}
             {item.tipo ? <Badge tone="info">{item.tipo}</Badge> : null}
-            {item.tema ? <Badge>{item.tema}</Badge> : null}
+            {Array.isArray(item.tema) && item.tema.length > 0 ? <Badge>{item.tema.join(', ')}</Badge> : null}
           </div>
           <h1 className="document-title">{normalizeLegalDisplayText(item.title)}</h1>
           <p className="document-muted" style={{ fontSize: 16, marginTop: 12, marginBottom: 12 }}>
