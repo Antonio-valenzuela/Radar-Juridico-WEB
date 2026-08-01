@@ -62,9 +62,9 @@ export async function fetchItems(params: SourceFetchParams): Promise<SourceFetch
 
   const html = await fetchText(URL);
   const all = parseReformas(html);
-  const items = all.filter((item) => item.published > threshold);
+  const items = all.filter((item) => item.published && item.published > threshold);
   const newest = items.reduce<Date | null>(
-    (max, item) => (!max || item.published > max ? item.published : max),
+    (max, item) => item.published && (!max || item.published > max) ? item.published : max,
     checkpointDate
   );
 

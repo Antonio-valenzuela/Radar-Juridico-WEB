@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
+import fs from "node:fs";
 
 function runTs(code, env = {}) {
   const result = spawnSync(process.execPath, ["node_modules/tsx/dist/cli.mjs", "--eval", code], {
@@ -100,7 +101,7 @@ test("advanced search rechaza cuerpos JSON no objeto con error estable", () => {
   assert.equal(result.data.error, "invalid_filters");
 });
 
-test("advanced search no expone detalles de infraestructura en producción", () => {
+test("advanced search clasifica una conexión Prisma caída sin exponer detalles", () => {
   const result = runTs(`
     process.env.NODE_ENV = "production";
     import { POST } from "./app/api/search/advanced/route";
@@ -116,8 +117,31 @@ test("advanced search no expone detalles de infraestructura en producción", () 
 
   assert.equal(result.status, 503);
   assert.equal(result.data.ok, false);
-  assert.equal(result.data.error, "local_search_failed");
+  assert.equal(result.data.error, "database_unavailable");
   assert.equal("details" in result.data, false);
+});
+
+test("advanced search nunca expone detalles técnicos ni warnings crudos en desarrollo", () => {
+  const result = runTs(`
+    process.env.NODE_ENV = "development";
+    import { POST } from "./app/api/search/advanced/route";
+    (async () => {
+      const response = await POST(new Request("http://localhost/api/search/advanced", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ mode: "text" }),
+      }));
+      console.log(JSON.stringify({ status: response.status, data: await response.json() }));
+    })().catch((error) => { console.error(error); process.exit(1); });
+  `, { DATABASE_URL: "postgresql://invalid:invalid@127.0.0.1:1/invalid" });
+
+  assert.equal(result.status, 503);
+  assert.equal(result.data.error, "database_unavailable");
+  assert.equal("details" in result.data, false);
+
+  const route = fs.readFileSync("app/api/search/advanced/route.ts", "utf8");
+  assert.doesNotMatch(route, /Búsqueda federada fallida:\s*\$\{message\}/);
+  assert.doesNotMatch(route, /warnings\.push\(\.\.\.federatedWarnings\)/);
 });
 
 test("admin token helper centraliza almacenamiento y headers", () => {

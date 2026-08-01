@@ -335,3 +335,17 @@ No revierta migraciones automáticamente. Confirme que el código anterior sea c
 - Los logs no contienen secrets ni URLs con credenciales.
 - Existe un backup verificable y un tag inmutable para rollback.
 - El despliegue de preview pasó smoke tests antes de cualquier cambio de tráfico.
+# Boletín Judicial
+
+El consumidor de la cola `bulletins` está integrado en `worker/ingestWorker.ts`; no requiere un segundo servicio. El proceso worker debe recibir `DATABASE_URL`, `REDIS_URL`, `ADMIN_TOKEN`, `LEGAL_CASES_USER_EMAIL`, `LEGAL_CASES_ORG_SLUG` y las variables `BULLETIN_*` documentadas en `.env.example`.
+
+Mantén `BULLETIN_MONITOR_ENABLED=false` hasta revisar el acceso automatizado al portal de Jalisco. Docker Compose ya propaga estas variables al worker. Este cambio no modifica Render: cuando se autorice un despliegue, deberán agregarse manualmente al servicio worker existente.
+
+Para migrar producción después de respaldar PostgreSQL:
+
+```powershell
+npx prisma migrate deploy
+npx prisma generate
+```
+
+La migración `20260801030000_harden_bulletin_monitoring` es aditiva y conserva las columnas/tablas legadas durante la transición.

@@ -15,15 +15,17 @@ import { adminFetch, getAdminToken, setAdminToken as persistAdminToken } from "@
 const POLL_INTERVAL_MS = 15000;
 const REQUEST_TIMEOUT_MS = 8_000;
 
-type SourceState = "never_checked" | "healthy" | "degraded" | "failed" | "inactive";
+type SourceState = "never_checked" | "healthy" | "degraded" | "failed" | "unknown" | "disabled";
 
 type DashboardMetrics = {
   ok: boolean;
-  status: "ok" | "degraded";
+  status: "ok";
+  databaseAvailable: true;
   generatedAt: string;
   documentsProcessed: number;
   dashboardClients: number;
-  activeWorkers: number;
+  activeWorkers: number | null;
+  lastSuccessfulIngestion: string | null;
   averageProcessingTimeSeconds: number;
   jobs: {
     total: number;
@@ -38,15 +40,21 @@ type DashboardMetrics = {
     name: string;
     type: string;
     state: SourceState;
+    lastAttemptAt: string | null;
     lastCheckedAt: string | null;
     lastSuccessAt: string | null;
     lastFailureAt: string | null;
-    errorCategory: string | null;
+    lastError: string | null;
+    durationMs: number | null;
+    documentsFound: number | null;
+    documentsCreated: number | null;
+    documentsRejected: number | null;
+    nextExecutionAt: string | null;
   }>;
   warnings: string[];
 };
 
-type LoadState = "loading" | "refreshing" | "ready" | "degraded" | "error" | "auth-required";
+type LoadState = "loading" | "refreshing" | "ready" | "error" | "auth-required" | "database-unavailable";
 
 function formatTime(value: string | null | undefined) {
   if (!value) return "Nunca";
@@ -71,8 +79,10 @@ function sourceLabel(state: SourceState) {
       return "Degradada";
     case "failed":
       return "Con error";
-    case "inactive":
-      return "Inactiva";
+    case "disabled":
+      return "Deshabilitada";
+    case "unknown":
+      return "Estado desconocido";
     default:
       return "Sin revisión";
   }
@@ -86,8 +96,10 @@ function sourceColor(state: SourceState) {
       return "#fbbf24";
     case "failed":
       return "#f87171";
-    case "inactive":
+    case "disabled":
       return "#94a3b8";
+    case "unknown":
+      return "#cbd5e1";
     default:
       return "#93c5fd";
   }
@@ -118,7 +130,7 @@ export default function DashboardPage() {
     const controller = new AbortController();
     requestRef.current = controller;
     const timeoutId = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
-    setLoadState((current) => (current === "ready" || current === "degraded" ? "refreshing" : "loading"));
+    setLoadState((current) => (current === "ready" ? "refreshing" : "loading"));
     setLastError(null);
 
     try {
@@ -132,6 +144,11 @@ export default function DashboardPage() {
         setLastError("Necesitas un token administrativo válido para consultar la telemetría.");
         return;
       }
+      if (response.status === 503) {
+        setLoadState("database-unavailable");
+        setLastError("La base de datos no está disponible temporalmente.");
+        return;
+      }
       if (!response.ok) {
         throw new Error("No se pudo consultar la telemetría operativa.");
       }
@@ -139,7 +156,7 @@ export default function DashboardPage() {
       const data = (await response.json()) as DashboardMetrics;
       setMetrics(data);
       setLastUpdatedAt(data.generatedAt);
-      setLoadState(data.status === "degraded" ? "degraded" : "ready");
+      setLoadState("ready");
       const time = formatTime(data.generatedAt);
       setHistory((previous) => [
         ...previous,
@@ -207,10 +224,10 @@ export default function DashboardPage() {
   const statusText = {
     loading: "Consultando…",
     refreshing: "Actualizando…",
-    ready: "Actualizado",
-    degraded: "Datos parciales",
-    error: "Sin conexión",
-    "auth-required": "Token requerido",
+    ready: "Telemetría actualizada",
+    error: "Error temporal",
+    "auth-required": "Falta token administrativo",
+    "database-unavailable": "Base de datos no disponible",
   }[loadState];
 
   return (
@@ -226,11 +243,11 @@ export default function DashboardPage() {
             </p>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", flexWrap: "wrap" }}>
-            <span aria-live="polite" style={{ display: "inline-flex", alignItems: "center", gap: "0.5rem", minHeight: "44px", padding: "0.5rem 0.85rem", borderRadius: "999px", background: "rgba(148,163,184,0.1)", color: loadState === "error" ? "#fca5a5" : loadState === "degraded" ? "#fde68a" : "#bbf7d0", fontWeight: 700 }}>
+            <span aria-live="polite" style={{ display: "inline-flex", alignItems: "center", gap: "0.5rem", minHeight: "44px", padding: "0.5rem 0.85rem", borderRadius: "999px", background: "rgba(148,163,184,0.1)", color: loadState === "error" || loadState === "database-unavailable" ? "#fca5a5" : loadState === "auth-required" ? "#fde68a" : "#bbf7d0", fontWeight: 700 }}>
               <span aria-hidden="true">●</span>{statusText}
             </span>
             <button type="button" className="btn-doc-secondary" onClick={() => void fetchTelemetry(true)} disabled={loadState === "loading" || loadState === "refreshing"}>
-              Actualizar
+              Actualizar ahora
             </button>
             <span style={{ color: "var(--text-muted)", fontSize: "0.8rem" }} aria-live="polite">{relativeUpdate(lastUpdatedAt)}</span>
           </div>
@@ -258,7 +275,7 @@ export default function DashboardPage() {
                 ["Jobs pendientes", metrics.jobs.pending.toLocaleString(), "#93c5fd"],
                 ["Jobs activos", metrics.jobs.active.toLocaleString(), "#c4b5fd"],
                 ["Jobs fallidos", metrics.jobs.failed.toLocaleString(), metrics.jobs.failed > 0 ? "#fca5a5" : "#f8fafc"],
-                ["Workers activos", metrics.activeWorkers.toLocaleString(), "#86efac"],
+                ["Workers activos", metrics.activeWorkers === null ? "No disponible" : metrics.activeWorkers.toLocaleString(), "#86efac"],
                 ["Clientes dashboard", metrics.dashboardClients.toLocaleString(), "#fde68a"],
               ].map(([label, value, color]) => (
                 <article key={label} className="glass-card" style={{ padding: "1.1rem" }}>
@@ -267,12 +284,6 @@ export default function DashboardPage() {
                 </article>
               ))}
             </section>
-
-            {metrics.status === "degraded" && (
-              <p role="status" style={{ color: "#fde68a", margin: "0 0 1.5rem" }}>
-                La telemetría está degradada; no se pudieron consultar: {metrics.warnings.join(", ")}.
-              </p>
-            )}
 
             <section style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.5fr) minmax(280px, 1fr)", gap: "1rem", alignItems: "start" }}>
               <article className="glass-card" style={{ padding: "1.25rem", minWidth: 0 }}>
@@ -313,7 +324,12 @@ export default function DashboardPage() {
                     <div key={source.id} style={{ display: "flex", justifyContent: "space-between", gap: "0.75rem", alignItems: "center", paddingBottom: "0.7rem", borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
                       <div style={{ minWidth: 0 }}>
                         <strong style={{ display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{source.name}</strong>
-                        <span style={{ color: "var(--text-muted)", fontSize: "0.78rem" }}>Última revisión: {formatTime(source.lastCheckedAt)}</span>
+                        <span style={{ color: "var(--text-muted)", fontSize: "0.78rem" }}>
+                          Último intento: {formatTime(source.lastAttemptAt)} · éxito: {formatTime(source.lastSuccessAt)}
+                        </span>
+                        <span style={{ display: "block", color: "var(--text-muted)", fontSize: "0.72rem" }}>
+                          Encontrados: {source.documentsFound ?? "—"} · creados: {source.documentsCreated ?? "—"} · rechazados: {source.documentsRejected ?? "—"}
+                        </span>
                       </div>
                       <span style={{ color: sourceColor(source.state), fontSize: "0.78rem", fontWeight: 800, whiteSpace: "nowrap" }}>{sourceLabel(source.state)}</span>
                     </div>

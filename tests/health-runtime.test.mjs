@@ -73,6 +73,6 @@ test("dashboard websocket usa PORT cuando Render no define WEBSOCKET_PORT", () =
 test("dashboard no depende de un puerto privado ni de un socket en producción", () => {
   const page = fs.readFileSync("app/admin/dashboard/page.tsx", "utf8");
   assert.doesNotMatch(page, /:3002/);
-  assert.match(page, /Token requerido/i);
+  assert.match(page, /token administrativo/i);
   assert.match(page, /AbortController/);
 });

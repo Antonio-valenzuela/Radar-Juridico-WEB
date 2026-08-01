@@ -1,9 +1,11 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { adminFetch, getAdminToken, setAdminToken } from "@/lib/client/adminToken";
 
 export default function EnrichButton({ itemId }: { itemId: string }) {
+  const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -38,6 +40,7 @@ export default function EnrichButton({ itemId }: { itemId: string }) {
       }
 
       setSuccess("Análisis IA generado correctamente.");
+      router.refresh();
     } catch (err: unknown) {
       setError(err instanceof Error && err.message === "ADMIN_TOKEN_REQUIRED"
         ? "Ingresa el token administrativo para ejecutar esta acción."

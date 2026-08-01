@@ -157,7 +157,7 @@ export async function fetchItems(params: SourceFetchParams): Promise<SourceFetch
   }
 
   const newest = items.reduce<Date | null>(
-    (max, item) => (!max || item.published > max ? item.published : max),
+    (max, item) => item.published && (!max || item.published > max) ? item.published : max,
     checkpointDate
   );
 

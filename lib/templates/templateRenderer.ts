@@ -1,4 +1,5 @@
 import { ProfessionalTemplate, RenderedDocument } from './templateTypes';
+import { DRAFT_WARNING, hasPendingMarkers } from './templateQuality';
 
 export interface TemplateValidationResult {
   valid: boolean;
@@ -182,6 +183,29 @@ export const renderToDocument = (
   }
 
   doc.footer = footerStr;
+
+  const pendingMetadata = [
+    template.legalBasis,
+    ...template.applicableLaws,
+    ...template.warnings,
+  ].filter((value) => hasPendingMarkers(value));
+  const documentHasPendingMarkers = hasPendingMarkers([
+    doc.header,
+    doc.body,
+    doc.sections.map((section) => section.content),
+    doc.footer,
+  ]);
+
+  if (pendingMetadata.length > 0 || documentHasPendingMarkers) {
+    doc.sections.unshift({
+      title: DRAFT_WARNING,
+      content: pendingMetadata.length > 0
+        ? pendingMetadata
+        : 'Este documento conserva campos jurídicos pendientes de validar.',
+      numbered: false,
+    });
+  }
+
   return doc;
 };
 

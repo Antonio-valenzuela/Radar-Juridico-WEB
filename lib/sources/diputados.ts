@@ -208,6 +208,14 @@ export function extractDiputadosPdfItems(html: string, limit = DEFAULT_LIMIT): R
     const quality = assessDiputadosTitle(title, fileName);
     const dates = datesFromContext($(element).closest("tr").text() || $(element).parent().text());
     const retrievedAt = new Date();
+    const published = dates.lastReformDate || dates.publicationDate;
+    const datedQuality: DiputadosTitleAssessment = published
+      ? quality
+      : {
+          ...quality,
+          status: "suspicious",
+          reasons: Array.from(new Set([...quality.reasons, "date_unverified"])),
+        };
     const sourceId = fileName.replace(/\.pdf$/i, "");
 
     items.push({
@@ -216,17 +224,17 @@ export function extractDiputadosPdfItems(html: string, limit = DEFAULT_LIMIT): R
       title,
       url,
       canonicalUrl: url,
-      published: dates.lastReformDate || dates.publicationDate || retrievedAt,
+      published,
       publicationDate: dates.publicationDate,
       lastReformDate: dates.lastReformDate,
       tipo: title.toUpperCase().includes("CÓDIGO") || title.toUpperCase().includes("CODIGO") ? "CODIGO" : "LEY",
-      tema: quality.matter,
+      tema: datedQuality.matter,
       impacto: ["CPEUM", "LFT", "LISR", "LIVA", "CFF"].includes(sourceId.toUpperCase()) ? "alto" : "medio",
       summary: `Texto vigente en Cámara de Diputados LeyesBiblio: ${title}.`,
       rawRef: sourceId,
-      raw: qualityRawMetadata(quality, dates.publicationDate, dates.lastReformDate, retrievedAt, fileName),
-      qualityStatus: quality.status,
-      qualityReasons: quality.reasons,
+      raw: qualityRawMetadata(datedQuality, dates.publicationDate, dates.lastReformDate, retrievedAt, fileName),
+      qualityStatus: datedQuality.status,
+      qualityReasons: datedQuality.reasons,
     });
   });
 
@@ -272,13 +280,19 @@ function parseRows(html: string): RawSourceItem[] {
     const dateText = cells.map(stripHtml).find((c) => /\bDOF\b.*\d{1,2}[/-]\d{1,2}[/-]\d{4}/i.test(c));
     const dates = datesFromContext(cells.map(stripHtml).join(" "));
     const published = dates.lastReformDate || dates.publicationDate;
-    if (!published) continue;
 
     const sourceId = url.includes("/ref/")
       ? url.split("/ref/")[1].replace(/\.htm.*$/i, "")
       : rawTitle.toLowerCase().replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "");
     const fileName = url.toLowerCase().endsWith(".pdf") ? pdfFileName(url) : "";
     const quality = assessDiputadosTitle(rawTitle, fileName);
+    const datedQuality: DiputadosTitleAssessment = published
+      ? quality
+      : {
+          ...quality,
+          status: "suspicious",
+          reasons: Array.from(new Set([...quality.reasons, "date_unverified"])),
+        };
     const retrievedAt = new Date();
     const reformSummary = dates.lastReformDate
       ? dates.lastReformDate.toISOString().slice(0, 10)
@@ -302,12 +316,12 @@ function parseRows(html: string): RawSourceItem[] {
       summary: `Texto vigente en LeyesBiblio. Ultima reforma publicada: ${reformSummary}.`,
       rawRef: sourceId,
       raw: {
-        ...qualityRawMetadata(quality, dates.publicationDate, dates.lastReformDate, retrievedAt, fileName),
+        ...qualityRawMetadata(datedQuality, dates.publicationDate, dates.lastReformDate, retrievedAt, fileName),
         dateText: cleanText(dateText || ""),
       },
-      qualityStatus: quality.status,
-      qualityReasons: quality.reasons,
-      tema: quality.matter,
+      qualityStatus: datedQuality.status,
+      qualityReasons: datedQuality.reasons,
+      tema: datedQuality.matter,
     });
   }
 
@@ -328,7 +342,7 @@ export async function fetchItems(params: SourceFetchParams): Promise<SourceFetch
   const all = pdfItems.length ? pdfItems : parseRows(html).slice(0, limit);
   const items = all;
   const newest = items.reduce<Date | null>(
-    (max, item) => (!max || item.published > max ? item.published : max),
+    (max, item) => item.published && (!max || item.published > max) ? item.published : max,
     params.checkpoint?.lastPublishedAt || null
   );
 
