@@ -19,6 +19,7 @@
     "typecheck": "tsc --noEmit",
     "test": "node --test tests/*.test.mjs && vitest run",
     "test:vitest": "vitest run",
+    "ai:test-providers": "tsx scripts/test-ai-providers.ts",
     "test:legacy": "node --test tests/*.test.mjs",
     "worker:norm-monitor": "tsx worker/normMonitorWorker.ts",
     "env:check": "tsx scripts/validateRuntimeEnv.ts",
