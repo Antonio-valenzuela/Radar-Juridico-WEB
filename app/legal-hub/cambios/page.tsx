@@ -82,12 +82,6 @@ export default function CambiosNormativosPage() {
           <Link href="/legal-hub" style={{ color: "var(--accent)", textDecoration: "none", fontWeight: 600 }}>
             &larr; Volver al Centro Jurídico
           </Link>
-          <Link href="/monitoreo" style={{ color: "var(--text-muted)", textDecoration: "none", marginLeft: "1.5rem" }}>
-            Vigilancia documental
-          </Link>
-          <Link href="/search" style={{ color: "var(--text-muted)", textDecoration: "none", marginLeft: "1.5rem" }}>
-            Búsqueda Avanzada
-          </Link>
         </nav>
 
         <section className="legal-hub-hero" style={{ marginBottom: "2rem" }}>
