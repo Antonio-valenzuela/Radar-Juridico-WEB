@@ -57,12 +57,22 @@ test("web and background processes expose health and graceful shutdown hooks", (
   assert.match(dashboard, /\$disconnect/);
 });
 
-test("dashboard websocket has a configurable public URL", () => {
+test("dashboard usa el endpoint HTTP de telemetría sin configuración WebSocket", () => {
   const page = fs.readFileSync("app/admin/dashboard/page.tsx", "utf8");
-  const dockerfile = fs.readFileSync("Dockerfile", "utf8");
-  const compose = fs.readFileSync("docker-compose.prod.yml", "utf8");
 
-  assert.match(page, /NEXT_PUBLIC_WEBSOCKET_URL/);
-  assert.match(dockerfile, /ARG NEXT_PUBLIC_WEBSOCKET_URL/);
-  assert.match(compose, /NEXT_PUBLIC_WEBSOCKET_URL/);
+  assert.match(page, /\/api\/admin\/telemetry/);
+  assert.match(page, /POLL_INTERVAL_MS\s*=\s*15000/);
+  assert.doesNotMatch(page, /new\s+WebSocket\s*\(/);
+});
+
+test("dashboard websocket usa PORT cuando Render no define WEBSOCKET_PORT", () => {
+  const worker = fs.readFileSync("worker/dashboardWorker.ts", "utf8");
+  assert.match(worker, /process\.env\.WEBSOCKET_PORT\s*\|\|\s*process\.env\.PORT/);
+});
+
+test("dashboard no depende de un puerto privado ni de un socket en producción", () => {
+  const page = fs.readFileSync("app/admin/dashboard/page.tsx", "utf8");
+  assert.doesNotMatch(page, /:3002/);
+  assert.match(page, /Token requerido/i);
+  assert.match(page, /AbortController/);
 });

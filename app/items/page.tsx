@@ -48,7 +48,7 @@ export default async function ItemsPage() {
               <div style={{ marginTop: '0.75rem', display: 'flex', gap: '1rem', fontSize: '0.8rem', color: 'var(--text-muted)', flexWrap: 'wrap', alignItems: 'center' }}>
                 <span>📅 {item.published ? new Date(item.published).toLocaleDateString('es-MX') : 'Sin fecha'}</span>
                 <span>🏛️ {item.source}</span>
-                <span>📚 Materia: {item.tema || 'Sin tema'}</span>
+                <span>📚 Materia: {Array.isArray(item.tema) && item.tema.length > 0 ? item.tema.join(', ') : 'Sin tema'}</span>
                 {item.impacto && (
                   <span style={{ color: item.impacto === 'alto' ? '#ef4444' : item.impacto === 'medio' ? '#f59e0b' : '#10b981', fontWeight: 600 }}>
                     ⚠️ {item.impacto}

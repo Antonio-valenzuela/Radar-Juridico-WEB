@@ -1,4 +1,5 @@
 import { SearchResultItem } from './searchRanking';
+import { normalizeMatterValues } from './matter';
 
 export type SearchFacets = {
   matters: Record<string, number>;
@@ -20,8 +21,8 @@ export function computeFacets(results: SearchResultItem[]): SearchFacets {
   };
 
   for (const { item } of results) {
-    if (item.tema) {
-      facets.matters[item.tema] = (facets.matters[item.tema] || 0) + 1;
+    for (const matter of normalizeMatterValues(item.tema)) {
+      facets.matters[matter] = (facets.matters[matter] || 0) + 1;
     }
     if (item.source) {
       facets.sources[item.source] = (facets.sources[item.source] || 0) + 1;

@@ -187,7 +187,7 @@ export default async function Home() {
                       {normalizeLegalDisplayText(item.title)}
                     </Link>
                     <div className="alert-meta">
-                      {item.source} • {item.tema || 'materia pendiente'} • {new Date(item.published || '').toLocaleDateString('es-MX')} • lectura: {item.embeddingsStatus}
+                      {item.source} • {Array.isArray(item.tema) && item.tema.length > 0 ? item.tema.join(', ') : 'materia pendiente'} • {new Date(item.published || '').toLocaleDateString('es-MX')} • lectura: {item.embeddingsStatus}
                     </div>
                   </div>
                   <div>

@@ -9,11 +9,11 @@ export async function POST(req: Request) {
       return adminCheck.response;
     }
 
-    const body = await req.json();
-    const { itemId } = body;
+    const body = await req.json().catch(() => null);
+    const itemId = body && typeof body === 'object' && typeof body.itemId === 'string' ? body.itemId.trim() : '';
 
     if (!itemId) {
-      return NextResponse.json({ ok: false, error: 'itemId is required' }, { status: 400 });
+      return NextResponse.json({ ok: false, error: 'invalid_item', message: 'Falta un identificador de documento válido.' }, { status: 400 });
     }
 
     const result = await evaluateAlertsForItem(itemId);
@@ -22,10 +22,10 @@ export async function POST(req: Request) {
       ok: true,
       matches: result.matches
     });
-  } catch (error: any) {
-    console.error('API /api/admin/evaluate-alerts error:', error);
+  } catch (error: unknown) {
+    console.error('API /api/admin/evaluate-alerts error:', error instanceof Error ? error.message : String(error));
     return NextResponse.json(
-      { ok: false, error: error.message || 'Internal server error' },
+      { ok: false, error: 'alerts_evaluation_failed', message: 'No fue posible evaluar las alertas.' },
       { status: 500 }
     );
   }

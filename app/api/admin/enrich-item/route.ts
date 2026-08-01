@@ -9,12 +9,12 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const body = await req.json();
-    const { itemId } = body;
+    const body = await req.json().catch(() => null);
+    const itemId = body && typeof body === 'object' && typeof body.itemId === 'string' ? body.itemId.trim() : '';
 
     if (!itemId || typeof itemId !== "string") {
       return NextResponse.json(
-        { ok: false, error: "itemId_required" },
+        { ok: false, error: "invalid_item", message: "Falta un identificador de documento válido." },
         { status: 400 }
       );
     }
@@ -23,7 +23,7 @@ export async function POST(req: NextRequest) {
 
     if (!result.ok) {
       return NextResponse.json(
-        { ok: false, error: result.error },
+        { ok: false, error: "enrichment_failed", message: "No fue posible generar el análisis IA." },
         { status: 500 }
       );
     }
@@ -34,9 +34,10 @@ export async function POST(req: NextRequest) {
       enrichment: result.enrichment,
     });
   } catch (error) {
+    console.error("API /api/admin/enrich-item error:", error instanceof Error ? error.message : String(error));
     return NextResponse.json(
-      { ok: false, error: error instanceof Error ? error.message : String(error) },
-      { status: 400 }
+      { ok: false, error: "enrichment_failed", message: "No fue posible generar el análisis IA." },
+      { status: 500 }
     );
   }
 }

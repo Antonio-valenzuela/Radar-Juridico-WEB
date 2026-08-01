@@ -1,47 +1,47 @@
 "use client";
 
 import { useState } from "react";
+import { adminFetch, getAdminToken, setAdminToken } from "@/lib/client/adminToken";
 
 export default function EnrichButton({ itemId }: { itemId: string }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
 
   const handleEnrich = async () => {
     setLoading(true);
     setError("");
+    setSuccess("");
 
-    let token = typeof window !== "undefined" ? (localStorage.getItem("adminToken") || "dev-admin-token") : "dev-admin-token";
-    const newToken = prompt("Ingresa el token de administrador:", token);
+    let token = getAdminToken();
+    const newToken = prompt("Ingresa el token ADMIN_TOKEN configurado en el servidor:", token);
     if (newToken === null) {
       setLoading(false);
       return;
     }
-    if (newToken) {
-      token = newToken;
-      if (typeof window !== "undefined") {
-        localStorage.setItem("adminToken", token);
-      }
+    token = setAdminToken(newToken);
+    if (!token) {
+      setError("Se requiere un token administrativo válido para generar el análisis.");
+      setLoading(false);
+      return;
     }
 
     try {
-      const res = await fetch("/api/admin/enrich-item", {
+      const res = await adminFetch("/api/admin/enrich-item", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-admin-token": token,
-        },
         body: JSON.stringify({ itemId }),
       });
 
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.error || "Error al enriquecer el documento");
+        throw new Error(data.message || data.error || "No fue posible generar el análisis IA.");
       }
 
-      alert("¡Análisis IA generado con éxito!");
-      window.location.reload();
+      setSuccess("Análisis IA generado correctamente.");
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : String(err));
+      setError(err instanceof Error && err.message === "ADMIN_TOKEN_REQUIRED"
+        ? "Ingresa el token administrativo para ejecutar esta acción."
+        : err instanceof Error ? err.message : "No fue posible generar el análisis IA.");
     } finally {
       setLoading(false);
     }
@@ -50,6 +50,7 @@ export default function EnrichButton({ itemId }: { itemId: string }) {
   return (
     <div style={{ display: "inline-flex", flexDirection: "column", gap: 6 }}>
       {error && <span style={{ fontSize: 12, color: "#ef4444", fontWeight: 700 }}>⚠️ {error}</span>}
+      {success && <span style={{ fontSize: 12, color: "#34d399", fontWeight: 700 }}>✓ {success}</span>}
       <button
         onClick={handleEnrich}
         disabled={loading}
