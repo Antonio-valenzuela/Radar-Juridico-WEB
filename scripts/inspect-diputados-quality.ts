@@ -15,7 +15,7 @@ async function main() {
     where: { source: "DIPUTADOS" },
     orderBy: { retrievedAt: "desc" },
     take: limit,
-    select: { id: true, title: true, url: true, published: true, raw: true },
+    select: { id: true, source: true, title: true, url: true, published: true, raw: true },
   });
 
   const suspects = items
@@ -32,6 +32,7 @@ async function main() {
     suspicious: suspects.length,
     items: suspects.map((item) => ({
       id: item.id,
+      source: item.source,
       title: item.title,
       url: item.url,
       published: item.published.toISOString(),

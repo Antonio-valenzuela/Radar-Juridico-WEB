@@ -9,7 +9,9 @@ export async function GET(request: Request) {
     const [watches, runs, entries] = await Promise.all([
       prisma.caseBulletinWatch.count({ where: { active: true, matter: { organizationId: access.context.organizationId } } }),
       prisma.bulletinCheckRun.findMany({ where: { matter: { organizationId: access.context.organizationId } }, orderBy: { startedAt: 'desc' }, take: 20, include: { source: { select: { name: true, slug: true } } } }),
-      prisma.judicialBulletinEntry.count({ where: { matter: { organizationId: access.context.organizationId } } }),
+      prisma.judicialBulletinEntry.count({
+        where: { matterLinks: { some: { matter: { organizationId: access.context.organizationId } } } },
+      }),
     ]);
     return NextResponse.json({ ok: true, activeWatches: watches, entries, runs });
   } catch (error) {

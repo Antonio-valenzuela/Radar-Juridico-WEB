@@ -21,7 +21,13 @@ export async function GET(request: NextRequest) {
       kind: error instanceof Error ? error.name : typeof error,
     });
     return NextResponse.json(
-      { ok: false, status: "degraded", error: "telemetry_unavailable" },
+      {
+        ok: false,
+        status: "unavailable",
+        databaseAvailable: false,
+        error: "database_unavailable",
+        message: "La base de datos no está disponible temporalmente.",
+      },
       { status: 503 },
     );
   }

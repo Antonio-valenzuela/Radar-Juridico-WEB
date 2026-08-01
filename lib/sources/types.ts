@@ -30,7 +30,7 @@ export type RawSourceItem = {
   title: string;
   url: string;
   canonicalUrl?: string;
-  published: Date;
+  published: Date | null;
   /** Distinguish source publication/reform dates from retrieval time. */
   publicationDate?: Date | null;
   lastReformDate?: Date | null;
