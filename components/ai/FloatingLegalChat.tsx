@@ -494,6 +494,7 @@ export default function FloatingLegalChat() {
                         <div key={i} className="flex items-center gap-1.5 text-blue-700 hover:underline">
                           <span>📜 {normalizeLegalDisplayText(cit.title)}</span>
                           <span className="text-slate-500">({normalizeLegalDisplayText(cit.fuente)})</span>
+                          {cit.materia && (<span className="text-slate-400"> · {normalizeLegalDisplayText(cit.materia)}</span>)}
                         </div>
                       ))}
                     </div>
