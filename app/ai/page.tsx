@@ -17,6 +17,7 @@ const EMPTY_PROVIDERS: any[] = [];
 
 export default function AILegalPage() {
   const [token, setToken] = useState('');
+  const [showToken, setShowToken] = useState(false);
   
   useEffect(() => {
     setToken(getAdminToken());
@@ -197,12 +198,23 @@ export default function AILegalPage() {
         {process.env.NEXT_PUBLIC_ENABLE_PUBLIC_DEMO !== 'true' && (
           <div style={{ marginTop: '1rem', display: 'flex', gap: '1rem', alignItems: 'center' }}>
             <label style={{ fontWeight: 'bold' }}>Admin Token:</label>
-            <input 
-              type="text" 
-              value={token} 
-              onChange={(e) => handleTokenChange(e.target.value)} 
-              style={{ padding: '0.5rem', borderRadius: '4px', border: '1px solid #ccc', background: '#1e293b', color: 'white' }}
-            />
+            <div style={{ display: 'flex', alignItems: 'center', background: '#1e293b', borderRadius: '4px', border: '1px solid #ccc' }}>
+              <input 
+                type={showToken ? "text" : "password"} 
+                value={token} 
+                onChange={(e) => handleTokenChange(e.target.value)} 
+                style={{ padding: '0.5rem', border: 'none', background: 'transparent', color: 'white', outline: 'none' }}
+              />
+              <button 
+                type="button" 
+                onClick={() => setShowToken(!showToken)} 
+                style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', padding: '0 0.5rem', cursor: 'pointer' }}
+                aria-label={showToken ? "Ocultar token" : "Mostrar token"}
+                title={showToken ? "Ocultar token" : "Mostrar token"}
+              >
+                {showToken ? "👁️‍🗨️" : "👁️"}
+              </button>
+            </div>
             <button onClick={handleCheckLimits} className="btn-primary" disabled={limitsLoading} style={{ background: '#3b82f6' }}>
               {limitsLoading ? 'Consultando...' : 'Ver intentos restantes de IA'}
             </button>

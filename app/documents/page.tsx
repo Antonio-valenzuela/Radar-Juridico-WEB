@@ -1,16 +1,20 @@
 import { prisma } from "@/lib/prisma";
 import DocumentsCatalog from "@/components/documents/DocumentsCatalog";
+import { isPubliclySearchableQuality } from "@/lib/ingest/quality";
 
 export const dynamic = "force-dynamic";
 
 export default async function DocumentsPage() {
   const items = await prisma.item.findMany({
-    take: 100,
+    where: { category: { not: "ruido" } },
+    take: 200,
     orderBy: { createdAt: "desc" },
   });
 
+  const validItems = items.filter(item => isPubliclySearchableQuality(item.raw)).slice(0, 100);
+
   // Map backend prisma dates to Date objects cleanly for client
-  const mapped = items.map(item => ({
+  const mapped = validItems.map(item => ({
     id: item.id,
     title: item.title,
     url: item.url,

@@ -89,8 +89,7 @@ export default function LeyesVigentesPage() {
       <div className="bg-gradient"></div>
       <main className="container legal-hub-shell">
         <nav className="document-nav">
-          <Link href="/legal-hub">Volver al Centro Jurídico</Link>
-          <Link href="/search">Búsqueda avanzada</Link>
+          <Link href="/legal-hub">&larr; Volver al Centro Jurídico</Link>
         </nav>
 
         <section className="legal-hub-hero">

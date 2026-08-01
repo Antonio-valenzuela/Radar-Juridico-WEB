@@ -1,5 +1,31 @@
 import type { RawSourceItem, SourceName } from "@/lib/sources/types";
 
+export const DOCUMENT_TAXONOMY = [
+  "Constitución",
+  "Ley",
+  "Código",
+  "Reglamento",
+  "Decreto",
+  "Reforma",
+  "Acuerdo",
+  "Circular",
+  "Aviso",
+  "Resolución",
+  "Sentencia",
+  "Jurisprudencia",
+  "Tesis aislada",
+  "Convenio",
+  "Norma oficial",
+  "Tarifa",
+  "Tipo de cambio",
+  "Información administrativa",
+  "Otro",
+  "Sin clasificar",
+  "Revisión requerida",
+] as const;
+
+export type DocumentTaxonomy = (typeof DOCUMENT_TAXONOMY)[number];
+
 export type NormalizedItem = {
   source: SourceName;
   sourceId: string;
@@ -39,6 +65,46 @@ export function stripHtml(html: string) {
       .replace(/<style[\s\S]*?<\/style>/gi, " ")
       .replace(/<[^>]+>/g, " ")
   );
+}
+
+export function filterNoise(text: string): string {
+  if (!text) return text;
+  return text
+    .replace(/Inicio\s*\|\s*Contacto\s*\|\s*Ayuda/gi, "")
+    .replace(/Derechos Reservados/gi, "")
+    .replace(/404 Not Found/gi, "")
+    .replace(/Please login to continue/gi, "")
+    .trim();
+}
+
+export function resolveTaxonomy(
+  rawTipo: string | null | undefined,
+  hasVerifiableLegalEvidence: boolean = false
+): DocumentTaxonomy {
+  if (!rawTipo) return "Sin clasificar";
+
+  const normalized = rawTipo.trim().toLowerCase();
+  
+  if (!hasVerifiableLegalEvidence && (normalized === "ley" || normalized === "vigente")) {
+    return "Revisión requerida";
+  }
+
+  const exactMatch = DOCUMENT_TAXONOMY.find(
+    (t) => t.toLowerCase() === normalized
+  );
+  if (exactMatch) return exactMatch;
+
+  if (normalized.includes("ley")) return "Ley";
+  if (normalized.includes("acuerdo")) return "Acuerdo";
+  if (normalized.includes("decreto")) return "Decreto";
+  if (normalized.includes("reglamento")) return "Reglamento";
+  if (normalized.includes("aviso")) return "Aviso";
+  if (normalized.includes("resolución") || normalized.includes("resolucion")) return "Resolución";
+  if (normalized.includes("circular")) return "Circular";
+  if (normalized.includes("norma oficial") || normalized.includes("nom")) return "Norma oficial";
+  if (normalized.includes("convenio")) return "Convenio";
+  
+  return "Sin clasificar";
 }
 
 export function canonicalizeUrl(url: string) {
@@ -100,8 +166,8 @@ export function toSidofDate(date: Date) {
 }
 
 export function normalizeRawItem(item: RawSourceItem): NormalizedItem {
-  const title = cleanText(item.title);
-  const summary = item.summary ? cleanText(item.summary).slice(0, 2000) : null;
+  const title = filterNoise(cleanText(item.title));
+  const summary = item.summary ? filterNoise(cleanText(item.summary)).slice(0, 2000) : null;
   const canonicalUrl = canonicalizeUrl(item.canonicalUrl || item.url);
   if (!(item.published instanceof Date) || Number.isNaN(item.published.getTime())) {
     throw new Error('La fecha jurídica de publicación no está verificada.');
@@ -118,7 +184,7 @@ export function normalizeRawItem(item: RawSourceItem): NormalizedItem {
     lastReformDate: item.lastReformDate ?? null,
     retrievedAt: new Date(),
     summary,
-    tipo: item.tipo ? cleanText(item.tipo).toUpperCase() : null,
+    tipo: resolveTaxonomy(item.tipo, !!item.qualityStatus && item.qualityStatus === "valid"),
     tema: item.tema ? cleanText(item.tema).toLowerCase() : null,
     impacto: item.impacto || null,
     keywordsHit: item.keywordsHit || [],

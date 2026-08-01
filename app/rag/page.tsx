@@ -172,6 +172,7 @@ export default function RadarLegalPage() {
   const [dateTo, setDateTo]         = useState(defaults.end);
   const [forceExternal, setForceExternal] = useState(false);
   const [token, setToken]           = useState('');
+  const [showToken, setShowToken]   = useState(false);
 
   // UI state
   const [weeklyLoading, setWeeklyLoading] = useState(false); // for auto-load
@@ -403,13 +404,24 @@ export default function RadarLegalPage() {
             <label style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: 600 }}>
               Admin Token (para IA):
             </label>
-            <input
-              id="admin-token-input"
-              type="password"
-              value={token}
-              onChange={(e) => handleTokenChange(e.target.value)}
-              style={{ padding: '0.4rem 0.75rem', borderRadius: '6px', border: '1px solid var(--card-border)', background: '#1e293b', color: 'white', fontSize: '0.85rem', width: '160px' }}
-            />
+            <div style={{ display: 'flex', alignItems: 'center', background: '#1e293b', borderRadius: '6px', border: '1px solid var(--card-border)', width: '220px' }}>
+              <input
+                id="admin-token-input"
+                type={showToken ? "text" : "password"}
+                value={token}
+                onChange={(e) => handleTokenChange(e.target.value)}
+                style={{ flex: 1, padding: '0.4rem 0.5rem', border: 'none', background: 'transparent', color: 'white', fontSize: '0.85rem', minWidth: 0, outline: 'none' }}
+              />
+              <button 
+                type="button" 
+                onClick={() => setShowToken(!showToken)} 
+                style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', padding: '0 0.5rem', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+                aria-label={showToken ? "Ocultar token" : "Mostrar token"}
+                title={showToken ? "Ocultar token" : "Mostrar token"}
+              >
+                {showToken ? "👁️‍🗨️" : "👁️"}
+              </button>
+            </div>
           </div>
         )}
       </div>
