@@ -1,21 +1,28 @@
 import { prisma } from "@/lib/prisma";
 
 export type TelemetrySourceState =
-  | "never_checked"
   | "healthy"
   | "degraded"
   | "failed"
-  | "inactive";
+  | "never_checked"
+  | "unknown"
+  | "disabled";
 
 export type TelemetrySource = {
   id: string;
   name: string;
   type: string;
   state: TelemetrySourceState;
+  lastAttemptAt: string | null;
   lastCheckedAt: string | null;
   lastSuccessAt: string | null;
   lastFailureAt: string | null;
-  errorCategory: string | null;
+  lastError: string | null;
+  durationMs: number | null;
+  documentsFound: number | null;
+  documentsCreated: number | null;
+  documentsRejected: number | null;
+  nextExecutionAt: string | null;
 };
 
 export type TelemetryJobs = {
@@ -28,22 +35,21 @@ export type TelemetryJobs = {
 };
 
 export type TelemetrySnapshot = {
-  ok: boolean;
-  status: "ok" | "degraded";
+  ok: true;
+  status: "ok";
+  databaseAvailable: true;
   generatedAt: string;
   documentsProcessed: number;
   dashboardClients: number;
-  activeWorkers: number;
+  activeWorkers: number | null;
+  lastSuccessfulIngestion: string | null;
   averageProcessingTimeSeconds: number;
   jobs: TelemetryJobs;
   sources: TelemetrySource[];
   warnings: string[];
 };
 
-const PENDING_INGESTION_STATUSES = [
-  "PENDIENTE",
-  "REINTENTANDO",
-];
+const PENDING_INGESTION_STATUSES = ["PENDIENTE", "REINTENTANDO"];
 
 const ACTIVE_INGESTION_STATUSES = [
   "DESCARGANDO",
@@ -52,109 +58,122 @@ const ACTIVE_INGESTION_STATUSES = [
   "CLASIFICANDO_CON_IA",
 ];
 
-const ACTIVE_PROCESSING_STATUSES = ["active", "running", "processing"];
-
-function isoOrNull(value: Date | null) {
+function isoOrNull(value: Date | null | undefined) {
   return value?.toISOString() || null;
 }
 
-function sourceState(source: {
+function configuredWorkerCount() {
+  const raw = process.env.WORKER_ACTIVE_INSTANCES;
+  if (raw === undefined || raw.trim() === "") return null;
+  const parsed = Number(raw);
+  return Number.isInteger(parsed) && parsed >= 0 ? parsed : null;
+}
+
+function staleAfterMs() {
+  const configured = Number(process.env.TELEMETRY_SOURCE_STALE_AFTER_HOURS || 48);
+  const hours = Number.isFinite(configured) && configured > 0 ? configured : 48;
+  return hours * 60 * 60 * 1000;
+}
+
+export function deriveTelemetrySourceState(source: {
   isActive: boolean;
   lastCheckedAt: Date | null;
   lastSuccessAt: Date | null;
   lastFailureAt: Date | null;
   lastErrorCategory: string | null;
-}): TelemetrySourceState {
-  if (!source.isActive) return "inactive";
-  if (!source.lastCheckedAt) return "never_checked";
+  latestFetchStatus?: string | null;
+  latestFetchAt?: Date | null;
+}, now = new Date()): TelemetrySourceState {
+  if (!source.isActive) return "disabled";
+  if (!source.lastCheckedAt && !source.latestFetchAt) return "never_checked";
 
-  const failedAfterSuccess = Boolean(
+  const latestFailed = source.latestFetchStatus === "failed" || Boolean(
     source.lastFailureAt &&
       (!source.lastSuccessAt || source.lastFailureAt > source.lastSuccessAt),
   );
-  if (failedAfterSuccess) return source.lastSuccessAt ? "degraded" : "failed";
+  if (latestFailed) return source.lastSuccessAt ? "degraded" : "failed";
   if (source.lastErrorCategory && !source.lastSuccessAt) return "failed";
-  if (source.lastErrorCategory && !source.lastFailureAt) return "degraded";
+  if (!source.lastSuccessAt) return "unknown";
+  if (now.getTime() - source.lastSuccessAt.getTime() > staleAfterMs()) return "degraded";
   return "healthy";
 }
 
 export async function collectTelemetry(options: { dashboardClients?: number } = {}): Promise<TelemetrySnapshot> {
-  const warnings: string[] = [];
-  const safe = async <T>(name: string, operation: () => Promise<T>, fallback: T): Promise<T> => {
-    try {
-      return await operation();
-    } catch {
-      warnings.push(name);
-      return fallback;
-    }
-  };
-
-  const [documentsProcessed, pending, active, completed, failed, deadLetter, activeWorkers, averageMs, sources] =
-    await Promise.all([
-      safe("documents", () => prisma.document.count(), 0),
-      safe(
-        "jobs.pending",
-        () => prisma.ingestionJob.count({ where: { status: { in: PENDING_INGESTION_STATUSES } } }),
-        0,
-      ),
-      safe("jobs.active", () => prisma.ingestionJob.count({ where: { status: { in: ACTIVE_INGESTION_STATUSES } } }), 0),
-      safe("jobs.completed", () => prisma.ingestionJob.count({ where: { status: "COMPLETADO" } }), 0),
-      safe("jobs.failed", () => prisma.ingestionJob.count({ where: { status: "FALLIDO" } }), 0),
-      safe(
-        "jobs.deadLetter",
-        () => prisma.ingestionJob.count({ where: { status: "EN_DEAD_LETTER_QUEUE" } }),
-        0,
-      ),
-      safe(
-        "workers.active",
-        () => prisma.processingJob.count({ where: { status: { in: ACTIVE_PROCESSING_STATUSES } } }),
-        0,
-      ),
-      safe(
-        "jobs.averageDuration",
-        async () => {
-          const rows = await prisma.ingestionJob.findMany({
-            where: { status: "COMPLETADO", startedAt: { not: null }, completedAt: { not: null } },
-            select: { startedAt: true, completedAt: true },
-            orderBy: { completedAt: "desc" },
-            take: 100,
-          });
-          if (rows.length === 0) return 0;
-          return (
-            rows.reduce((sum, row) => sum + (row.completedAt!.getTime() - row.startedAt!.getTime()), 0) /
-            rows.length
-          );
+  const [
+    documentsProcessed,
+    pending,
+    active,
+    completed,
+    failed,
+    deadLetter,
+    averageRows,
+    lastSuccessfulJob,
+    sources,
+  ] = await Promise.all([
+    prisma.document.count(),
+    prisma.ingestionJob.count({ where: { status: { in: PENDING_INGESTION_STATUSES } } }),
+    prisma.ingestionJob.count({ where: { status: { in: ACTIVE_INGESTION_STATUSES } } }),
+    prisma.ingestionJob.count({ where: { status: "COMPLETADO" } }),
+    prisma.ingestionJob.count({ where: { status: "FALLIDO" } }),
+    prisma.ingestionJob.count({ where: { status: "EN_DEAD_LETTER_QUEUE" } }),
+    prisma.ingestionJob.findMany({
+      where: { status: "COMPLETADO", startedAt: { not: null }, completedAt: { not: null } },
+      select: { startedAt: true, completedAt: true },
+      orderBy: { completedAt: "desc" },
+      take: 100,
+    }),
+    prisma.ingestionJob.findFirst({
+      where: { status: "COMPLETADO", completedAt: { not: null } },
+      select: { completedAt: true },
+      orderBy: { completedAt: "desc" },
+    }),
+    prisma.officialSource.findMany({
+      where: { isOfficial: true },
+      orderBy: { name: "asc" },
+      select: {
+        id: true,
+        name: true,
+        type: true,
+        isActive: true,
+        lastCheckedAt: true,
+        lastSuccessAt: true,
+        lastFailureAt: true,
+        lastErrorCategory: true,
+        fetchLogs: {
+          orderBy: { createdAt: "desc" },
+          take: 1,
+          select: {
+            status: true,
+            foundItems: true,
+            savedItems: true,
+            duplicateItems: true,
+            errorCategory: true,
+            durationMs: true,
+            createdAt: true,
+          },
         },
-        0,
-      ),
-      safe(
-        "sources",
-        () =>
-          prisma.officialSource.findMany({
-            where: { isOfficial: true },
-            orderBy: { name: "asc" },
-            select: {
-              id: true,
-              name: true,
-              type: true,
-              isActive: true,
-              lastCheckedAt: true,
-              lastSuccessAt: true,
-              lastFailureAt: true,
-              lastErrorCategory: true,
-            },
-          }),
-        [],
-      ),
-    ]);
+      },
+    }),
+  ]);
+
+  const averageMs = averageRows.length === 0
+    ? 0
+    : averageRows.reduce(
+      (sum, row) => sum + (row.completedAt!.getTime() - row.startedAt!.getTime()),
+      0,
+    ) / averageRows.length;
 
   return {
-    ok: warnings.length === 0,
-    status: warnings.length === 0 ? "ok" : "degraded",
+    ok: true,
+    status: "ok",
+    databaseAvailable: true,
     generatedAt: new Date().toISOString(),
     documentsProcessed,
     dashboardClients: Math.max(0, Math.trunc(options.dashboardClients || 0)),
-    activeWorkers,
+    // Un job activo no demuestra que exista un proceso worker. Sólo se informa
+    // una cifra cuando el runtime declara explícitamente sus instancias.
+    activeWorkers: configuredWorkerCount(),
+    lastSuccessfulIngestion: isoOrNull(lastSuccessfulJob?.completedAt),
     averageProcessingTimeSeconds: Math.round((averageMs / 1000) * 100) / 100,
     jobs: {
       total: pending + active + completed + failed + deadLetter,
@@ -164,16 +183,35 @@ export async function collectTelemetry(options: { dashboardClients?: number } = 
       failed,
       deadLetter,
     },
-    sources: sources.map((source) => ({
-      id: source.id,
-      name: source.name,
-      type: source.type,
-      state: sourceState(source),
-      lastCheckedAt: isoOrNull(source.lastCheckedAt),
-      lastSuccessAt: isoOrNull(source.lastSuccessAt),
-      lastFailureAt: isoOrNull(source.lastFailureAt),
-      errorCategory: source.lastErrorCategory,
-    })),
-    warnings,
+    sources: sources.map((source) => {
+      const latest = source.fetchLogs[0];
+      const documentsRejected = latest
+        ? Math.max(0, latest.foundItems - latest.savedItems - latest.duplicateItems)
+        : null;
+      return {
+        id: source.id,
+        name: source.name,
+        type: source.type,
+        state: deriveTelemetrySourceState({
+          ...source,
+          latestFetchStatus: latest?.status,
+          latestFetchAt: latest?.createdAt,
+        }),
+        lastAttemptAt: isoOrNull(latest?.createdAt || source.lastCheckedAt),
+        lastCheckedAt: isoOrNull(source.lastCheckedAt),
+        lastSuccessAt: isoOrNull(source.lastSuccessAt),
+        lastFailureAt: isoOrNull(source.lastFailureAt),
+        lastError: latest?.status === "failed"
+          ? latest.errorCategory || source.lastErrorCategory || "unknown"
+          : source.lastErrorCategory,
+        durationMs: latest?.durationMs ?? null,
+        documentsFound: latest?.foundItems ?? null,
+        documentsCreated: latest?.savedItems ?? null,
+        documentsRejected,
+        // El esquema actual no almacena un calendario verificable por fuente.
+        nextExecutionAt: null,
+      };
+    }),
+    warnings: [],
   };
 }

@@ -22,7 +22,24 @@ test("telemetría administrativa expone GET protegido y colector separado", () =
   assert.match(route, /collectTelemetry/);
   assert.match(telemetry, /dashboardClients/);
   assert.match(telemetry, /activeWorkers/);
+  assert.match(telemetry, /lastSuccessfulIngestion/);
+  assert.match(telemetry, /databaseAvailable/);
   assert.match(telemetry, /jobs\s*:/);
+});
+
+test("telemetría no presenta jobs de procesamiento como workers", () => {
+  const telemetry = read(telemetryPath);
+
+  assert.doesNotMatch(telemetry, /prisma\.processingJob\.count/);
+  assert.match(telemetry, /WORKER_ACTIVE_INSTANCES/);
+});
+
+test("una base de datos no disponible produce una respuesta 503 estable", () => {
+  const route = read(routePath);
+
+  assert.match(route, /database_unavailable/);
+  assert.match(route, /status:\s*503/);
+  assert.doesNotMatch(route, /error\.message/);
 });
 
 test("GET de telemetría delega la autorización al token administrativo", () => {
@@ -50,7 +67,11 @@ test("estado de fuentes distingue nunca revisada y degradada", () => {
   assert.match(telemetry, /never_checked/);
   assert.match(telemetry, /degraded/);
   assert.match(telemetry, /failed/);
+  assert.match(telemetry, /disabled/);
+  assert.match(telemetry, /unknown/);
   assert.match(telemetry, /lastCheckedAt/);
+  assert.match(telemetry, /documentsRejected/);
+  assert.match(telemetry, /durationMs/);
 });
 
 test("worker publica el snapshot con clientes dashboard y workers separados", () => {

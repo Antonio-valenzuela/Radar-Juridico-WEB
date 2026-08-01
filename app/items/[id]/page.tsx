@@ -220,24 +220,28 @@ export default async function ItemDetailPage({ params }: { params: Promise<{ id:
         ) : null}
 
         <section className="document-card">
-          <h2 className="document-section-title">Acciones</h2>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center" }}>
+          <h2 className="document-section-title">Acciones Principales</h2>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center", marginBottom: 12 }}>
             <a href={item.url} target="_blank" rel="noreferrer" className="btn-doc-primary">Abrir fuente oficial</a>
             <Link href={`/rag?item=${item.id}&q=${encodeURIComponent(itemTitle)}`} className="btn-doc-primary">Preguntar con RAG</Link>
-            <Link href={`/items/${item.id}/consultant`} className="btn-doc-secondary">Ver consultor</Link>
-            <Link href={`/items/${item.id}/diff`} className="btn-doc-secondary">Ver diff</Link>
-            
-            <AdminItemActionButton
-              itemId={item.id}
-              endpoint="/api/admin/reindex-document"
-              label="Reindexar"
-            />
-            <AdminItemActionButton
-              itemId={item.id}
-              endpoint="/api/admin/evaluate-alerts"
-              label="Evaluar alertas"
-            />
           </div>
+          <details style={{ marginTop: 12, borderTop: "1px solid var(--card-border)", paddingTop: 12 }}>
+            <summary style={{ cursor: "pointer", color: "var(--text-muted)", fontWeight: 600, fontSize: "0.9rem" }}>Más opciones</summary>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center", marginTop: 12 }}>
+              <Link href={`/items/${item.id}/consultant`} className="btn-doc-secondary">Ver consultor</Link>
+              <Link href={`/items/${item.id}/diff`} className="btn-doc-secondary">Ver diff</Link>
+              <AdminItemActionButton
+                itemId={item.id}
+                endpoint="/api/admin/reindex-document"
+                label="Reindexar"
+              />
+              <AdminItemActionButton
+                itemId={item.id}
+                endpoint="/api/admin/evaluate-alerts"
+                label="Evaluar alertas"
+              />
+            </div>
+          </details>
         </section>
       </div>
     </main>

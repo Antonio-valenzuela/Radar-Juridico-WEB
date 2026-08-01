@@ -11,6 +11,7 @@ import {
 } from "@/lib/ingest/sourceRunners";
 import {
   QUEUE_NAMES,
+  bulletinsQueue,
   connection as queueConnection,
   failedJobsQueue,
   ingestQueue,
@@ -21,6 +22,13 @@ import {
   runNormMonitor,
   shouldRetryNormMonitor,
 } from "@/worker/normMonitorWorker";
+import {
+  buildBulletinWorkerConfig,
+  processBulletinJob,
+  registerBulletinConsumer,
+  upsertBulletinScheduler,
+  type BulletinJobData,
+} from "@/worker/bulletinWorker";
 import { prisma } from "@/lib/prisma";
 import { assertRuntimeEnv } from "@/lib/config/env";
 import { checkDatabase, checkRedis } from "@/lib/health/checks";
@@ -36,7 +44,8 @@ let shuttingDown = false;
 
 function createTrackedWorker<T>(
   queueName: string,
-  processor: (job: Job) => Promise<T>
+  processor: (job: Job) => Promise<T>,
+  workerOptions?: Omit<import("bullmq").WorkerOptions, "connection">
 ) {
   const worker = new Worker(
     queueName,
@@ -71,7 +80,7 @@ function createTrackedWorker<T>(
         throw error;
       }
     },
-    { connection: workerConnection as any }
+    { connection: workerConnection as any, ...workerOptions }
   );
 
   worker.on("failed", (job, error) => {
@@ -81,6 +90,29 @@ function createTrackedWorker<T>(
   workers.push(worker);
   return worker;
 }
+
+const bulletinWorkerConfig = buildBulletinWorkerConfig();
+registerBulletinConsumer({
+  config: bulletinWorkerConfig,
+  processor: processBulletinJob,
+  createConsumer: (queueName, processor) => createTrackedWorker(
+    queueName,
+    (job) => processor(job as Job<BulletinJobData>),
+    {
+      settings: {
+        backoffStrategy: (attemptsMade: number, _type?: string, _err?: Error, job?: any) => {
+          const rawBackoff = job?.opts?.backoff;
+          const delay = typeof rawBackoff === 'object' && rawBackoff !== null && 'delay' in rawBackoff
+            ? Number((rawBackoff as any).delay) || 10000
+            : typeof rawBackoff === 'number'
+            ? rawBackoff
+            : 10000;
+          return Math.pow(2, attemptsMade) * delay + Math.random() * 500;
+        }
+      }
+    }
+  ),
+});
 
 createTrackedWorker(QUEUE_NAMES.ingest, async (job) => {
   const days = Number(job.data?.days || 7);
@@ -196,7 +228,7 @@ for (const signal of ["SIGTERM", "SIGINT"] as const) {
 }
 
 console.log("[worker] workers running");
-console.log("[worker] queues: ingest | pdf-processing | embeddings | notifications | norm-monitoring | failed-jobs");
+console.log("[worker] queues: ingest | pdf-processing | embeddings | notifications | norm-monitoring | bulletins | failed-jobs");
 
 void bootstrapWorker();
 
@@ -222,6 +254,7 @@ async function bootstrapWorker() {
       { pattern: "0 6 * * *", tz: "America/Mexico_City" },
       { name: "monitor-norms", data: { type: "norm-monitor" } }
     );
+    await upsertBulletinScheduler(bulletinsQueue, bulletinWorkerConfig);
 
     await runPriority1Ingest(1);
     const total = await prisma.item.count();

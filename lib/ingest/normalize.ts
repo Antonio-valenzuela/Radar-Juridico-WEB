@@ -103,6 +103,9 @@ export function normalizeRawItem(item: RawSourceItem): NormalizedItem {
   const title = cleanText(item.title);
   const summary = item.summary ? cleanText(item.summary).slice(0, 2000) : null;
   const canonicalUrl = canonicalizeUrl(item.canonicalUrl || item.url);
+  if (!(item.published instanceof Date) || Number.isNaN(item.published.getTime())) {
+    throw new Error('La fecha jurídica de publicación no está verificada.');
+  }
 
   return {
     source: item.source,

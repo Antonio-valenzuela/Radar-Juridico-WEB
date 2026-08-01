@@ -4,4 +4,4 @@ export function hasPendingMarkers(value: unknown): boolean {
   return /\[PENDIENTE:[^\]]+\]/i.test(value);
 }
 
-export const DRAFT_WARNING = 'BORRADOR – REQUIERE REVISIÓN PROFESIONAL';
+export const DRAFT_WARNING = 'BORRADOR — REQUIERE REVISIÓN PROFESIONAL';
