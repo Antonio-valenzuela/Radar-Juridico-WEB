@@ -5,16 +5,17 @@ import type { RawSourceItem } from "@/lib/sources/types";
 import { prisma as defaultPrisma } from "@/lib/prisma";
 import { classifyItem } from "@/lib/classifier";
 import { cleanText, canonicalizeUrl, parseMxDate } from "@/lib/ingest/normalize";
-import { DEFAULT_HEADERS } from "@/lib/sources/http";
-import { INGEST_FETCH_MS } from "@/lib/config/timeouts";
 import {
+  DEFAULT_HEADERS,
   fetchPinnedPublicHttpUrl,
   readResponseBodyWithLimit,
   validatePublicHttpUrl,
   validateRedirectTarget,
-} from "@/lib/security/urlValidation";
+} from "@/lib/sources/http";
+import { INGEST_FETCH_MS } from "@/lib/config/timeouts";
 import { indexDocumentVersion as defaultIndexDocumentVersion } from "@/lib/documents/indexDocument";
 import { extractDiputadosPdfItems } from "@/lib/sources/diputados";
+import { validateDomainForSource } from "@/lib/sources/domainValidation";
 
 type ManualMatter =
   | "fiscal"
@@ -541,6 +542,19 @@ export async function ingestManualUrl(
       ok: false,
       status: "failed",
       message: `URL final bloqueada: ${finalValidation.reason}`,
+      warnings,
+      timings,
+    };
+  }
+
+  const effectiveSource = input.sourceName?.trim() || "MANUAL";
+  const domainCheck = validateDomainForSource(effectiveSource, validation.url, finalValidation.url);
+  if (!domainCheck.ok) {
+    timings.extractMs = elapsed(startedAt);
+    return {
+      ok: false,
+      status: "failed",
+      message: `Discrepancia de dominio: ${domainCheck.reason}`,
       warnings,
       timings,
     };

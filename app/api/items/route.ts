@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/security/adminAuth";
+import { isPubliclySearchableQuality } from "@/lib/ingest/quality";
+
 
 export const dynamic = "force-dynamic";
 
@@ -32,12 +34,15 @@ export async function GET(req: Request) {
     const items = await prisma.item.findMany({
       where,
       orderBy: { published: "desc" },
-      take: 50,
+      take: 150,
     });
-    return NextResponse.json(items, {
+    
+    const validItems = items.filter(item => isPubliclySearchableQuality(item.raw)).slice(0, 50);
+
+    return NextResponse.json(validItems, {
       headers: {
         "X-Search-Latency-Ms": String(Date.now() - startedAt),
-        "X-Result-Count": String(items.length),
+        "X-Result-Count": String(validItems.length),
       },
     });
   } catch (err: unknown) {

@@ -96,6 +96,7 @@ async function fetchJsonSafe(res: Response): Promise<any> {
 
 export default function AdminSourcesPage() {
   const [token, setToken] = useState('');
+  const [showToken, setShowToken] = useState(false);
   const [sources, setSources] = useState<OfficialSource[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -357,12 +358,23 @@ export default function AdminSourcesPage() {
         
         <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', background: 'rgba(255,255,255,0.05)', padding: '0.75rem 1rem', borderRadius: '8px', border: '1px solid var(--card-border)' }}>
           <label style={{ fontWeight: 'bold', fontSize: '0.9rem' }}>Admin Token:</label>
-          <input 
-            type="password" 
-            value={token} 
-            onChange={(e) => handleTokenChange(e.target.value)} 
-            style={{ padding: '0.4rem 0.6rem', borderRadius: '4px', border: '1px solid var(--card-border)', background: '#0f172a', color: 'white', fontSize: '0.9rem', width: '160px' }}
-          />
+          <div style={{ display: 'flex', alignItems: 'center', background: '#0f172a', borderRadius: '4px', border: '1px solid var(--card-border)', width: '220px' }}>
+            <input 
+              type={showToken ? "text" : "password"} 
+              value={token} 
+              onChange={(e) => handleTokenChange(e.target.value)} 
+              style={{ flex: 1, padding: '0.4rem 0.5rem', border: 'none', background: 'transparent', color: 'white', fontSize: '0.9rem', minWidth: 0, outline: 'none' }}
+            />
+            <button 
+              type="button" 
+              onClick={() => setShowToken(!showToken)} 
+              style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', padding: '0 0.5rem', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+              aria-label={showToken ? "Ocultar token" : "Mostrar token"}
+              title={showToken ? "Ocultar token" : "Mostrar token"}
+            >
+              {showToken ? "👁️‍🗨️" : "👁️"}
+            </button>
+          </div>
           <button onClick={fetchSources} className="btn-primary" style={{ padding: '0.4rem 1rem', fontSize: '0.9rem', boxShadow: 'none' }} disabled={loading}>
             {loading ? 'Cargando...' : 'Cargar'}
           </button>
