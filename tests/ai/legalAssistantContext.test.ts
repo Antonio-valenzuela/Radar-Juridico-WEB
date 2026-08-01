@@ -1,11 +1,10 @@
-import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { POST as assistantHandler } from '@/app/api/ai/legal-assistant/route';
 import { POST as createDraftHandler, GET as listDraftsHandler } from '@/app/api/legal-drafts/route';
 import { GET as getDraftHandler } from '@/app/api/legal-drafts/[id]/route';
 import { NextRequest } from 'next/server';
-import { prisma } from '@/lib/prisma';
 
-// Mock prisma for unit tests
+// Mock prisma for unit tests with in-memory draft store and org membership
 vi.mock('@/lib/prisma', () => {
   const memoryDrafts: any[] = [];
   return {
@@ -39,6 +38,15 @@ vi.mock('@/lib/prisma', () => {
         }),
         findFirst: vi.fn().mockImplementation(async ({ where }) => {
           return memoryDrafts.find((d) => d.id === where?.id && d.organizationId === where?.organizationId) || null;
+        }),
+      },
+      orgUserRole: {
+        findFirst: vi.fn().mockImplementation(async () => {
+          return {
+            orgId: 'org-demo-legal',
+            userId: 'user-demo-legal',
+            role: 'ADMIN',
+          };
         }),
       },
     },
@@ -127,11 +135,14 @@ describe('Integración Contextual del Asistente Legal IA', () => {
     const res = await assistantHandler(req);
     const data = await res.json();
 
-    const startsWithBracket = data.answer.startsWith('{');
-    const endsWithBracket = data.answer.endsWith('}');
-    expect(startsWithBracket).toBe(false);
-    expect(endsWithBracket).toBe(false);
+    expect(res.status).toBe(200);
     expect(typeof data.answer).toBe('string');
+    const trimmed = data.answer.trim();
+    expect(trimmed.startsWith('{')).toBe(false);
+    expect(trimmed.endsWith('}')).toBe(false);
+    expect(trimmed.startsWith('```')).toBe(false);
+    expect(data.answer).not.toContain('"summary":');
+    expect(data.answer).not.toContain('"overallRisk":');
   });
 
   it('excluye SENADO_WEB y fuentes en cuarentena de las citas oficiales', async () => {
@@ -171,6 +182,7 @@ describe('Integración Contextual del Asistente Legal IA', () => {
     expect(createData.ok).toBe(true);
     const draftId = createData.draft.id;
 
+    // Fetch as same tenant
     const getReq = new NextRequest(`http://localhost/api/legal-drafts/${draftId}`, {
       method: 'GET',
     });
