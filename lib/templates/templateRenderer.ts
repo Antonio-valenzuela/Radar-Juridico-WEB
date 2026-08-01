@@ -196,15 +196,13 @@ export const renderToDocument = (
     doc.footer,
   ]);
 
-  if (pendingMetadata.length > 0 || documentHasPendingMarkers) {
-    doc.sections.unshift({
-      title: DRAFT_WARNING,
-      content: pendingMetadata.length > 0
-        ? pendingMetadata
-        : 'Este documento conserva campos jurídicos pendientes de validar.',
-      numbered: false,
-    });
-  }
+  doc.sections.unshift({
+    title: DRAFT_WARNING,
+    content: pendingMetadata.length > 0 || documentHasPendingMarkers
+      ? (pendingMetadata.length > 0 ? pendingMetadata : 'Este documento conserva campos jurídicos pendientes de validar.')
+      : 'Este documento fue generado a partir de una plantilla y debe ser revisado por un profesional del derecho antes de presentarse.',
+    numbered: false,
+  });
 
   return doc;
 };
