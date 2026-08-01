@@ -9,7 +9,7 @@ import { closeHealthServer, createHealthServer } from '@/lib/health/server';
 import { getExpectedAdminToken } from '@/lib/security/adminAuth';
 
 assertRuntimeEnv();
-const PORT = process.env.WEBSOCKET_PORT || 3002;
+const PORT = process.env.WEBSOCKET_PORT || process.env.PORT || 3002;
 const configuredMaxClients = Number(process.env.DASHBOARD_MAX_CLIENTS || 100);
 const DASHBOARD_MAX_CLIENTS = Number.isFinite(configuredMaxClients) && configuredMaxClients > 0
   ? Math.floor(configuredMaxClients)

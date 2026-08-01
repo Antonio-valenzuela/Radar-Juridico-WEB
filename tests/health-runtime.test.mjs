@@ -66,3 +66,15 @@ test("dashboard websocket has a configurable public URL", () => {
   assert.match(dockerfile, /ARG NEXT_PUBLIC_WEBSOCKET_URL/);
   assert.match(compose, /NEXT_PUBLIC_WEBSOCKET_URL/);
 });
+
+test("dashboard websocket usa PORT cuando Render no define WEBSOCKET_PORT", () => {
+  const worker = fs.readFileSync("worker/dashboardWorker.ts", "utf8");
+  assert.match(worker, /process\.env\.WEBSOCKET_PORT\s*\|\|\s*process\.env\.PORT/);
+});
+
+test("dashboard no intenta conectar al puerto privado 3002 en producción sin URL pública", () => {
+  const page = fs.readFileSync("app/admin/dashboard/page.tsx", "utf8");
+  assert.match(page, /Telemetría no configurada/i);
+  assert.doesNotMatch(page, /configuredWsUrl\s*\|\|\s*`\$\{protocol\}\/\/\$\{window\.location\.hostname\}:3002`/);
+  assert.match(page, /TOKEN ADMINISTRATIVO REQUERIDO/i);
+});

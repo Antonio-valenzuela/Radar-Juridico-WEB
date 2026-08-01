@@ -71,6 +71,20 @@ test("dashboard WebSocket authenticates clients, validates origin and caps conne
   assert.match(page, /auth\./);
 });
 
+test("acciones de enriquecimiento reutilizan el token administrativo de producción", () => {
+  const enrichButton = fs.readFileSync("app/components/EnrichButton.tsx", "utf8");
+  const searchPage = fs.readFileSync("app/search/page.tsx", "utf8");
+  const itemPage = fs.readFileSync("app/items/[id]/page.tsx", "utf8");
+
+  assert.match(enrichButton, /juridico_admin_token/);
+  assert.doesNotMatch(enrichButton, /localStorage\.getItem\(["']adminToken["']\)/);
+  assert.doesNotMatch(enrichButton, /\|\|\s*["']dev-admin-token["']/);
+  assert.match(searchPage, /juridico_admin_token/);
+  assert.doesNotMatch(searchPage, /localStorage\.getItem\(["']adminToken["']\)/);
+  assert.doesNotMatch(itemPage, /name=["']x-admin-token["']/);
+  assert.doesNotMatch(itemPage, /dev-admin-token/);
+});
+
 test("CI pins third-party actions and audits all locked dependencies", () => {
   const workflow = fs.readFileSync(".github/workflows/ci.yml", "utf8");
 

@@ -28,6 +28,7 @@ export default function DashboardPage() {
   const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
   const [history, setHistory] = useState<any[]>([]);
   const [connected, setConnected] = useState<boolean>(false);
+  const [connectionState, setConnectionState] = useState<'connecting' | 'connected' | 'disconnected' | 'unconfigured' | 'auth-required'>('connecting');
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
@@ -36,7 +37,14 @@ export default function DashboardPage() {
     const connectWebSocket = () => {
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
       const configuredWsUrl = process.env.NEXT_PUBLIC_WEBSOCKET_URL?.trim();
-      const wsUrl = configuredWsUrl || `${protocol}//${window.location.hostname}:3002`;
+      const isLocalHost = ['localhost', '127.0.0.1'].includes(window.location.hostname);
+      const wsUrl = configuredWsUrl || (isLocalHost ? `${protocol}//${window.location.hostname}:3002` : '');
+      if (!wsUrl) {
+        setConnectionState('unconfigured');
+        setConnected(false);
+        return;
+      }
+      setConnectionState('connecting');
       const token = localStorage.getItem('juridico_admin_token') ||
         (process.env.NODE_ENV === 'development' ? 'dev-admin-token' : '');
       console.log('Intentando conectar WebSocket a:', wsUrl);
@@ -44,6 +52,7 @@ export default function DashboardPage() {
       if (!token) {
         console.error('Falta el token administrativo para conectar el WebSocket');
         setConnected(false);
+        setConnectionState('auth-required');
         return;
       }
 
@@ -59,6 +68,7 @@ export default function DashboardPage() {
       ws.onopen = () => {
         console.log('Conectado al WebSocket de Telemetría');
         setConnected(true);
+        setConnectionState('connected');
         if (reconnectTimeoutRef.current) {
           clearTimeout(reconnectTimeoutRef.current);
           reconnectTimeoutRef.current = null;
@@ -98,6 +108,7 @@ export default function DashboardPage() {
       ws.onclose = () => {
         console.warn('Conexión WebSocket cerrada. Reintentando en 5s...');
         setConnected(false);
+        setConnectionState('disconnected');
         reconnectTimeoutRef.current = setTimeout(connectWebSocket, 5000);
       };
 
@@ -131,8 +142,8 @@ export default function DashboardPage() {
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 1rem', borderRadius: '30px', background: connected ? 'rgba(34, 197, 94, 0.1)' : 'rgba(239, 68, 68, 0.1)', border: connected ? '1px solid rgba(34, 197, 94, 0.2)' : '1px solid rgba(239, 68, 68, 0.2)' }}>
             <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: connected ? '#22c55e' : '#ef4444', display: 'inline-block', boxShadow: connected ? '0 0 8px #22c55e' : '0 0 8px #ef4444' }}></span>
-            <span style={{ fontSize: '12px', fontWeight: 600, color: connected ? '#22c55e' : '#ef4444' }}>
-              {connected ? 'WS CONECTADO' : 'WS DESCONECTADO (REINTENTANDO)'}
+            <span style={{ fontSize: '12px', fontWeight: 600, color: connected ? '#22c55e' : connectionState === 'unconfigured' || connectionState === 'auth-required' ? '#f59e0b' : '#ef4444' }}>
+              {connected ? 'WS CONECTADO' : connectionState === 'unconfigured' ? 'TELEMETRÍA NO CONFIGURADA' : connectionState === 'auth-required' ? 'TOKEN ADMINISTRATIVO REQUERIDO' : 'WS DESCONECTADO (REINTENTANDO)'}
             </span>
           </div>
         </div>
@@ -231,7 +242,13 @@ export default function DashboardPage() {
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '300px', background: 'rgba(255,255,255,0.02)', borderRadius: '12px', border: '1px dashed rgba(255,255,255,0.05)' }}>
             <div style={{ width: '40px', height: '40px', border: '3px solid rgba(168, 85, 247, 0.3)', borderTopColor: '#a855f7', borderRadius: '50%', animation: 'spin 1s linear infinite' }}></div>
-            <p style={{ marginTop: '1rem', color: '#94a3b8', fontSize: '0.9rem' }}>Esperando telemetría del servidor en puerto 3002...</p>
+            <p style={{ marginTop: '1rem', color: '#94a3b8', fontSize: '0.9rem' }}>
+              {connectionState === 'unconfigured'
+                ? 'Configura NEXT_PUBLIC_WEBSOCKET_URL con la URL pública del servicio de telemetría en Render.'
+                : connectionState === 'auth-required'
+                ? 'Guarda tu ADMIN_TOKEN en la sección de Fuentes o en el navegador para ver la telemetría.'
+                : 'Esperando telemetría del servidor...'}
+            </p>
             <style jsx>{`
               @keyframes spin {
                 to { transform: rotate(360deg); }

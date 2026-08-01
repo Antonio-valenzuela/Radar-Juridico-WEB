@@ -116,7 +116,7 @@ export default function SearchPage() {
 
     const intervalId = setInterval(async () => {
       try {
-        const token = typeof window !== 'undefined' ? (localStorage.getItem('adminToken') || 'dev-admin-token') : 'dev-admin-token';
+        const token = typeof window !== 'undefined' ? (localStorage.getItem('juridico_admin_token') || '') : '';
         const res = await fetch(`/api/legal-reports/${reportJobId}`, {
           headers: {
             'x-admin-token': token,
@@ -156,7 +156,7 @@ export default function SearchPage() {
     setReportError('');
     setReportResult(null);
 
-    let token = typeof window !== 'undefined' ? (localStorage.getItem('adminToken') || 'dev-admin-token') : 'dev-admin-token';
+    let token = typeof window !== 'undefined' ? (localStorage.getItem('juridico_admin_token') || '') : '';
 
     try {
       const res = await fetch('/api/legal-reports', {
@@ -194,7 +194,7 @@ export default function SearchPage() {
         if (res.status === 401) {
           const newToken = prompt('Ingresa el token de administrador:', token);
           if (newToken) {
-            localStorage.setItem('adminToken', newToken);
+            localStorage.setItem('juridico_admin_token', newToken);
             handleCreateReport();
             return;
           }
@@ -408,13 +408,13 @@ export default function SearchPage() {
   };
 
   const handleEnrich = async (itemId: string) => {
-    let token = typeof window !== 'undefined' ? (localStorage.getItem('adminToken') || 'dev-admin-token') : 'dev-admin-token';
+    let token = typeof window !== 'undefined' ? (localStorage.getItem('juridico_admin_token') || '') : '';
     const newToken = prompt('Ingresa el token de administrador:', token);
     if (newToken === null) return;
     if (newToken) {
       token = newToken;
       if (typeof window !== 'undefined') {
-        localStorage.setItem('adminToken', token);
+        localStorage.setItem('juridico_admin_token', token);
       }
     }
 

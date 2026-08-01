@@ -8,6 +8,7 @@ import type { AdvancedSearchInput } from '@/lib/search/searchParser';
 import { expandLegalSearch } from '@/lib/search/legalExpansion';
 import { searchOfficialSources } from '@/lib/search/officialFederatedSearch';
 import { expandLegalQuery } from '@/lib/search/expandLegalQuery';
+import { matchesMatter, normalizeMatterValues } from '@/lib/search/matter';
 
 
 export async function POST(req: Request) {
@@ -206,7 +207,7 @@ export async function POST(req: Request) {
         // 7d. Matter Filter
         if (body.matter) {
           const matVal = body.matter.toLowerCase();
-          const matchesTema = item.tema && item.tema.toLowerCase() === matVal;
+          const matchesTema = matchesMatter(item.tema, matVal);
           const matchesAi = ai.matter && ai.matter.toLowerCase() === matVal;
           if (!matchesTema && !matchesAi) {
             return false;
@@ -294,7 +295,7 @@ export async function POST(req: Request) {
         summary: item.summary,
         source: item.source,
         publishedAt: item.published ? new Date(item.published).toISOString() : null,
-        matter: item.tema,
+        matter: normalizeMatterValues(item.tema).join(', '),
         aiMatter: ai.matter || null,
         authority: ai.authority || null,
         impactLevel: ai.impactLevel || item.impacto || null,
