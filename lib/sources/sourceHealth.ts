@@ -7,6 +7,7 @@ export type SourceAdapter =
   | "DIPUTADOS"
   | "SCJN_LEG"
   | "SJF"
+  | "PERIODICO_OFICIAL_JALISCO"
   | "GENERIC_HTML";
 
 export type SourceHealthStatus =
@@ -112,6 +113,12 @@ const ADAPTER_PROFILES: Record<SourceAdapter, AdapterProfile> = {
     expectedStatus: [200, 403],
     requiresBrowser: true,
   },
+  PERIODICO_OFICIAL_JALISCO: {
+    healthUrl: "https://apiperiodico.jalisco.gob.mx/api/newspaper/public?fecha=&search=&page=1&perPage=1",
+    healthPath: "/api/newspaper/public?fecha=&search=&page=1&perPage=1",
+    expectedStatus: 200,
+    requiresBrowser: false,
+  },
   GENERIC_HTML: {
     healthPath: "/",
     expectedStatus: 200,
@@ -130,6 +137,9 @@ export function resolveSourceAdapter(source: Pick<SourceHealthInput, "adapter" |
     if (value === "DIPUTADOS") return "DIPUTADOS";
     if (value === "SCJN_LEG" || value === "SCJN" || value === "SCJN_LEGISLACION") return "SCJN_LEG";
     if (value === "SJF" || value === "SCJN_SJF") return "SJF";
+    if (value === "PERIODICO_OFICIAL_JALISCO" || value === "JALISCO_GAZETTE") {
+      return "PERIODICO_OFICIAL_JALISCO";
+    }
   }
 
   return "GENERIC_HTML";

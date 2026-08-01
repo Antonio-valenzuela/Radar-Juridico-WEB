@@ -12,7 +12,7 @@ export type DashboardItem = {
     createdAt: string;
     impacto: string | null;
     tipo: string | null;
-    tema: string | null;
+    tema: string[];
     category: string | null;
     keywordsHit: string | null;
     diff: {
@@ -34,43 +34,21 @@ export type DashboardResponse = {
     items?: DashboardItem[];
 };
 
-/**
- * Devuelve el inicio del día actual en zona CDMX como Date UTC.
- */
 function startOfDayCDMX(date = new Date()): Date {
-    const formatter = new Intl.DateTimeFormat("en-US", {
-        timeZone: "America/Mexico_City",
-        year: "numeric",
-        month: "2-digit",
-        day: "2-digit",
-    });
-    const parts = formatter.formatToParts(date);
-    const y = parts.find(p => p.type === "year")!.value;
-    const m = parts.find(p => p.type === "month")!.value;
-    const d = parts.find(p => p.type === "day")!.value;
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Mexico_City",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
 
-    const refDate = new Date(`${y}-${m}-${d}T12:00:00`);
-    const cdmxParts = new Intl.DateTimeFormat("en-US", {
-        timeZone: "America/Mexico_City",
-        hour: "2-digit",
-        minute: "2-digit",
-        hour12: false,
-    }).formatToParts(refDate);
-    const localHour = Number(cdmxParts.find(p => p.type === "hour")!.value);
-    const utcHour = refDate.getUTCHours();
+  const y = parts.find((p) => p.type === "year")?.value;
+  const m = parts.find((p) => p.type === "month")?.value;
+  const d = parts.find((p) => p.type === "day")?.value;
 
-    let offsetMinutes = (utcHour - localHour) * 60;
-    if (offsetMinutes < 0) offsetMinutes += 24 * 60;
-    if (offsetMinutes > 12 * 60) offsetMinutes -= 24 * 60;
-
-    const midnightUTC = new Date(`${y}-${m}-${d}T00:00:00.000Z`);
-    midnightUTC.setUTCMinutes(midnightUTC.getUTCMinutes() + offsetMinutes);
-    return midnightUTC;
+  return new Date(`${y}-${m}-${d}T00:00:00-06:00`);
 }
 
-/**
- * Función núcleo de datos para el dashboard, unificada.
- */
 export async function getDashboardData(params: {
     q?: string;
     source?: string;
@@ -98,7 +76,7 @@ export async function getDashboardData(params: {
         if (source) where.source = source;
         if (impacto) where.impacto = impacto;
         if (tipo) where.tipo = tipo;
-        if (tema) where.tema = tema;
+        if (tema) where.tema = { has: tema };
         if (!includeNoise) where.category = { not: "ruido" };
 
         if (q) {

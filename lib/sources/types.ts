@@ -3,6 +3,7 @@ export const SOURCE_NAMES = [
   "DIPUTADOS",
   "SCJN_SJF",
   "SCJN_LEG",
+  "PERIODICO_OFICIAL_JALISCO",
   "SENADO_GACETA",
 ] as const;
 

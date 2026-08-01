@@ -13,7 +13,7 @@ export async function POST(req: Request) {
     const limit = parseInt(searchParams.get("limit") || "200");
 
     const items = await prisma.item.findMany({
-      where: { tema: null },
+      where: { tema: { isEmpty: true } },
       take: limit,
       orderBy: { createdAt: "desc" },
     });
@@ -24,7 +24,7 @@ export async function POST(req: Request) {
       const { impacto, tipo, tema, keywordsHit } = classifyItem(item.title, item.summary || "");
 
       const dataToUpdate: Record<string, unknown> = {};
-      if (tema) dataToUpdate.tema = tema;
+      if (tema && tema.length > 0) dataToUpdate.tema = tema;
       if (!item.tipo || item.tipo === "NOTA") dataToUpdate.tipo = tipo;
       if (!item.impacto) dataToUpdate.impacto = impacto;
       dataToUpdate.keywordsHit = keywordsHit.length > 0 ? keywordsHit.join(",") : null;

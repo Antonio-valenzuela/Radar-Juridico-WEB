@@ -26,7 +26,7 @@ model Item {
   // Clasificación
   impacto     String? // "alto" | "medio" | "bajo"
   tipo        String? // "DECRETO" | "LEY" | "REGLAMENTO" | ...
-  tema        String? // "civil" | "penal" | "fiscal" | "laboral" | "administrativo" | "constitucional"
+  tema        String[] @default([]) // ["civil", "penal", "fiscal", ...]
   category    String? // "normativo" | "administrativo" | "ruido"
   keywordsHit String? // comma-separated keywords that triggered classification
 
@@ -41,7 +41,7 @@ model Item {
   @@index([source, published])
   @@index([source, sourceId])
   @@index([category, published])
-  @@index([impacto, tema, published]) // Nuevo índice para búsquedas rápidas
+  @@index([impacto, published])
 }
 
 model Norma {
@@ -157,6 +157,9 @@ model NormaDiff {
   toVersion          NormaVersion        @relation("DiffTo", fields: [toVersionId], references: [id], onDelete: Cascade)
   changedArticles    Json
   summaryBullets     Json
+  executiveSummary   String?
+  practicalImpact    String?
+  recommendedAction  String?
   createdAt          DateTime            @default(now())
   consultantInsights ConsultantInsight[]
 

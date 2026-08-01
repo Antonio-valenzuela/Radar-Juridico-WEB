@@ -27,7 +27,7 @@ async function main() {
       summary: "Publicacion demo de alto impacto para validar dashboard, busqueda y alertas.",
       impacto: "alto",
       tipo: "ACUERDO",
-      tema: "fiscal",
+      tema: ["fiscal"],
       category: "normativo",
     },
     create: {
@@ -41,7 +41,7 @@ async function main() {
       summary: "Publicacion demo de alto impacto para validar dashboard, busqueda y alertas.",
       impacto: "alto",
       tipo: "ACUERDO",
-      tema: "fiscal",
+      tema: ["fiscal"],
       category: "normativo",
       keywordsHit: "fiscal,SAT,contribuyentes",
       raw: { demo: true, source: "seed" },

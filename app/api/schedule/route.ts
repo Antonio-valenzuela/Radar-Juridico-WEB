@@ -10,8 +10,8 @@ const SCHEDULES = [
     pattern: "0 7 * * *",
     tz: "America/Mexico_City",
     jobName: "ingest-daily",
-    data: { days: 1 },
-    description: "Fuentes oficiales prioridad 1 - diario a las 7:00 AM CDMX",
+    data: { days: 1, includes: ["PERIODICO_OFICIAL_JALISCO"] },
+    description: "Fuentes oficiales prioridad 1, incluido Periódico Oficial de Jalisco - diario a las 7:00 AM CDMX",
   },
   {
     id: "schedule-ingest-weekly",

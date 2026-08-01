@@ -1,12 +1,12 @@
 export interface Classification {
   impacto: "alto" | "medio" | "bajo";
   tipo: string;
-  tema: string | null;
+  tema: string[];
   keywordsHit: string[];
 }
 
 function removeDiacritics(str: string): string {
-  return str.normalize("NFD").replace(/[̀-ͯ]/g, "");
+  return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 }
 
 export function classifyItem(title: string, summary?: string | null): Classification {
@@ -84,8 +84,11 @@ function detectType(text: string): string {
   return "NOTA";
 }
 
-function detectTema(text: string): { tema: string | null; hitTema: string[] } {
-  // Constitucional / Amparo (maxima prioridad)
+function detectTema(text: string): { tema: string[]; hitTema: string[] } {
+  const temas: string[] = [];
+  const hitTema: string[] = [];
+
+  // Constitucional / Amparo
   const constitucionalKw = [
     "REFORMA CONSTITUCIONAL",
     "ACCION DE INCONSTITUCIONALIDAD",
@@ -98,7 +101,10 @@ function detectTema(text: string): { tema: string | null; hitTema: string[] } {
     "GARANTIAS INDIVIDUALES",
   ];
   const constitucionalHit = constitucionalKw.filter((k) => text.includes(k));
-  if (constitucionalHit.length > 0) return { tema: "constitucional", hitTema: constitucionalHit };
+  if (constitucionalHit.length > 0) {
+    temas.push("constitucional");
+    hitTema.push(...constitucionalHit);
+  }
 
   // Penal
   const penalKw = [
@@ -124,32 +130,51 @@ function detectTema(text: string): { tema: string | null; hitTema: string[] } {
     "VINCULACION A PROCESO",
   ];
   const penalHit = penalKw.filter((k) => text.includes(k));
-  if (penalHit.length > 0) return { tema: "penal", hitTema: penalHit };
+  if (penalHit.length > 0) {
+    temas.push("penal");
+    hitTema.push(...penalHit);
+  }
 
-  // Civil / Familiar
-  const civilKw = [
-    "CIVIL",
-    "CODIGO CIVIL",
-    "FAMILIAR",
-    "MATRIMONIO",
+  // Familiar (Separado de Civil)
+  const familiarKw = [
     "DIVORCIO",
-    "CONCUBINATO",
     "ALIMENTOS",
     "PENSION ALIMENTICIA",
     "GUARDA Y CUSTODIA",
     "PATRIA POTESTAD",
     "ADOPCION",
+    "CONCUBINATO",
+    "MATRIMONIO",
     "SUCESION",
     "TESTAMENTO",
     "HERENCIA",
+    "FAMILIAR",
+    "VIOLENCIA FAMILIAR",
+  ];
+  const familiarHit = familiarKw.filter((k) => text.includes(k));
+  if (familiarHit.length > 0) {
+    temas.push("familiar");
+    hitTema.push(...familiarHit);
+  }
+
+  // Civil (solo lo civil no familiar)
+  const civilKw = [
+    "CIVIL",
+    "CODIGO CIVIL",
     "ARRENDAMIENTO",
     "HIPOTECA",
     "COMPRAVENTA",
     "RESPONSABILIDAD CIVIL",
     "REGISTRO CIVIL",
+    "PROPIEDAD CIVIL",
+    "POSESION",
+    "USUCAPION",
   ];
   const civilHit = civilKw.filter((k) => text.includes(k));
-  if (civilHit.length > 0) return { tema: "civil", hitTema: civilHit };
+  if (civilHit.length > 0) {
+    temas.push("civil");
+    hitTema.push(...civilHit);
+  }
 
   // Mercantil
   const mercantilKw = [
@@ -171,7 +196,10 @@ function detectTema(text: string): { tema: string | null; hitTema: string[] } {
     "CONTRATO MERCANTIL",
   ];
   const mercantilHit = mercantilKw.filter((k) => text.includes(k));
-  if (mercantilHit.length > 0) return { tema: "mercantil", hitTema: mercantilHit };
+  if (mercantilHit.length > 0) {
+    temas.push("mercantil");
+    hitTema.push(...mercantilHit);
+  }
 
   // Laboral
   const laboralKw = [
@@ -189,7 +217,10 @@ function detectTema(text: string): { tema: string | null; hitTema: string[] } {
     "STPS",
   ];
   const laboralHit = laboralKw.filter((k) => text.includes(k));
-  if (laboralHit.length > 0) return { tema: "laboral", hitTema: laboralHit };
+  if (laboralHit.length > 0) {
+    temas.push("laboral");
+    hitTema.push(...laboralHit);
+  }
 
   // Aduanal
   const aduanalKw = [
@@ -206,10 +237,13 @@ function detectTema(text: string): { tema: string | null; hitTema: string[] } {
     "DESPACHO ADUANERO",
     "ANAM",
     "SAT COMERCIO EXTERIOR",
-    "LEY ADUANERA"
+    "LEY ADUANERA",
   ];
   const aduanalHit = aduanalKw.filter((k) => text.includes(k));
-  if (aduanalHit.length > 0) return { tema: "aduanal", hitTema: aduanalHit };
+  if (aduanalHit.length > 0) {
+    temas.push("aduanal");
+    hitTema.push(...aduanalHit);
+  }
 
   // Fiscal
   const fiscalKw = [
@@ -229,7 +263,10 @@ function detectTema(text: string): { tema: string | null; hitTema: string[] } {
     "AUDITORIA FISCAL",
   ];
   const fiscalHit = fiscalKw.filter((k) => text.includes(k));
-  if (fiscalHit.length > 0) return { tema: "fiscal", hitTema: fiscalHit };
+  if (fiscalHit.length > 0) {
+    temas.push("fiscal");
+    hitTema.push(...fiscalHit);
+  }
 
   // Administrativo
   const adminKw = [
@@ -245,7 +282,14 @@ function detectTema(text: string): { tema: string | null; hitTema: string[] } {
     "FUNCION PUBLICA",
   ];
   const adminHit = adminKw.filter((k) => text.includes(k));
-  if (adminHit.length > 0) return { tema: "administrativo", hitTema: adminHit };
+  if (adminHit.length > 0) {
+    temas.push("administrativo");
+    hitTema.push(...adminHit);
+  }
 
-  return { tema: null, hitTema: [] };
+  if (temas.length === 0) {
+    return { tema: ["general"], hitTema: [] };
+  }
+
+  return { tema: temas, hitTema };
 }

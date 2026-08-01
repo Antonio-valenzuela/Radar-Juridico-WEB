@@ -93,7 +93,7 @@ export default async function ConsultantPage({ params }: { params: Promise<{ id:
             <Badge tone="success">{item.source}</Badge>
             {item.impacto ? <Badge tone={item.impacto === "alto" ? "danger" : item.impacto === "medio" ? "info" : "success"}>{item.impacto}</Badge> : null}
             {item.tipo ? <Badge tone="info">{item.tipo}</Badge> : null}
-            {item.tema ? <Badge>{item.tema}</Badge> : null}
+            {Array.isArray(item.tema) && item.tema.length > 0 ? <Badge>{item.tema.join(', ')}</Badge> : null}
           </div>
           <p style={{ fontSize: 18, lineHeight: 1.55, margin: 0, color: "var(--text-main)", fontWeight: 500 }}>{insight.executiveSummary}</p>
           <div style={{ marginTop: 16, color: "var(--text-muted)", fontSize: 13 }}>

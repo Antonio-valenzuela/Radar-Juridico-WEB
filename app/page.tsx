@@ -108,36 +108,6 @@ export default async function Home() {
   return (
     <>
       <div className="bg-gradient"></div>
-      
-      <header className="header">
-        <Link href="/" className="logo">
-          <div className="logo-icon"></div>
-          Jurídico Radar
-        </Link>
-        <input type="checkbox" id="menu-toggle" className="menu-toggle" />
-        <label htmlFor="menu-toggle" className="menu-icon">
-          <span></span>
-          <span></span>
-          <span></span>
-        </label>
-        <nav className="nav-menu">
-          <Link href="/">Dashboard</Link>
-          <Link href="/search">Búsqueda</Link>
-          <Link href="/documents">Documentos</Link>
-          <Link href="/monitoreo">Monitoreo</Link>
-          <Link href="/rag">IA Legal</Link>
-          <Link href="/watchlists">Alertas</Link>
-          
-          {process.env.NEXT_PUBLIC_ENABLE_PUBLIC_DEMO !== 'true' && process.env.ENABLE_PUBLIC_DEMO !== 'true' && (
-            <>
-              <Link href="/ai" style={{ borderLeft: '1px solid rgba(255,255,255,0.1)', paddingLeft: '0.75rem' }}>IA Sandbox</Link>
-              <Link href="/metrics">Métricas</Link>
-              <Link href="/admin/ingest/manual-url" style={{ border: '1px solid var(--accent)', padding: '0.2rem 0.5rem', borderRadius: '4px', color: 'var(--accent)', fontWeight: 'bold' }}>Agregar link jurídico</Link>
-              <Link href="/admin/sources" style={{ border: '1px dashed var(--secondary)', padding: '0.2rem 0.5rem', borderRadius: '4px', color: 'var(--secondary)' }}>Fuentes Admin</Link>
-            </>
-          )}
-        </nav>
-      </header>
 
       <main className="container">
         <section className="hero">

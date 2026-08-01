@@ -48,7 +48,7 @@ export async function GET(request: NextRequest) {
     documents: items.map((item) => ({
       title: item.title,
       summary: item.summary,
-      matter: item.tema,
+      matter: Array.isArray(item.tema) ? item.tema.join(", ") : item.tema ?? "",
       impactLevel: item.impacto,
       source: item.source,
       publishedAt: item.published,
