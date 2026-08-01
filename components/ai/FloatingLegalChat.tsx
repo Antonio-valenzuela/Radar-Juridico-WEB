@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useState, useEffect, useRef } from 'react';
 import { normalizeLegalDisplayText } from '@/lib/text/normalizeLegalDisplayText';
@@ -492,7 +492,7 @@ export default function FloatingLegalChat() {
                       <p className="font-semibold text-slate-600">Fuentes Oficiales Verificadas:</p>
                       {msg.citations.map((c, i) => (
                         <div key={i} className="flex items-center gap-1.5 text-blue-700 hover:underline">
-                          <span>📜 {c.title}</span>
+                          <span>📜 {normalizeLegalDisplayText(c.title)}</span>
                           <span className="text-slate-500">({c.fuente})</span>
                         </div>
                       ))}
