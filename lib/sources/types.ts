@@ -3,6 +3,7 @@ export const SOURCE_NAMES = [
   "DIPUTADOS",
   "SCJN_SJF",
   "SCJN_LEG",
+  "PERIODICO_OFICIAL_JALISCO",
   "SENADO_GACETA",
 ] as const;
 
@@ -29,7 +30,10 @@ export type RawSourceItem = {
   title: string;
   url: string;
   canonicalUrl?: string;
-  published: Date;
+  published: Date | null;
+  /** Distinguish source publication/reform dates from retrieval time. */
+  publicationDate?: Date | null;
+  lastReformDate?: Date | null;
   summary?: string | null;
   tipo?: string | null;
   tema?: string | null;
@@ -37,6 +41,9 @@ export type RawSourceItem = {
   keywordsHit?: string[];
   rawRef?: string | null;
   raw?: Record<string, unknown>;
+  /** Quality gate metadata; suspicious items are quarantined before persistence. */
+  qualityStatus?: "valid" | "suspicious";
+  qualityReasons?: string[];
 };
 
 export type SourceFetchResult = {

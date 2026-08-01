@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { getAdminToken, getAdminTokenHeaders, setAdminToken } from '@/lib/client/adminToken';
 
 export default function ManualIngestPage() {
   const [url, setUrl] = useState('');
@@ -10,7 +11,7 @@ export default function ManualIngestPage() {
   const [sourceOptional, setSourceOptional] = useState('');
   const [tagsInput, setTagsInput] = useState('');
   const [indexNow, setIndexNow] = useState(true);
-  const [token, setToken] = useState('dev-admin-token');
+  const [token, setToken] = useState('');
 
   const [loading, setLoading] = useState(false);
   const [progressStep, setProgressStep] = useState(0);
@@ -20,8 +21,7 @@ export default function ManualIngestPage() {
 
   // Load token and url param from query string if available
   useEffect(() => {
-    const saved = localStorage.getItem('juridico_admin_token');
-    if (saved) setToken(saved);
+    setToken(getAdminToken());
 
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
@@ -71,10 +71,7 @@ export default function ManualIngestPage() {
     try {
       const res = await fetch('/api/admin/ingest/manual-url', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-admin-token': token.trim(),
-        },
+        headers: getAdminTokenHeaders({ 'Content-Type': 'application/json' }, token),
         body: JSON.stringify({
           url: url.trim(),
           matter,
@@ -93,7 +90,7 @@ export default function ManualIngestPage() {
       }
 
       setResult(data);
-      localStorage.setItem('juridico_admin_token', token.trim());
+      setAdminToken(token);
     } catch (err: any) {
       setError(err.message || 'Error desconocido al procesar la URL.');
     } finally {

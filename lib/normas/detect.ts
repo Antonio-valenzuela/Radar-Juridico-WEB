@@ -18,6 +18,11 @@ const KNOWN_NORMAS: Array<{ sigla: string; nombre: string; patterns: RegExp[] }>
   { sigla: "LIVA", nombre: "Ley del Impuesto al Valor Agregado", patterns: [/ley del impuesto al valor agregado/i, /\bLIVA\b/i] },
   { sigla: "LGSM", nombre: "Ley General de Sociedades Mercantiles", patterns: [/ley general de sociedades mercantiles/i, /\bLGSM\b/i] },
   { sigla: "LA", nombre: "Ley de Amparo", patterns: [/ley de amparo/i] },
+  { sigla: "CPJAL", nombre: "Codigo Penal para el Estado Libre y Soberano de Jalisco", patterns: [/c[oó]digo penal para el estado libre y soberano de jalisco/i, /c[oó]digo penal del estado de jalisco/i, /\bCPJAL\b/i] },
+  { sigla: "CCJAL", nombre: "Codigo Civil del Estado de Jalisco", patterns: [/c[oó]digo civil del estado de jalisco/i, /\bCCJAL\b/i] },
+  { sigla: "CPF", nombre: "Codigo Penal Federal", patterns: [/c[oó]digo penal federal/i, /\bCPF\b/i] },
+  { sigla: "CCF", nombre: "Codigo Civil Federal", patterns: [/c[oó]digo civil federal/i, /\bCCF\b/i] },
+  { sigla: "CNPP", nombre: "Codigo Nacional de Procedimientos Penales", patterns: [/c[oó]digo nacional de procedimientos penales/i, /\bCNPP\b/i] },
 ];
 
 export async function detectOrCreateNorma(item: Item, extractedText?: string | null) {

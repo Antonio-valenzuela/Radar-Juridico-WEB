@@ -122,7 +122,15 @@ test("parser genera whereClause con tema para matter", () => {
     const parsed = parseAdvancedSearch({ matter: "fiscal" });
     console.log(JSON.stringify({ tema: parsed.whereClause.tema }));
   `);
-  assert.equal(result.tema, "fiscal");
+  assert.deepEqual(result.tema, { has: "fiscal" });
+});
+
+test("parser normaliza materia con mayúsculas y espacios antes de usar Prisma has", () => {
+  const result = runTs(`
+    import { parseAdvancedSearch } from "./lib/search/searchParser";
+    console.log(JSON.stringify(parseAdvancedSearch({ matter: "  CIVIL  " }).whereClause));
+  `);
+  assert.equal(result.tema.has, "civil");
 });
 
 test("parser genera whereClause con impacto para impactLevel", () => {
@@ -139,7 +147,7 @@ test("parser expande task a keywords y semanticQuery", () => {
     import { parseAdvancedSearch } from "./lib/search/searchParser";
     const parsed = parseAdvancedSearch({ task: "cumplimiento-fiscal" });
     console.log(JSON.stringify({
-      hasTema: parsed.whereClause.tema === "fiscal",
+      hasTema: parsed.whereClause.tema?.has === "fiscal",
       hasISR: parsed.expandedKeywords.includes("ISR"),
       semantic: parsed.semanticQuery
     }));
@@ -147,4 +155,30 @@ test("parser expande task a keywords y semanticQuery", () => {
   assert.ok(result.hasTema);
   assert.ok(result.hasISR);
   assert.ok(result.semantic.length > 0);
+});
+
+test("matcher de materias acepta el arreglo nuevo y el formato legado", () => {
+  const result = runTs(`
+    import { matchesMatter } from "./lib/search/matter";
+    console.log(JSON.stringify({
+      arrayMatch: matchesMatter(["civil", "familiar"], "civil"),
+      legacyMatch: matchesMatter("civil", "civil"),
+      mismatch: matchesMatter(["mercantil"], "civil")
+    }));
+  `);
+
+  assert.deepEqual(result, { arrayMatch: true, legacyMatch: true, mismatch: false });
+});
+
+test("facets contabiliza cada materia de un arreglo", () => {
+  const result = runTs(`
+    import { computeFacets } from "./lib/search/searchFilters";
+    const facets = computeFacets([
+      { item: { tema: ["civil", "familiar"], source: "DOF" } },
+      { item: { tema: ["civil"], source: "DOF" } }
+    ]);
+    console.log(JSON.stringify(facets.matters));
+  `);
+
+  assert.deepEqual(result, { civil: 2, familiar: 1 });
 });

@@ -8,6 +8,7 @@ import { validateUrlSafety, safeFetch } from "@/lib/security/urlValidation";
 import { cleanText, stripHtml } from "@/lib/ingest/normalize";
 import { resolveIngestPolicy } from "@/lib/sources/ingestPolicy";
 import { ingestDofWeb } from "@/lib/ingest/dofWeb";
+import { quarantineDocument } from "@/lib/ingest/quarantine";
 
 export type RunIngestOptions = {
   sources?: Array<SourceName | string>;
@@ -22,6 +23,7 @@ export type IngestSourceRunResult = {
   found: number;
   saved: number;
   duplicates: number;
+  quarantined?: number;
   errors: string[];
   warnings?: string[];
   checkpoint: string | null;
@@ -34,6 +36,7 @@ export type IngestAllResult = {
   found: number;
   saved: number;
   duplicates: number;
+  quarantined?: number;
   errors: number;
   results: IngestSourceRunResult[];
 };
@@ -178,6 +181,7 @@ export async function runSourceIngest(
   let found = 0;
   let saved = 0;
   let duplicates = 0;
+  let quarantined = 0;
   const errors: string[] = [];
   const sample: IngestSourceRunResult["sample"] = [];
 
@@ -336,6 +340,21 @@ export async function runSourceIngest(
     let newest = dbSource?.lastCheckedAt || null;
     for (const raw of fetched.items) {
       try {
+        const rawQualityStatus = raw.raw && typeof raw.raw === "object" && typeof raw.raw.qualityStatus === "string" ? raw.raw.qualityStatus : null;
+        if (raw.qualityStatus === "suspicious" || ["pending_review", "invalid", "quarantined"].includes(rawQualityStatus || "")) {
+          await quarantineDocument({
+            source: String(raw.source || source),
+            documentUrl: raw.url,
+            reason: "VALIDATION_FAILED",
+            category: String(raw.source || source).toUpperCase() === "DIPUTADOS"
+              ? "diputados_quality"
+              : "source_quality",
+            detail: (raw.qualityReasons || ["quality_status_suspicious"]).join(", "),
+            extractedText: raw.title,
+          });
+          quarantined++;
+          continue;
+        }
         const normalized = normalizeRawItem(raw);
         const result = await saveDedupedItem(normalized);
         if (result.created) {
@@ -378,9 +397,22 @@ export async function runSourceIngest(
       },
     });
 
+    // Determine a specific error category from the error messages
+    let errorCategory: string | null = null;
+    if (errors.length > 0) {
+      const combined = errors.join(' ').toLowerCase();
+      if (combined.includes('timeout')) errorCategory = 'timeout';
+      else if (combined.includes('html no coincide') || combined.includes('selector esperado')) errorCategory = 'html_structure_changed';
+      else if (combined.includes('http 4') || combined.includes('status 4')) errorCategory = 'http_4xx';
+      else if (combined.includes('http 5') || combined.includes('status 5')) errorCategory = 'http_5xx';
+      else if (combined.includes('tls') || combined.includes('certificado')) errorCategory = 'tls_error';
+      else if (combined.includes('conexión') || combined.includes('network') || combined.includes('dns')) errorCategory = 'network_error';
+      else errorCategory = 'fetch_error';
+    }
+
     await saveFetchLog(
       fetched.ok && errors.length === 0 ? "success" : "failed",
-      errors.length ? "fetch_error" : null
+      errorCategory
     );
 
     logSourceResult({ source: source as SourceName, found, saved, duplicates, errors });
@@ -391,12 +423,19 @@ export async function runSourceIngest(
       found: saved === 0 && duplicates > 0 ? 0 : found,
       saved,
       duplicates,
+      quarantined,
       errors,
       checkpoint: updatedCheckpoint.lastPublishedAt?.toISOString() || updatedCheckpoint.cursor,
       sample,
     };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
+    // Extract specific error category from enriched fetch errors
+    const errorCategory: string =
+      (error as any)?.errorCategory ||
+      (message.toLowerCase().includes('timeout') ? 'timeout' :
+       message.toLowerCase().includes('http') ? 'http_error' :
+       'runtime_error');
     errors.push(message);
     await prisma.ingestRun.update({
       where: { id: run.id },
@@ -410,9 +449,9 @@ export async function runSourceIngest(
         error: message,
       },
     });
-    await saveFetchLog("failed", "runtime_error");
+    await saveFetchLog("failed", errorCategory);
     logSourceResult({ source: source as SourceName, found, saved, duplicates, errors });
-    return { source, ok: false, found, saved, duplicates, errors, checkpoint: null, sample };
+    return { source, ok: false, found, saved, duplicates, quarantined, errors, checkpoint: null, sample };
   }
 }
 
@@ -432,6 +471,7 @@ export async function runIngest(opts: RunIngestOptions = {}): Promise<IngestAllR
     found: results.reduce((sum, r) => sum + r.found, 0),
     saved: results.reduce((sum, r) => sum + r.saved, 0),
     duplicates: results.reduce((sum, r) => sum + r.duplicates, 0),
+    quarantined: results.reduce((sum, r) => sum + (r.quarantined || 0), 0),
     errors: results.reduce((sum, r) => sum + r.errors.length, 0),
     results,
   };
@@ -477,7 +517,7 @@ export async function getIngestStatus() {
 export function serializeRawItems(items: RawSourceItem[]) {
   return items.map((item) => ({
     ...item,
-    published: item.published.toISOString(),
+    published: item.published?.toISOString() || null,
   }));
 }
 

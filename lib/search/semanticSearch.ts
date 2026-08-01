@@ -11,7 +11,8 @@ export type SemanticSearchResult = {
 
 export async function semanticSearch(
   query: string,
-  limit: number = 10
+  limit: number = 10,
+  options: { suppressErrors?: boolean } = {},
 ): Promise<SemanticSearchResult[]> {
   try {
     const { embedding } = await generateEmbedding(query);
@@ -36,6 +37,7 @@ export async function semanticSearch(
     return results;
   } catch (error) {
     console.error('Error in semantic search:', error);
+    if (options.suppressErrors === false) throw error;
     // Return empty results if there's an issue (e.g. extension not available yet or no keys)
     return [];
   }

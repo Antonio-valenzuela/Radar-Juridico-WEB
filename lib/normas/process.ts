@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { extractTextFromUrl, hashText } from "@/lib/normas/text";
 import { detectOrCreateNorma } from "@/lib/normas/detect";
 import { diffLegalTexts } from "@/lib/normas/diff";
+import { generateNormaDiffSummary } from "@/lib/ai/diffSummary";
 
 const LEGAL_TYPES = new Set(["LEY", "CODIGO", "REGLAMENTO", "DECRETO"]);
 
@@ -60,6 +61,11 @@ export async function processItemNormaDiff(itemId: string) {
       summaryBullets: diff.summaryBullets as unknown as Prisma.InputJsonValue,
     },
   });
+
+  // Automatically generate 3-section AI summary for the new/updated diff
+  await generateNormaDiffSummary(savedDiff.id).catch((err) =>
+    console.error(`[processItemNormaDiff] Auto-summary error for diff ${savedDiff.id}:`, err)
+  );
 
   return {
     ok: true,

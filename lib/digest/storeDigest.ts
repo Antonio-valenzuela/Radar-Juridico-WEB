@@ -39,7 +39,7 @@ export async function createWeeklyDigest(days: number = 7) {
     id: item.id,
     title: item.title,
     source: item.source,
-    matter: item.tema || undefined,
+    matter: Array.isArray(item.tema) && item.tema.length > 0 ? item.tema.join(", ") : undefined,
     impactLevel: item.impacto || undefined
   }));
 

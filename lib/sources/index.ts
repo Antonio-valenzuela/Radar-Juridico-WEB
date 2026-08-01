@@ -3,12 +3,14 @@ import { sidofSource } from "@/lib/sources/sidof";
 import { diputadosSource } from "@/lib/sources/diputados";
 import { scjnSjfSource } from "@/lib/sources/scjn_sjf";
 import { scjnLegislacionSource } from "@/lib/sources/scjn_legislacion";
+import { jaliscoOfficialSource } from "@/lib/ingest/jaliscoOficial";
 
 export const sourceRegistry: Record<SourceName, SourceModule> = {
   SIDOF: sidofSource,
   DIPUTADOS: diputadosSource,
   SCJN_SJF: scjnSjfSource,
   SCJN_LEG: scjnLegislacionSource,
+  PERIODICO_OFICIAL_JALISCO: jaliscoOfficialSource,
   SENADO_GACETA: {
     name: "SENADO_GACETA",
     priority: 2,

@@ -109,7 +109,7 @@ export async function ingestScjnComunicados(startId: number, count = 30): Promis
             });
 
             saved++;
-            if (sample.length < 5) sample.push({ id: String(id), title, url, tema });
+            if (sample.length < 5) sample.push({ id: String(id), title, url, tema: Array.isArray(tema) ? tema.join(", ") : tema });
 
         } catch (e) {
             console.error(`Error ingesta SCJN id=${id}`, e);

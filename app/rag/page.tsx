@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { normalizeLegalDisplayText } from '@/lib/text/normalizeLegalDisplayText';
+import { getAdminToken, getAdminTokenHeaders, setAdminToken } from '@/lib/client/adminToken';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -170,7 +171,7 @@ export default function RadarLegalPage() {
   const [dateFrom, setDateFrom]     = useState(defaults.start);
   const [dateTo, setDateTo]         = useState(defaults.end);
   const [forceExternal, setForceExternal] = useState(false);
-  const [token, setToken]           = useState('dev-admin-token');
+  const [token, setToken]           = useState('');
 
   // UI state
   const [weeklyLoading, setWeeklyLoading] = useState(false); // for auto-load
@@ -199,14 +200,13 @@ export default function RadarLegalPage() {
 
   // ── Load token from localStorage ────────────────────────────────────────────
   useEffect(() => {
-    const saved = localStorage.getItem('juridico_admin_token');
-    if (saved) setToken(saved);
+    setToken(getAdminToken());
   }, []);
 
   // ── Load AI provider config ─────────────────────────────────────────────────
   useEffect(() => {
     if (!token.trim()) return;
-    fetch('/api/legal/radar', { headers: { 'x-admin-token': token.trim() } })
+    fetch('/api/legal/radar', { headers: getAdminTokenHeaders({}, token) })
       .then(r => r.ok ? r.json() : null)
       .then(data => {
         if (data?.ok) {
@@ -286,7 +286,7 @@ export default function RadarLegalPage() {
 
   const handleTokenChange = (v: string) => {
     setToken(v);
-    localStorage.setItem('juridico_admin_token', v);
+    setAdminToken(v);
   };
 
   const executeSearch = async (kwVal: string, matVal: string) => {
@@ -326,10 +326,7 @@ export default function RadarLegalPage() {
     try {
       const res = await fetch('/api/legal/radar', {
         method:  'POST',
-        headers: {
-          'Content-Type':  'application/json',
-          'x-admin-token': token.trim() || 'dev-admin-token',
-        },
+        headers: getAdminTokenHeaders({ 'Content-Type': 'application/json' }, token),
         body: JSON.stringify({
           query:        kwVal.trim() || 'resumen semanal',
           matter:       matVal   || undefined,
@@ -344,7 +341,7 @@ export default function RadarLegalPage() {
       clearTimeout(clientTimeoutId);
 
       if (!res.ok) {
-        if (res.status === 401) throw new Error('Token inválido. Usa dev-admin-token en local.');
+        if (res.status === 401) throw new Error('Token inválido. Ingresa el ADMIN_TOKEN configurado.');
         const data = await res.json().catch(() => null);
         throw new Error(data?.message ?? data?.error ?? `Error ${res.status}`);
       }

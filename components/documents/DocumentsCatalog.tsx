@@ -10,7 +10,7 @@ interface Item {
   published: Date | null;
   source: string;
   tipo: string | null;
-  tema: string | null;
+  tema: string[];
   impacto: string | null;
   summary: string | null;
   createdAt: Date;
@@ -32,7 +32,7 @@ export default function DocumentsCatalog({ initialItems }: { initialItems: Item[
   const filtered = items.filter(item => {
     const matchesSearch = item.title.toLowerCase().includes(search.toLowerCase()) || 
                           (item.summary || '').toLowerCase().includes(search.toLowerCase());
-    const matchesMatter = !matterFilter || item.tema === matterFilter;
+    const matchesMatter = !matterFilter || (Array.isArray(item.tema) && item.tema.includes(matterFilter));
     const matchesSource = !sourceFilter || item.source === sourceFilter;
     const matchesType = !typeFilter || item.tipo === typeFilter;
     
@@ -159,7 +159,7 @@ export default function DocumentsCatalog({ initialItems }: { initialItems: Item[
                 {/* Metadata Row */}
                 <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap', fontSize: '0.8rem', color: 'var(--text-muted)', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '0.75rem', marginTop: '0.25rem' }}>
                   <span>🏛️ <strong>Fuente:</strong> {item.source}</span>
-                  <span>📚 <strong>Materia:</strong> {item.tema || 'General'}</span>
+                  <span>📚 <strong>Materia:</strong> {Array.isArray(item.tema) && item.tema.length > 0 ? item.tema.join(', ') : 'General'}</span>
                   <span>📄 <strong>Tipo:</strong> {item.tipo || 'Documento'}</span>
                   <span>📅 <strong>Fecha de carga:</strong> {new Date(item.createdAt).toLocaleDateString('es-MX')}</span>
                   <span>🔄 <strong>Estado indexación:</strong> Indexado</span>

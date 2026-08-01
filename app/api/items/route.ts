@@ -20,7 +20,7 @@ export async function GET(req: Request) {
     if (source) where.source = source;
     if (impacto) where.impacto = impacto;
     if (tipo) where.tipo = tipo;
-    if (tema) where.tema = tema;
+    if (tema) where.tema = { has: tema };
     if (!includeNoise) where.category = { not: "ruido" };
     if (q) {
       where.OR = [

@@ -24,7 +24,16 @@ export function classifyNormalizedItem(item: NormalizedItem) {
   const text = `${item.title} ${item.summary || ""}`;
   const category = detectCategory(text);
   const tipo = normalizeTipo(item.tipo || detected.tipo, item.title);
-  const tema = normalizeTema(item.tema || detectTema(`${item.title} ${item.summary || ""}`) || detected.tema);
+
+  let tema: string[] = [];
+  if (Array.isArray(item.tema)) {
+    tema = item.tema;
+  } else if (typeof item.tema === "string" && item.tema) {
+    tema = [item.tema];
+  } else if (Array.isArray(detected.tema)) {
+    tema = detected.tema;
+  }
+
   const impacto = category === "ruido"
     ? "bajo"
     : category === "normativo"

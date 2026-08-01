@@ -5,7 +5,12 @@ import { spawnSync } from "node:child_process";
 function runTs(code) {
   const result = spawnSync(process.execPath, ["node_modules/tsx/dist/cli.mjs", "--eval", code], {
     encoding: "utf8",
-    env: { ...process.env, LLM_PROVIDER: "local", NODE_ENV: "test" },
+    env: {
+      ...process.env,
+      LLM_PROVIDER: "local",
+      NODE_ENV: "test",
+      ALLOW_DEV_ADMIN_TOKEN: "true",
+    },
     timeout: 30000
   });
 
@@ -47,7 +52,7 @@ test("Admin crea fuente válida y se rechaza sin token", () => {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-admin-token": "dev-admin-token"
+          "x-admin-token": process.env.ADMIN_TOKEN || "dev-admin-token"
         },
         body: JSON.stringify({
           name: "Test Source Admin Valid",
@@ -157,7 +162,7 @@ test("DELETE lógico desactiva la fuente oficial", () => {
 
       const req = new Request("http://localhost/api/admin/sources/" + testSource.id, {
         method: "DELETE",
-        headers: { "x-admin-token": "dev-admin-token" }
+        headers: { "x-admin-token": process.env.ADMIN_TOKEN || "dev-admin-token" }
       });
       const response = await DELETE(req, { params: Promise.resolve({ id: testSource.id }) });
       const data = await response.json();
@@ -206,7 +211,7 @@ test("Test connection no persiste documentos en la base de datos", () => {
       
       const req = new Request("http://localhost/api/admin/sources/" + testSource.id + "/test", {
         method: "POST",
-        headers: { "x-admin-token": "dev-admin-token" }
+        headers: { "x-admin-token": process.env.ADMIN_TOKEN || "dev-admin-token" }
       });
       
       await POST(req, { params: Promise.resolve({ id: testSource.id }) });
@@ -253,7 +258,7 @@ test("Ingesta manual requiere admin y registra fetch log", () => {
       // 2. Con token (Como example.com/ingest fallará o retornará mock, debería registrar logs de sincronización)
       const reqToken = new Request("http://localhost/api/admin/sources/" + testSource.id + "/ingest", {
         method: "POST",
-        headers: { "x-admin-token": "dev-admin-token" }
+        headers: { "x-admin-token": process.env.ADMIN_TOKEN || "dev-admin-token" }
       });
       await POST(reqToken, { params: Promise.resolve({ id: testSource.id }) });
 
@@ -319,7 +324,7 @@ test("Búsqueda local suficiente no llama búsqueda externa", () => {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-admin-token": "dev-admin-token"
+          "x-admin-token": process.env.ADMIN_TOKEN || "dev-admin-token"
         },
         body: JSON.stringify({
           query: "Suficiencia de búsqueda local y RAG seguro",
@@ -394,7 +399,7 @@ test("RAG responde mensaje controlado ante falta de evidencia", () => {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-admin-token": "dev-admin-token"
+          "x-admin-token": process.env.ADMIN_TOKEN || "dev-admin-token"
         },
         body: JSON.stringify({
           query: "termino-inexistente-sin-evidencia-" + Date.now(),
@@ -465,7 +470,7 @@ test("Test connection devuelve JSON estructurado ante source inexistente", () =>
     (async () => {
       const req = new Request("http://localhost/api/admin/sources/nonexistent-id/test", {
         method: "POST",
-        headers: { "x-admin-token": "dev-admin-token" }
+        headers: { "x-admin-token": process.env.ADMIN_TOKEN || "dev-admin-token" }
       });
       const response = await POST(req, { params: Promise.resolve({ id: "nonexistent-id" }) });
       const contentType = response.headers.get("content-type") || "";
@@ -495,7 +500,7 @@ test("Test connection endpoint estático devuelve JSON ante source inexistente",
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-admin-token": "dev-admin-token"
+          "x-admin-token": process.env.ADMIN_TOKEN || "dev-admin-token"
         },
         body: JSON.stringify({ id: "nonexistent-id" })
       });
@@ -537,7 +542,7 @@ test("Ingesta manual_url sin URL específica devuelve MANUAL_URL_REQUIRED", () =
 
       const req = new Request("http://localhost/api/admin/sources/" + testSource.id + "/ingest", {
         method: "POST",
-        headers: { "x-admin-token": "dev-admin-token" }
+        headers: { "x-admin-token": process.env.ADMIN_TOKEN || "dev-admin-token" }
       });
       const response = await POST(req, { params: Promise.resolve({ id: testSource.id }) });
       const data = await response.json();
@@ -568,7 +573,7 @@ test("Ingesta endpoint estático devuelve JSON ante source inexistente", () => {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-admin-token": "dev-admin-token"
+          "x-admin-token": process.env.ADMIN_TOKEN || "dev-admin-token"
         },
         body: JSON.stringify({ id: "nonexistent-id" })
       });

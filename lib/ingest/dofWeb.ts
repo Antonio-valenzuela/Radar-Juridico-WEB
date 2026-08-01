@@ -44,20 +44,28 @@ export async function ingestDofWeb(dateStr?: string): Promise<IngestResult> {
 
   const html = await res.text();
 
-  // 2. Extract note links: nota_detalle.php?codigo=XXXXX&fecha=DD/MM/YYYY
-  const linkRegex = /nota_detalle\.php\?codigo=(\d+)&fecha=([0-9/]+)/g;
-  const matches = [...html.matchAll(linkRegex)];
-
-  if (matches.length === 0) {
-    return { ok: true, date: targetDate, found: 0, saved: 0, quarantined: 0, sample: [] };
-  }
-
+  // 2. Extract note links using cheerio instead of fragile regex
+  const $ = cheerio.load(html);
   const uniqueLinks = new Map<string, string>();
-  for (const m of matches) {
-    const codigo = m[1];
-    const fecha = m[2];
-    const fullUrl = `${DOF_BASE}/nota_detalle.php?codigo=${codigo}&fecha=${fecha}`;
-    uniqueLinks.set(codigo, fullUrl);
+
+  $('a[href*="nota_detalle.php?codigo="]').each((_, el) => {
+    const href = $(el).attr('href') || '';
+    const match = href.match(/nota_detalle\.php\?codigo=(\d+)&fecha=([0-9/]+)/);
+    if (match) {
+      const codigo = match[1];
+      const fecha = match[2];
+      const fullUrl = `${DOF_BASE}/nota_detalle.php?codigo=${codigo}&fecha=${fecha}`;
+      uniqueLinks.set(codigo, fullUrl);
+    }
+  });
+
+  if (uniqueLinks.size === 0) {
+    // Check if the page loaded but had no note links (vs unexpected HTML structure)
+    const hasExpectedStructure = $('body').text().length > 200;
+    if (!hasExpectedStructure) {
+      console.warn(`[dofWeb] El HTML del índice DOF no coincide con la estructura esperada (${html.length} bytes). Posible cambio de diseño.`);
+    }
+    return { ok: true, date: targetDate, found: 0, saved: 0, quarantined: 0, sample: [] };
   }
 
   let saved = 0;
@@ -126,7 +134,7 @@ export async function ingestDofWeb(dateStr?: string): Promise<IngestResult> {
       });
 
       saved++;
-      if (sample.length < 5) sample.push({ title, url, tema });
+      if (sample.length < 5) sample.push({ title, url, tema: Array.isArray(tema) ? tema.join(", ") : tema });
     } catch (e) {
       console.error(`Error scraping DOF web ${url}`, e);
     }

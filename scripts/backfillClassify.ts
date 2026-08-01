@@ -4,15 +4,15 @@ import { classifyItem } from "../lib/classifier";
 const prisma = new PrismaClient();
 
 async function main() {
-  console.log("Buscando items sin clasificar...");
+  console.log("Iniciando reclasificación masiva de todos los Items existentes en la BD...");
 
   const items = await prisma.item.findMany({
-    where: { impacto: null },
+    select: { id: true, title: true, summary: true, tema: true },
   });
 
-  console.log(`Encontrados ${items.length} items para clasificar`);
+  console.log(`Se encontraron ${items.length} items para procesar con la nueva lógica multi-tema.`);
 
-  let processed = 0;
+  let updatedCount = 0;
 
   for (const item of items) {
     const { impacto, tipo, tema, keywordsHit } = classifyItem(item.title, item.summary ?? "");
@@ -27,18 +27,18 @@ async function main() {
       },
     });
 
-    processed++;
-    if (processed % 10 === 0) {
-      console.log(`Procesados ${processed}/${items.length}`);
+    updatedCount++;
+    if (updatedCount % 25 === 0 || updatedCount === items.length) {
+      console.log(`[Reclasificación] Procesados ${updatedCount}/${items.length} items`);
     }
   }
 
-  console.log(`Backfill completado: ${processed} items clasificados`);
+  console.log(`✅ Reclasificación masiva completada exitosamente. Total items actualizados: ${updatedCount}`);
 }
 
 main()
   .catch((e) => {
-    console.error("Error:", e);
+    console.error("Error durante la reclasificación:", e);
     process.exit(1);
   })
   .finally(() => prisma.$disconnect());

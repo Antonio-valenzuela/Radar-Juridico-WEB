@@ -250,10 +250,11 @@ async function performSearch(
   );
 
   const weeklyChanges = weeklyDiffs.map((diff: {
+    createdAt: Date;
     toVersion: {
       sourceItem?: { title?: string } | null;
       norma: { nombre: string };
-      publishedAt: Date;
+      publishedAt: Date | null;
     };
     changedArticles?: unknown;
     summaryBullets?: unknown;
@@ -278,7 +279,7 @@ async function performSearch(
     return {
       title,
       changeType: "modificación",
-      changedAt:  diff.toVersion.publishedAt.toISOString(),
+      changedAt: (diff.toVersion.publishedAt ?? diff.createdAt).toISOString(),
       affectedSections,
       summary,
     };

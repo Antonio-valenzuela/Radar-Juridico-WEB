@@ -7,6 +7,14 @@ const INDEX_URL = "https://www.diputados.gob.mx/LeyesBiblio/index.htm";
 const BASE_URL = "https://www.diputados.gob.mx/LeyesBiblio/";
 const DEFAULT_LIMIT = 20;
 
+export type DiputadosQualityStatus = "valid" | "suspicious";
+
+export type DiputadosTitleAssessment = {
+  status: DiputadosQualityStatus;
+  reasons: string[];
+  matter: string | null;
+};
+
 const KNOWN_TITLES: Record<string, string> = {
   "CPEUM.pdf": "Constitución Política de los Estados Unidos Mexicanos",
   "LFT.pdf": "Ley Federal del Trabajo",
@@ -16,10 +24,28 @@ const KNOWN_TITLES: Record<string, string> = {
   "CPF.pdf": "Código Penal Federal",
   "CC.pdf": "Código Civil Federal",
   "CCF.pdf": "Código Civil Federal",
+  "CCom.pdf": "Código de Comercio",
+  "CJM.pdf": "Código de Justicia Militar",
+  "CFPC.pdf": "Código Federal de Procedimientos Civiles",
+  "CMPP.pdf": "Código Federal de Procedimientos Penales",
+  "CNPCF.pdf": "Código Nacional de Procedimientos Civiles y Familiares",
+  "CNPP.pdf": "Código Nacional de Procedimientos Penales",
   "LGSM.pdf": "Ley General de Sociedades Mercantiles",
   "LGS.pdf": "Ley General de Salud",
   "LA.pdf": "Ley de Amparo",
+  "LAdua.pdf": "Ley Aduanera",
+  "LAgra.pdf": "Ley Agraria",
+  "LAASSP.pdf": "Ley de Adquisiciones, Arrendamientos y Servicios del Sector Público",
+  "LAero.pdf": "Ley de Aeropuertos",
+  "LAN.pdf": "Ley de Aguas Nacionales",
+  "LACP.pdf": "Ley de Ahorro y Crédito Popular",
+  "LAmn.pdf": "Ley de Amnistía",
 };
+
+function knownTitleFor(fileName: string) {
+  const key = Object.keys(KNOWN_TITLES).find((candidate) => candidate.toLowerCase() === fileName.toLowerCase());
+  return key ? KNOWN_TITLES[key] : undefined;
+}
 
 function absoluteUrl(href: string) {
   return new URL(href.replace(/^\.\//, ""), BASE_URL).toString();
@@ -33,14 +59,15 @@ function titleFromPdf(fileName: string, linkText: string) {
   if (linkText && linkText.length > 5 && !/^(pdf|texto|ver|descargar)$/i.test(linkText)) {
     return linkText;
   }
-  if (KNOWN_TITLES[fileName]) return KNOWN_TITLES[fileName];
+  const knownTitle = knownTitleFor(fileName);
+  if (knownTitle) return knownTitle;
   return fileName
     .replace(/\.pdf$/i, "")
     .replace(/[_-]+/g, " ")
     .replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-function matterFromPdf(fileName: string, title: string) {
+function matterFromPdf(fileName: string, title: string): string | null {
   const text = `${fileName} ${title}`.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
   if (/CPEUM|CONSTITUCION|AMPARO/.test(text) || /^LA\.PDF$/i.test(fileName)) return "constitucional";
   if (/LFT|TRABAJO|LABORAL/.test(text)) return "laboral";
@@ -49,8 +76,104 @@ function matterFromPdf(fileName: string, title: string) {
   if (/CPF|PENAL/.test(text)) return "penal";
   if (/\bCCF\b|\bCC\b|CIVIL/.test(text)) return "civil";
   if (/LGS|SALUD/.test(text)) return "salud";
-  if (/LGSM|MERCANTIL|SOCIEDADES/.test(text)) return "mercantil";
-  return "administrativo";
+  if (/LGSM|MERCANTIL|SOCIEDADES|\bCOMERCIO\b/.test(text)) return "mercantil";
+  return null;
+}
+
+const LEGAL_TITLE_MARKERS = [
+  /\bLEY(?:ES)?\b/u,
+  /\bC[ÓO]DIGO(?:S)?\b/u,
+  /\bCONSTITUCI[ÓO]N\b/u,
+  /\bREGLAMENTO(?:S)?\b/u,
+  /\bDECRETO(?:S)?\b/u,
+  /\bESTATUTO(?:S)?\b/u,
+  /\bLINEAMIENTO(?:S)?\b/u,
+  /\bNORMA(?:S)?\b/u,
+  /\bARANCEL(?:ES)?\b/u,
+];
+
+const NON_LEGAL_TITLE_MARKERS = [
+  /\bLISTA(?:S)?\b/u,
+  /\bDIRECTORIO\b/u,
+  /\bSESIONES?\b/u,
+  /\bCALENDARIO\b/u,
+  /\bCONTACTO\b/u,
+  /\bTRANSPARENCIA\b/u,
+  /\bMANUAL(?:ES)?\b/u,
+  /\bNOTICIA(?:S)?\b/u,
+];
+
+/** Evalúa si el enlace parece una norma o sólo navegación del portal. */
+export function assessDiputadosTitle(title: string, fileName = ""): DiputadosTitleAssessment {
+  const normalizedTitle = cleanText(title);
+  const normalized = `${normalizedTitle} ${fileName}`
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toUpperCase();
+  const reasons: string[] = [];
+  const hasLegalMarker = LEGAL_TITLE_MARKERS.some((pattern) => pattern.test(normalized));
+  const codeLikeFile = /^[CL][A-Z][A-Z0-9]+\.PDF$/u.test(fileName.toUpperCase()) &&
+    !NON_LEGAL_TITLE_MARKERS.some((pattern) => pattern.test(normalized));
+
+  if (!normalizedTitle) reasons.push("title_missing");
+  if (/^\d+$/u.test(normalizedTitle)) reasons.push("title_numeric");
+  if (normalizedTitle.length > 0 && normalizedTitle.length < 5) reasons.push("title_too_short");
+  if (/^(PDF|TEXTO|VER|DESCARGAR)$/u.test(normalizedTitle)) reasons.push("title_navigation_label");
+  const fileStem = fileName.replace(/\.pdf$/iu, "").replace(/[_-]+/g, " ").trim().toUpperCase();
+  if (fileStem && normalizedTitle.toUpperCase() === fileStem) reasons.push("filename_only");
+  if (!hasLegalMarker && NON_LEGAL_TITLE_MARKERS.some((pattern) => pattern.test(normalized))) {
+    reasons.push("title_noise");
+  }
+  if (!hasLegalMarker && !codeLikeFile && !knownTitleFor(fileName)) {
+    reasons.push("title_not_legal");
+  }
+
+  return {
+    status: reasons.length === 0 ? "valid" : "suspicious",
+    reasons,
+    matter: matterFromPdf(fileName, normalizedTitle),
+  };
+}
+
+function datesFromContext(context: string): { publicationDate: Date | null; lastReformDate: Date | null } {
+  const cleaned = cleanText(context);
+  const tokens = [...cleaned.matchAll(/(?<!\d)\d{1,2}[/-]\d{1,2}[/-]\d{4}(?!\d)/g)]
+    .map((match) => parseMxDate(match[0]))
+    .filter((date): date is Date => Boolean(date));
+  if (tokens.length === 0) return { publicationDate: null, lastReformDate: null };
+
+  const labeledReform = cleaned.match(
+    /(?:[ÚU]LTIMA\s+REFORMA|REFORMA)[^\d]*(\d{1,2}[/-]\d{1,2}[/-]\d{4})/i
+  );
+  if (labeledReform) {
+    const lastReformDate = parseMxDate(labeledReform[1]);
+    const publicationDate = tokens.find((date) => !lastReformDate || date.getTime() !== lastReformDate.getTime()) || null;
+    return { publicationDate, lastReformDate };
+  }
+
+  if (tokens.length === 1) return { publicationDate: null, lastReformDate: tokens[0] };
+  return { publicationDate: tokens[0], lastReformDate: tokens[tokens.length - 1] };
+}
+
+function qualityRawMetadata(
+  quality: DiputadosTitleAssessment,
+  publicationDate: Date | null,
+  lastReformDate: Date | null,
+  retrievedAt: Date,
+  fileName: string
+) {
+  return {
+    indexUrl: INDEX_URL,
+    fileName,
+    source: "LeyesBiblio PDF",
+    qualityStatus: quality.status === "valid" ? "valid" : "pending_review",
+    qualityReasons: quality.reasons,
+    publicationDate: publicationDate?.toISOString() || null,
+    reformDate: lastReformDate?.toISOString() || null,
+    lastReformDate: lastReformDate?.toISOString() || null,
+    retrievedAt: retrievedAt.toISOString(),
+    dateSource: lastReformDate ? "dof_reform" : publicationDate ? "dof_publication" : "retrieved_at",
+  };
 }
 
 export function extractDiputadosPdfItems(html: string, limit = DEFAULT_LIMIT): RawSourceItem[] {
@@ -82,7 +205,17 @@ export function extractDiputadosPdfItems(html: string, limit = DEFAULT_LIMIT): R
 
     const fileName = pdfFileName(url);
     const title = titleFromPdf(fileName, cleanText($(element).text()));
-    const tema = matterFromPdf(fileName, title);
+    const quality = assessDiputadosTitle(title, fileName);
+    const dates = datesFromContext($(element).closest("tr").text() || $(element).parent().text());
+    const retrievedAt = new Date();
+    const published = dates.lastReformDate || dates.publicationDate;
+    const datedQuality: DiputadosTitleAssessment = published
+      ? quality
+      : {
+          ...quality,
+          status: "suspicious",
+          reasons: Array.from(new Set([...quality.reasons, "date_unverified"])),
+        };
     const sourceId = fileName.replace(/\.pdf$/i, "");
 
     items.push({
@@ -91,13 +224,17 @@ export function extractDiputadosPdfItems(html: string, limit = DEFAULT_LIMIT): R
       title,
       url,
       canonicalUrl: url,
-      published: new Date(),
+      published,
+      publicationDate: dates.publicationDate,
+      lastReformDate: dates.lastReformDate,
       tipo: title.toUpperCase().includes("CÓDIGO") || title.toUpperCase().includes("CODIGO") ? "CODIGO" : "LEY",
-      tema,
+      tema: datedQuality.matter,
       impacto: ["CPEUM", "LFT", "LISR", "LIVA", "CFF"].includes(sourceId.toUpperCase()) ? "alto" : "medio",
       summary: `Texto vigente en Cámara de Diputados LeyesBiblio: ${title}.`,
       rawRef: sourceId,
-      raw: { indexUrl: INDEX_URL, fileName, source: "LeyesBiblio PDF" },
+      raw: qualityRawMetadata(datedQuality, dates.publicationDate, dates.lastReformDate, retrievedAt, fileName),
+      qualityStatus: datedQuality.status,
+      qualityReasons: datedQuality.reasons,
     });
   });
 
@@ -141,12 +278,25 @@ function parseRows(html: string): RawSourceItem[] {
     const url = href ? absoluteUrl(href) : INDEX_URL;
 
     const dateText = cells.map(stripHtml).find((c) => /\bDOF\b.*\d{1,2}[/-]\d{1,2}[/-]\d{4}/i.test(c));
-    const published = dateText ? parseMxDate(dateText) : null;
-    if (!published) continue;
+    const dates = datesFromContext(cells.map(stripHtml).join(" "));
+    const published = dates.lastReformDate || dates.publicationDate;
 
     const sourceId = url.includes("/ref/")
       ? url.split("/ref/")[1].replace(/\.htm.*$/i, "")
       : rawTitle.toLowerCase().replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "");
+    const fileName = url.toLowerCase().endsWith(".pdf") ? pdfFileName(url) : "";
+    const quality = assessDiputadosTitle(rawTitle, fileName);
+    const datedQuality: DiputadosTitleAssessment = published
+      ? quality
+      : {
+          ...quality,
+          status: "suspicious",
+          reasons: Array.from(new Set([...quality.reasons, "date_unverified"])),
+        };
+    const retrievedAt = new Date();
+    const reformSummary = dates.lastReformDate
+      ? dates.lastReformDate.toISOString().slice(0, 10)
+      : cleanText(dateText || "");
 
     items.push({
       source: "DIPUTADOS",
@@ -155,15 +305,23 @@ function parseRows(html: string): RawSourceItem[] {
       url,
       canonicalUrl: url,
       published,
+      publicationDate: dates.publicationDate,
+      lastReformDate: dates.lastReformDate,
       tipo: rawTitle.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().includes("CODIGO")
         ? "CODIGO"
         : "LEY",
       impacto: /nueva\s+ley|nueva\s+reforma|nuevas\s+reformas/i.test(stripHtml(nameCell))
         ? "alto"
         : "medio",
-      summary: `Texto vigente en LeyesBiblio. Ultima reforma publicada: ${cleanText(dateText || "")}.`,
+      summary: `Texto vigente en LeyesBiblio. Ultima reforma publicada: ${reformSummary}.`,
       rawRef: sourceId,
-      raw: { indexUrl: INDEX_URL, dateText: cleanText(dateText || "") },
+      raw: {
+        ...qualityRawMetadata(datedQuality, dates.publicationDate, dates.lastReformDate, retrievedAt, fileName),
+        dateText: cleanText(dateText || ""),
+      },
+      qualityStatus: datedQuality.status,
+      qualityReasons: datedQuality.reasons,
+      tema: datedQuality.matter,
     });
   }
 
@@ -184,7 +342,7 @@ export async function fetchItems(params: SourceFetchParams): Promise<SourceFetch
   const all = pdfItems.length ? pdfItems : parseRows(html).slice(0, limit);
   const items = all;
   const newest = items.reduce<Date | null>(
-    (max, item) => (!max || item.published > max ? item.published : max),
+    (max, item) => item.published && (!max || item.published > max) ? item.published : max,
     params.checkpoint?.lastPublishedAt || null
   );
 
