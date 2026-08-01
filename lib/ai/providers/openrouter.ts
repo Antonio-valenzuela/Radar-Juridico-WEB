@@ -2,7 +2,7 @@ import type { AIHealthResult, AIProvider, AIProviderResult, AIRequest } from "./
 import { sanitizeAiError } from "./types";
 
 export class OpenRouterProvider implements AIProvider {
-  id: "openrouter" = "openrouter";
+  readonly id = "openrouter" as const;
 
   private getApiKey(): string | null {
     return process.env.OPENROUTER_API_KEY?.trim() || null;

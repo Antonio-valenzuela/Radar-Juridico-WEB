@@ -68,26 +68,29 @@ export function LegalWorkspaceProvider({ children }: { children: React.ReactNode
   const pathname = usePathname() || "";
   const currentModule = detectModuleFromPath(pathname);
 
-  const [contextMode, setContextModeState] = useState<ContextMode>("current_document");
-  const [activeDocument, setActiveDocumentState] = useState<LegalWorkspaceDocumentContext | null>(null);
+  const [activeDocument, setActiveDocumentState] = useState<LegalWorkspaceDocumentContext | null>(() => {
+    try {
+      const saved = sessionStorage.getItem("juridico_active_draft");
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
   const [activeCase, setActiveCaseState] = useState<LegalWorkspaceCaseContext | null>(null);
   const [activeBulletin, setActiveBulletinState] = useState<LegalWorkspaceBulletinContext | null>(null);
 
-  // Sync mode based on current module defaults
-  useEffect(() => {
-    if (currentModule === "machotes" && activeDocument) {
-      setContextModeState("current_document");
-    } else if (currentModule === "expedientes" && activeCase) {
-      setContextModeState("current_case");
-    } else if (currentModule === "boletines" && activeBulletin) {
-      setContextModeState("current_bulletin");
-    }
-  }, [currentModule, activeDocument, activeCase, activeBulletin]);
+  const [contextMode, setContextModeState] = useState<ContextMode>('none');
+
+  // Setter for context mode, updates state and can be used by components
+  const setContextMode = (mode: ContextMode) => {
+    setContextModeState(mode);
+  };
 
   const setActiveDocument = (doc: LegalWorkspaceDocumentContext | null) => {
     setActiveDocumentState(doc);
+    if (doc) setContextMode('current_document');
     if (doc) {
-      setContextModeState("current_document");
+      // setContextModeState("current_document"); // removed redundant state update
       try {
         sessionStorage.setItem("juridico_active_draft", JSON.stringify(doc));
       } catch {}
@@ -121,7 +124,7 @@ export function LegalWorkspaceProvider({ children }: { children: React.ReactNode
 
   const clearActiveDocument = () => {
     setActiveDocumentState(null);
-    setContextModeState("none");
+    setContextMode('none');
     try {
       sessionStorage.removeItem("juridico_active_draft");
     } catch {}
@@ -129,32 +132,13 @@ export function LegalWorkspaceProvider({ children }: { children: React.ReactNode
 
   const setActiveCase = (caseCtx: LegalWorkspaceCaseContext | null) => {
     setActiveCaseState(caseCtx);
-    if (caseCtx) setContextModeState("current_case");
+    if (caseCtx) setContextMode('current_case');
   };
 
   const setActiveBulletin = (bulletinCtx: LegalWorkspaceBulletinContext | null) => {
     setActiveBulletinState(bulletinCtx);
-    if (bulletinCtx) setContextModeState("current_bulletin");
+    if (bulletinCtx) setContextMode('current_bulletin');
   };
-
-  const setContextMode = (mode: ContextMode) => {
-    setContextModeState(mode);
-  };
-
-  // Restore active draft from sessionStorage if present
-  useEffect(() => {
-    if (!activeDocument) {
-      try {
-        const saved = sessionStorage.getItem("juridico_active_draft");
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          if (parsed && typeof parsed === "object") {
-            setActiveDocumentState(parsed);
-          }
-        }
-      } catch {}
-    }
-  }, []);
 
   return (
     <LegalWorkspaceContext.Provider

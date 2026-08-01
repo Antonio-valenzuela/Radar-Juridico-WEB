@@ -2,7 +2,7 @@ import type { AIHealthResult, AIProvider, AIProviderResult, AIRequest } from "./
 import { sanitizeAiError } from "./types";
 
 export class GroqProvider implements AIProvider {
-  id: "groq" = "groq";
+  readonly id = "groq" as const;
 
   private getApiKey(): string | null {
     return process.env.GROQ_API_KEY?.trim() || null;
