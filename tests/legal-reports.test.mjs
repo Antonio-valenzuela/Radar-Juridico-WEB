@@ -8,7 +8,12 @@ function runTs(code) {
     ["node_modules/tsx/dist/cli.mjs", "--eval", code],
     {
       encoding: "utf8",
-      env: { ...process.env, NODE_ENV: "test", LLM_PROVIDER: "local" },
+      env: {
+        ...process.env,
+        NODE_ENV: "test",
+        LLM_PROVIDER: "local",
+        ALLOW_DEV_ADMIN_TOKEN: "true",
+      },
       // Windows CI and the full concurrent suite can spend several seconds
       // loading Prisma/tsx before the worker body begins.
       timeout: 30_000,
@@ -36,7 +41,7 @@ test("POST /api/legal-reports y GET /api/legal-reports", () => {
       // 1. POST - Create job
       const postReq = new NextRequest("http://localhost/api/legal-reports", {
         method: "POST",
-        headers: { "x-admin-token": "dev-admin-token" },
+        headers: { "x-admin-token": process.env.ADMIN_TOKEN || "dev-admin-token" },
         body: JSON.stringify({
           query: "reforma amparo 2026",
           materia: "constitucional",
@@ -50,7 +55,7 @@ test("POST /api/legal-reports y GET /api/legal-reports", () => {
       // 2. GET - List reports
       const getReq = new NextRequest("http://localhost/api/legal-reports?limit=5", {
         method: "GET",
-        headers: { "x-admin-token": "dev-admin-token" }
+        headers: { "x-admin-token": process.env.ADMIN_TOKEN || "dev-admin-token" }
       });
       const getRes = await GET(getReq);
       const getData = await getRes.json();
@@ -102,7 +107,7 @@ test("GET /api/legal-reports/[id] con etapas de progreso", () => {
 
       const getReq = new NextRequest("http://localhost/api/legal-reports/" + job.id, {
         method: "GET",
-        headers: { "x-admin-token": "dev-admin-token" }
+        headers: { "x-admin-token": process.env.ADMIN_TOKEN || "dev-admin-token" }
       });
       
       const params = Promise.resolve({ id: job.id });

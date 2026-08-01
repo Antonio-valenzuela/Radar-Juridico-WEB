@@ -9,6 +9,7 @@ function runTs(code, env = {}) {
     env: {
       ...process.env,
       NODE_ENV: "test",
+      ALLOW_DEV_ADMIN_TOKEN: "true",
       AI_ENABLE_USAGE_TRACKING: "true",
       ...env,
     },
@@ -265,7 +266,7 @@ test("GET /api/ai/usage sin registros devuelve summary en ceros y requiere token
 
       // Test 2: With valid admin token (Success, returns zeros)
       const reqToken = new Request("http://localhost:3000/api/ai/usage?date=1999-01-01", {
-        headers: { "x-admin-token": "dev-admin-token" }
+        headers: { "x-admin-token": process.env.ADMIN_TOKEN || "dev-admin-token" }
       });
       const resToken = await GET(reqToken);
       const dataToken = await resToken.json();
