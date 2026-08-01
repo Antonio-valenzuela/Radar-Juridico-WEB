@@ -1197,3 +1197,24 @@ model BulletinMatch {
   @@index([subscriptionId, reviewed])
   @@index([notifiedAt])
 }
+
+model LegalDraft {
+  id             String   @id @default(cuid())
+  organizationId String
+  userId         String
+  templateId     String?
+  title          String
+  documentType   String   @default("machote")
+  matter         String?
+  jurisdiction   String?  @default("federal")
+  formData       Json?
+  renderedText   String?  @db.Text
+  pendingMarkers Json?
+  status         String   @default("DRAFT")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([organizationId, status])
+  @@index([userId, status])
+  @@index([organizationId, updatedAt])
+}

@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import FloatingLegalChat from "@/components/ai/FloatingLegalChat";
 import AppShell from "@/components/layout/AppShell";
+import { LegalWorkspaceProvider } from "@/context/LegalWorkspaceContext";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -29,10 +30,12 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <AppShell>
-          {children}
-        </AppShell>
-        <FloatingLegalChat />
+        <LegalWorkspaceProvider>
+          <AppShell>
+            {children}
+          </AppShell>
+          <FloatingLegalChat />
+        </LegalWorkspaceProvider>
       </body>
     </html>
   );

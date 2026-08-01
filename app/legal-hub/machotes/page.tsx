@@ -15,8 +15,10 @@ import {
 } from '@/lib/templates/templateRenderer';
 import { generatePrintHtml } from '@/lib/templates/exportPdf';
 import { DRAFT_WARNING, hasPendingMarkers } from '@/lib/templates/templateQuality';
+import { useLegalWorkspaceContext } from '@/context/LegalWorkspaceContext';
 
 export default function MachotesPage() {
+  const { setActiveDocument } = useLegalWorkspaceContext();
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>(templates[0].id);
 
   const selectedTemplate = useMemo(() => {
@@ -49,6 +51,22 @@ export default function MachotesPage() {
     setAiResult(null);
     setFeedback(null);
   }, [selectedTemplateId]);
+
+  useEffect(() => {
+    const previewText = renderToText(selectedTemplate, values);
+    const validation = validateTemplateValues(selectedTemplate, values);
+    setActiveDocument({
+      templateId: selectedTemplate.id,
+      templateName: selectedTemplate.title,
+      documentType: 'machote',
+      matter: selectedTemplate.category,
+      jurisdiction: 'federal',
+      fields: values,
+      previewText,
+      pendingMarkers: validation.missingFields.map((f) => f.title),
+      updatedAt: new Date().toISOString(),
+    });
+  }, [selectedTemplate, values, setActiveDocument]);
 
   const getSingleValue = (sectionId: string): string => {
     const value = values[sectionId];
