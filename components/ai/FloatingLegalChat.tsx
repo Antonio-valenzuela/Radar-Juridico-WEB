@@ -490,10 +490,10 @@ export default function FloatingLegalChat() {
                   {msg.citations && msg.citations.length > 0 && (
                     <div className="mt-3 pt-2 border-t border-slate-200/60 text-xs space-y-1">
                       <p className="font-semibold text-slate-600">Fuentes Oficiales Verificadas:</p>
-                      {msg.citations.map((c, i) => (
+                      {msg.citations.map((cit, i) => (
                         <div key={i} className="flex items-center gap-1.5 text-blue-700 hover:underline">
-                          <span>📜 {normalizeLegalDisplayText(c.title)}</span>
-                          <span className="text-slate-500">({c.fuente})</span>
+                          <span>📜 {normalizeLegalDisplayText(cit.title)}</span>
+                          <span className="text-slate-500">({normalizeLegalDisplayText(cit.fuente)})</span>
                         </div>
                       ))}
                     </div>
