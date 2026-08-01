@@ -1506,3 +1506,16 @@ p.subtitle {
     min-height: 48px;
   }
 }
+
+/* Floating Legal Chat – mobile overrides */
+@media (max-width: 640px) {
+  #floating-legal-btn {
+    right: 16px !important;
+    bottom: 16px !important;
+  }
+  #floating-legal-panel {
+    right: 16px !important;
+    bottom: 16px !important;
+    width: calc(100vw - 32px) !important;
+  }
+}

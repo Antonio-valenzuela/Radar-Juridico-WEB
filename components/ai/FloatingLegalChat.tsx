@@ -271,17 +271,53 @@ export default function FloatingLegalChat() {
       {/* Floating Toggle Button */}
       {!isOpen && (
         <button
+          id="floating-legal-btn"
           onClick={() => setIsOpen(true)}
-          className="fixed bottom-6 right-6 z-50 flex items-center gap-2.5 bg-blue-700 text-white px-4 py-3 rounded-full shadow-xl hover:bg-blue-800 transition-all font-medium text-sm"
+          aria-label="Abrir asistente legal"
+          style={{
+            position: "fixed",
+            right: "24px",
+            bottom: "24px",
+            width: "56px",
+            height: "56px",
+            borderRadius: "9999px",
+            zIndex: 99999,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            cursor: "pointer",
+            boxShadow: "0 8px 24px rgba(0,0,0,0.35)",
+            background: "linear-gradient(135deg, #1d4ed8, #7c3aed)",
+            color: "white",
+            border: "none",
+            fontSize: "24px",
+          }}
         >
-          <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
-          <span>Asistente Multimodelo IA</span>
+          ⚖️
         </button>
       )}
 
       {/* Main Drawer Container */}
       {isOpen && (
-        <div className="fixed bottom-4 right-4 z-50 w-full max-w-lg bg-white rounded-2xl shadow-2xl border border-slate-200 flex flex-col max-h-[85vh] h-[680px] transition-all">
+        <div
+          id="floating-legal-panel"
+          style={{
+            position: "fixed",
+            right: "24px",
+            bottom: "24px",
+            width: "400px",
+            maxWidth: "calc(100vw - 32px)",
+            height: "620px",
+            maxHeight: "calc(100vh - 48px)",
+            zIndex: 99999,
+            overflow: "hidden",
+            borderRadius: "16px",
+            boxShadow: "0 16px 40px rgba(0,0,0,0.45)",
+            display: "flex",
+            flexDirection: "column",
+            background: "white",
+          }}
+        >
           {/* Header */}
           <div className="p-4 border-b border-slate-100 bg-slate-900 text-white rounded-t-2xl flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -358,7 +394,7 @@ export default function FloatingLegalChat() {
           </div>
 
           {/* Chat Messages */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-4 text-sm">
+          <div className="flex-1 overflow-y-auto p-4 space-y-4 text-sm" style={{ overflowY: "auto", flex: 1 }}>
             {messages.length === 0 && (
               <div className="text-center py-8 text-slate-500 space-y-3">
                 <div className="text-2xl">⚖️</div>
