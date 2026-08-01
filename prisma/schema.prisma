@@ -634,9 +634,10 @@ model OfficialSource {
   documents       Document[]
   normas          Norma[]
   jurisprudencias Jurisprudencia[]
-  bulletinWatches CaseBulletinWatch[]
-  bulletinEntries JudicialBulletinEntry[]
-  bulletinRuns    BulletinCheckRun[]
+  bulletinWatches       CaseBulletinWatch[]
+  bulletinEntries       JudicialBulletinEntry[]
+  bulletinRuns          BulletinCheckRun[]
+  bulletinSubscriptions BulletinSubscription[]
 
   @@index([type])
   @@index([isActive])
@@ -1142,4 +1143,57 @@ model BulletinCheckRun {
   @@index([matterId, startedAt])
   @@index([status, startedAt])
   @@index([watchId, startedAt])
+}
+
+model BulletinSubscription {
+  id               String         @id @default(cuid())
+  organizationId   String
+  userId           String?
+  sourceId         String
+  source           OfficialSource @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  expediente       String?
+  actor            String?
+  demandado        String?
+  juzgado          String?
+  abogado          String?
+  keywords         Json?
+  frequency        String         @default("diario")
+  status           String         @default("active")
+  lastRunAt        DateTime?
+  nextRunAt        DateTime?
+  lastQueryStatus  String?
+  lastErrorMessage String?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  matches BulletinMatch[]
+
+  @@index([organizationId, status])
+  @@index([sourceId, status])
+  @@index([status, nextRunAt])
+  @@index([userId])
+}
+
+model BulletinMatch {
+  id                 String               @id @default(cuid())
+  subscriptionId     String
+  subscription       BulletinSubscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  publicationId     String?
+  publicationTitle  String?
+  publicationExtract String?              @db.Text
+  publicationUrl    String?
+  publicationDate   DateTime?
+  court              String?
+  expediente         String?
+  matchReason        String
+  matchedFields      Json?
+  score              Float                @default(1.0)
+  seenAt             DateTime             @default(now())
+  notifiedAt         DateTime?
+  reviewed           Boolean              @default(false)
+  reviewedAt         DateTime?
+
+  @@index([subscriptionId, seenAt])
+  @@index([subscriptionId, reviewed])
+  @@index([notifiedAt])
 }

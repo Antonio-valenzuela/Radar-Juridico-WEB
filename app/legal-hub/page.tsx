@@ -43,7 +43,10 @@ export default function LegalHubPage() {
             SISE/CJF y formatos base de escritos.
           </p>
           <div className="hero-buttons">
-            <Link href="/legal-hub/cambios" className="btn-primary" style={{ background: "var(--accent)", color: "white", textDecoration: "none" }}>
+            <Link href="/legal-hub/boletines" className="btn-primary" style={{ background: "var(--accent)", color: "white", textDecoration: "none" }}>
+              Boletines Judiciales (Rastreo API)
+            </Link>
+            <Link href="/legal-hub/cambios" className="btn-primary" style={{ textDecoration: "none" }}>
               Cambios por Materia (IA)
             </Link>
             <Link href="/legal-hub/leyes-vigentes" className="btn-primary" style={{ textDecoration: "none" }}>
@@ -57,9 +60,6 @@ export default function LegalHubPage() {
             </Link>
             <Link href="/legal-hub/machotes" className="btn-primary" style={{ textDecoration: "none" }}>
               Machotes guiados
-            </Link>
-            <Link href="/admin/sources" className="btn-primary" style={{ background: "transparent", border: "1px solid rgba(255,255,255,0.2)", boxShadow: "none", textDecoration: "none" }}>
-              Ver fuentes oficiales
             </Link>
           </div>
         </section>
@@ -83,10 +83,17 @@ export default function LegalHubPage() {
             <span className="document-label">{activeTabInfo.label}</span>
             <h2>{activeTabInfo.description}</h2>
           </div>
-          <p className="document-muted">
-            Las fuentes marcadas como busqueda externa usan el radar federado. Las que requieren navegador
-            quedan identificadas para consulta con acceso autorizado.
-          </p>
+          {activeTab === "boletines" && (
+            <div style={{ marginTop: "1rem", padding: "1rem", background: "rgba(59,130,246,0.12)", border: "1px solid #3b82f6", borderRadius: "8px" }}>
+              <h3 style={{ margin: "0 0 0.5rem 0", color: "#60a5fa" }}>📡 Motor Interno de Seguimiento de Boletines</h3>
+              <p style={{ margin: "0 0 1rem 0", fontSize: "0.9rem" }}>
+                Crea reglas de rastreo automatizado por número de expediente, actor, demandado, juzgado y palabras clave con alertas periódicas y revisión manual.
+              </p>
+              <Link href="/legal-hub/boletines" className="btn-primary" style={{ textDecoration: "none", display: "inline-block" }}>
+                Abrir Administrador de Boletines →
+              </Link>
+            </div>
+          )}
         </section>
 
         {activeTab !== "machotes" ? (
