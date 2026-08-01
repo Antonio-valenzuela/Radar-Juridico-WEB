@@ -15,8 +15,10 @@ import {
 } from '@/lib/templates/templateRenderer';
 import { generatePrintHtml } from '@/lib/templates/exportPdf';
 import { DRAFT_WARNING, hasPendingMarkers } from '@/lib/templates/templateQuality';
+import { useLegalWorkspaceContext } from '@/context/LegalWorkspaceContext';
 
 export default function MachotesPage() {
+  const { setActiveDocument } = useLegalWorkspaceContext();
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>(templates[0].id);
 
   const selectedTemplate = useMemo(() => {
@@ -49,6 +51,22 @@ export default function MachotesPage() {
     setAiResult(null);
     setFeedback(null);
   }, [selectedTemplateId]);
+
+  useEffect(() => {
+    const previewText = renderToText(selectedTemplate, values);
+    const validation = validateTemplateValues(selectedTemplate, values);
+    setActiveDocument({
+      templateId: selectedTemplate.id,
+      templateName: selectedTemplate.title,
+      documentType: 'machote',
+      matter: selectedTemplate.category,
+      jurisdiction: 'federal',
+      fields: values,
+      previewText,
+      pendingMarkers: validation.missingFields.map((f) => f.title),
+      updatedAt: new Date().toISOString(),
+    });
+  }, [selectedTemplate, values, setActiveDocument]);
 
   const getSingleValue = (sectionId: string): string => {
     const value = values[sectionId];
@@ -248,6 +266,18 @@ export default function MachotesPage() {
     'puntos_petitorios',
   ]);
 
+  const triggerQuickReview = () => {
+    window.dispatchEvent(new CustomEvent('open-legal-chat', {
+      detail: { executionMode: 'fast', query: 'revisa el machote que acabo de crear' }
+    }));
+  };
+
+  const triggerDeepReview = () => {
+    window.dispatchEvent(new CustomEvent('open-legal-chat', {
+      detail: { executionMode: 'deep', query: 'revisión profunda del machote actual' }
+    }));
+  };
+
   return (
     <>
       <div className="bg-gradient"></div>
@@ -257,8 +287,28 @@ export default function MachotesPage() {
         </nav>
 
         <header className="machotes-page-header">
-          <h1>Generador de Machotes y Plantillas</h1>
-          <p className="subtitle">Crea documentos legales estructurados con asistencia de IA. Revisa siempre el documento final.</p>
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <h1>Generador de Machotes y Plantillas</h1>
+              <p className="subtitle">Crea documentos legales estructurados con asistencia de IA. Revisa siempre el documento final.</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={triggerQuickReview}
+                className="bg-blue-50 border border-blue-200 text-blue-800 hover:bg-blue-100 font-medium text-xs px-3 py-2 rounded-lg transition flex items-center gap-1.5"
+              >
+                ⚡ Revisión Rápida
+              </button>
+              <button
+                type="button"
+                onClick={triggerDeepReview}
+                className="bg-purple-700 hover:bg-purple-800 text-white font-medium text-xs px-3.5 py-2 rounded-lg transition shadow flex items-center gap-1.5"
+              >
+                🧠 Revisión Profunda (3 IA)
+              </button>
+            </div>
+          </div>
         </header>
 
         <div className="machote-template-toolbar">
