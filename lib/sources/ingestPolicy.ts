@@ -8,7 +8,7 @@ type IngestSourceConfig = {
 };
 
 export type IngestPolicy =
-  | { handler: "registry"; registryKey: "SIDOF" | "DIPUTADOS" | "SCJN_SJF" | "SCJN_LEG" }
+  | { handler: "registry"; registryKey: "SIDOF" | "DIPUTADOS" | "SCJN_SJF" | "SCJN_LEG" | "PERIODICO_OFICIAL_JALISCO" }
   | { handler: "dof-web" }
   | { handler: "warning"; warningCode: "BROWSER_REQUIRED" | "BLOCKED_BY_PROVIDER"; message: string }
   | { handler: "legacy" };
@@ -19,6 +19,9 @@ export function resolveIngestPolicy(source: IngestSourceConfig): IngestPolicy {
   if (adapter === "SIDOF") return { handler: "registry", registryKey: "SIDOF" };
   if (adapter === "DIPUTADOS") return { handler: "registry", registryKey: "DIPUTADOS" };
   if (adapter === "DOF") return { handler: "dof-web" };
+  if (adapter === "PERIODICO_OFICIAL_JALISCO") {
+    return { handler: "registry", registryKey: "PERIODICO_OFICIAL_JALISCO" };
+  }
 
   if (adapter === "SJF" && source.requiresBrowser) {
     return {

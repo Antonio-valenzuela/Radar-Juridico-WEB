@@ -86,9 +86,22 @@ export async function POST(
     });
 
   } catch (error: any) {
-    console.error(`[api/admin/sources/${id}/ingest] POST error:`, error);
+    // Extract the specific error category from enriched fetch errors
+    const errorCategory: string =
+      error?.errorCategory ||
+      (error?.message?.toLowerCase().includes('timeout') ? 'timeout' :
+       error?.message?.toLowerCase().includes('http') ? 'http_error' :
+       'server_error');
+    const errorMessage = error?.message || "Error al ejecutar la ingesta manual.";
+
+    console.error(`[api/admin/sources/${id}/ingest] POST error (${errorCategory}):`, errorMessage);
     return NextResponse.json(
-      { ok: false, error: "server_error", message: error.message || "Error al ejecutar la ingesta manual." },
+      {
+        ok: false,
+        error: errorCategory,
+        message: errorMessage,
+        detail: error?.cause?.message || error?.originalError?.message || null,
+      },
       { status: 500 }
     );
   }

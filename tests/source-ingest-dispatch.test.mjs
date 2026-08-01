@@ -21,6 +21,7 @@ test("política de ingesta despacha adaptadores oficiales", () => {
       sidof: resolveIngestPolicy({ adapter: "SIDOF", slug: "SIDOF", type: "sidof", requiresBrowser: false }),
       diputados: resolveIngestPolicy({ adapter: "DIPUTADOS", slug: "DIPUTADOS", type: "diputados", requiresBrowser: false }),
       dof: resolveIngestPolicy({ adapter: "DOF", slug: "DOF_WEB", type: "dof", requiresBrowser: false }),
+      jalisco: resolveIngestPolicy({ adapter: "PERIODICO_OFICIAL_JALISCO", slug: "PERIODICO_OFICIAL_JALISCO", type: "state_gazette", requiresBrowser: false }),
       sjf: resolveIngestPolicy({ adapter: "SJF", slug: "SCJN_SJF", type: "sjf", requiresBrowser: true }),
       scjn: resolveIngestPolicy({ adapter: "SCJN_LEG", slug: "SCJN_LEG", type: "scjn", requiresBrowser: true })
     }));
@@ -30,6 +31,8 @@ test("política de ingesta despacha adaptadores oficiales", () => {
   assert.equal(result.sidof.registryKey, "SIDOF");
   assert.equal(result.diputados.registryKey, "DIPUTADOS");
   assert.equal(result.dof.handler, "dof-web");
+  assert.equal(result.jalisco.handler, "registry");
+  assert.equal(result.jalisco.registryKey, "PERIODICO_OFICIAL_JALISCO");
   assert.equal(result.sjf.handler, "warning");
   assert.equal(result.sjf.warningCode, "BROWSER_REQUIRED");
   assert.equal(result.scjn.handler, "warning");
@@ -96,5 +99,5 @@ test("clasificador legacy detecta materia mercantil", () => {
     console.log(JSON.stringify(classifyItem("Ley General de Sociedades Mercantiles", "contrato mercantil y comercio")));
   `);
 
-  assert.equal(result.tema, "mercantil");
+  assert.deepEqual(result.tema, ["mercantil"]);
 });

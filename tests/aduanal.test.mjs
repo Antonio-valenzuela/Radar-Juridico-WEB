@@ -28,10 +28,10 @@ test("clasificador clasifica correctamente palabras clave aduanales", () => {
     }));
   `);
 
-  assert.equal(result.res1, "aduanal");
-  assert.equal(result.res2, "aduanal");
-  assert.equal(result.res3, "aduanal");
-  assert.equal(result.res4, "aduanal");
+  assert.deepEqual(result.res1, ["aduanal"]);
+  assert.deepEqual(result.res2, ["aduanal"]);
+  assert.deepEqual(result.res3, ["aduanal"]);
+  assert.deepEqual(result.res4, ["aduanal"]);
 });
 
 test("isLegalMatter y constantes de la IA contienen la materia aduanal", () => {

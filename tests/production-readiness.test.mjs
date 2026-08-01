@@ -48,8 +48,8 @@ test("production images are reproducible multi-stage runtimes", () => {
 
 test("production compose keeps stateful services private and authenticated", () => {
   const compose = fs.readFileSync("docker-compose.prod.yml", "utf8");
-  const postgres = compose.match(/\n  postgres:\n([\s\S]*?)(?=\n  [a-z][\w-]*:\n)/)?.[1] || "";
-  const redis = compose.match(/\n  redis:\n([\s\S]*?)(?=\n  [a-z][\w-]*:\n)/)?.[1] || "";
+  const postgres = compose.match(/\r?\n  postgres:\r?\n([\s\S]*?)(?=\r?\n  [a-z][\w-]*:\r?\n)/)?.[1] || "";
+  const redis = compose.match(/\r?\n  redis:\r?\n([\s\S]*?)(?=\r?\n  [a-z][\w-]*:\r?\n)/)?.[1] || "";
 
   assert.doesNotMatch(postgres, /^\s+ports:/m);
   assert.doesNotMatch(redis, /^\s+ports:/m);

@@ -46,20 +46,21 @@ async function getStatsForRange(start: Date, end: Date, includeItems = false): P
     });
 
     // 2. Por Tema
-    const byTemaRaw = await prisma.item.groupBy({
-        by: ["tema"],
+    const itemsTema = await prisma.item.findMany({
         where: {
             published: { gte: start, lte: end },
-            tema: { not: null },
+            tema: { isEmpty: false },
         },
-        _count: { tema: true },
-        orderBy: { _count: { tema: "desc" } },
-        take: 5,
+        select: { tema: true },
     });
 
     const byTema: Record<string, number> = {};
-    byTemaRaw.forEach(g => {
-        if (g.tema) byTema[g.tema] = g._count.tema;
+    itemsTema.forEach(item => {
+        if (Array.isArray(item.tema)) {
+            item.tema.forEach(t => {
+                byTema[t] = (byTema[t] || 0) + 1;
+            });
+        }
     });
 
     // 3. Por Tipo

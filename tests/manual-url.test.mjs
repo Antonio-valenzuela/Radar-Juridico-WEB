@@ -9,7 +9,12 @@ function runTs(code, env = {}) {
     ["node_modules/tsx/dist/cli.mjs", "--eval", code],
     {
       encoding: "utf8",
-      env: { ...process.env, NODE_ENV: "development", ...env },
+      env: {
+        ...process.env,
+        NODE_ENV: "development",
+        ALLOW_DEV_ADMIN_TOKEN: "true",
+        ...env,
+      },
       timeout: 45000,
     }
   );
@@ -418,7 +423,7 @@ test("ruta manual-url devuelve 400 para JSON inválido sin exponer 500", () => {
       const req = new Request("http://localhost/api/admin/ingest/manual-url", {
         method: "POST",
         headers: {
-          "x-admin-token": "dev-admin-token",
+          "x-admin-token": process.env.ADMIN_TOKEN || "dev-admin-token",
           "Content-Type": "application/json"
         },
         body: "{url:bad-json}"

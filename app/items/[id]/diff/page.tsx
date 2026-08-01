@@ -69,7 +69,7 @@ export default async function ItemDiffPage({ params }: { params: Promise<{ id: s
             <div className="document-label" style={{ marginBottom: 4 }}>ORDENAMIENTO</div>
             <div className="document-value" style={{ fontSize: 18 }}>{version.norma.nombre}</div>
             <div className="document-muted" style={{ fontSize: 13, marginTop: 4 }}>
-              {version.norma.sigla || "Sin sigla"} · {version.publishedAt.toISOString().slice(0, 10)}
+              {version.norma.sigla || "Sin sigla"} · {(version.publishedAt ?? version.verifiedAt).toISOString().slice(0, 10)}
             </div>
           </section>
         ) : null}

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import EnrichButton from "@/app/components/EnrichButton";
+import AdminItemActionButton from "@/app/components/AdminItemActionButton";
 import { normalizeLegalDisplayText } from "@/lib/text/normalizeLegalDisplayText";
 
 export const dynamic = "force-dynamic";
@@ -101,7 +102,7 @@ export default async function ItemDetailPage({ params }: { params: Promise<{ id:
             <Badge tone="success">{item.source}</Badge>
             {item.impacto ? <Badge tone={item.impacto === "alto" ? "danger" : item.impacto === "medio" ? "info" : "success"}>{item.impacto}</Badge> : null}
             {item.tipo ? <Badge tone="info">{item.tipo}</Badge> : null}
-            {item.tema ? <Badge>{item.tema}</Badge> : null}
+            {Array.isArray(item.tema) && item.tema.length > 0 ? <Badge>{item.tema.join(', ')}</Badge> : null}
           </div>
           <h1 className="document-title">{normalizeLegalDisplayText(item.title)}</h1>
           <p className="document-muted" style={{ fontSize: 16, marginTop: 12, marginBottom: 12 }}>
@@ -219,23 +220,28 @@ export default async function ItemDetailPage({ params }: { params: Promise<{ id:
         ) : null}
 
         <section className="document-card">
-          <h2 className="document-section-title">Acciones</h2>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center" }}>
+          <h2 className="document-section-title">Acciones Principales</h2>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center", marginBottom: 12 }}>
             <a href={item.url} target="_blank" rel="noreferrer" className="btn-doc-primary">Abrir fuente oficial</a>
             <Link href={`/rag?item=${item.id}&q=${encodeURIComponent(itemTitle)}`} className="btn-doc-primary">Preguntar con RAG</Link>
-            <Link href={`/items/${item.id}/consultant`} className="btn-doc-secondary">Ver consultor</Link>
-            <Link href={`/items/${item.id}/diff`} className="btn-doc-secondary">Ver diff</Link>
-            
-            {/* Quick API actions for admins via basic forms or links for now */}
-            <form action={`/api/admin/reindex-document?id=${item.id}`} method="POST" style={{ display: "inline-block" }}>
-              <input type="hidden" name="x-admin-token" value="dev-admin-token" />
-              <button type="submit" className="btn-doc-secondary">Reindexar</button>
-            </form>
-            <form action="/api/admin/evaluate-alerts" method="POST" style={{ display: "inline-block" }}>
-              <input type="hidden" name="x-admin-token" value="dev-admin-token" />
-              <button type="submit" className="btn-doc-secondary">Evaluar alertas</button>
-            </form>
           </div>
+          <details style={{ marginTop: 12, borderTop: "1px solid var(--card-border)", paddingTop: 12 }}>
+            <summary style={{ cursor: "pointer", color: "var(--text-muted)", fontWeight: 600, fontSize: "0.9rem" }}>Más opciones</summary>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center", marginTop: 12 }}>
+              <Link href={`/items/${item.id}/consultant`} className="btn-doc-secondary">Ver consultor</Link>
+              <Link href={`/items/${item.id}/diff`} className="btn-doc-secondary">Ver diff</Link>
+              <AdminItemActionButton
+                itemId={item.id}
+                endpoint="/api/admin/reindex-document"
+                label="Reindexar"
+              />
+              <AdminItemActionButton
+                itemId={item.id}
+                endpoint="/api/admin/evaluate-alerts"
+                label="Evaluar alertas"
+              />
+            </div>
+          </details>
         </section>
       </div>
     </main>

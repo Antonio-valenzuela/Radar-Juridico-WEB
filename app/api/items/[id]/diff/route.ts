@@ -73,7 +73,7 @@ export async function GET(
     version: version
       ? {
           id: version.id,
-          publishedAt: version.publishedAt.toISOString(),
+          publishedAt: version.publishedAt?.toISOString() ?? null,
           hash: version.hash,
         }
       : null,

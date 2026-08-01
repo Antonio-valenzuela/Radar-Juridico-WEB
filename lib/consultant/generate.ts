@@ -89,7 +89,7 @@ async function loadContext(itemId: string) {
       source: item.source,
       published: item.published.toISOString(),
       tipo: item.tipo,
-      tema: item.tema,
+      tema: Array.isArray(item.tema) ? item.tema.join(", ") : item.tema ?? null,
       impacto: item.impacto,
       summary: item.summary?.slice(0, 1400) || null,
       diffBullets,

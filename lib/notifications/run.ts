@@ -147,7 +147,7 @@ async function buildUserDigest(
       url: item.url,
       impacto: item.impacto,
       tipo: item.tipo,
-      tema: item.tema,
+      tema: Array.isArray(item.tema) ? item.tema.join(", ") : item.tema ?? null,
       reasons: Array.from(new Set(reasons)),
     });
     if (digest.length >= Math.min(MAX_DIGEST_ITEMS, limit)) break;
@@ -168,7 +168,7 @@ function matchReasons(item: ItemWithNorma, watchlists: Watchlist[]) {
     const value = watch.value.trim().toLowerCase();
     if (!value) continue;
     if (watch.type === "keyword" && text.includes(value)) reasons.push(`keyword:${watch.value}`);
-    if (watch.type === "tema" && (item.tema || "").toLowerCase() === value) reasons.push(`tema:${watch.value}`);
+    if (watch.type === "tema" && Array.isArray(item.tema) && item.tema.some(t => t.toLowerCase() === value)) reasons.push(`tema:${watch.value}`);
     if (watch.type === "norma" && (normaText.includes(value) || text.includes(value))) {
       reasons.push(`norma:${watch.value}`);
     }

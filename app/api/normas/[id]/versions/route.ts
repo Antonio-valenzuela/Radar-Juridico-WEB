@@ -34,7 +34,8 @@ export async function GET(
     },
     versions: norma.versions.map((version) => ({
       id: version.id,
-      publishedAt: version.publishedAt.toISOString(),
+      publishedAt: version.publishedAt?.toISOString() ?? null,
+      verifiedAt: version.verifiedAt.toISOString(),
       hash: version.hash,
       textPath: version.textPath,
       sourceItem: version.sourceItem,
