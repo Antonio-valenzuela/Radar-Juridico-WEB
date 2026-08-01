@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import { describe, expect, it, vi } from 'vitest';
+import { QUEUE_NAMES } from '@/lib/queue';
 import type { BulletinAdapterResult } from '@/lib/bulletins/types';
 import {
   BULLETIN_SCHEDULER_ID,
@@ -231,7 +232,7 @@ describe('worker agrupado del Boletín Judicial', () => {
     const createConsumer = vi.fn(() => ({ close: vi.fn() }));
     const consumer = registerBulletinConsumer({ config, processor, createConsumer });
     expect(consumer).not.toBeNull();
-    expect(createConsumer).toHaveBeenCalledWith('bulletins', processor);
+    expect(createConsumer).toHaveBeenCalledWith(QUEUE_NAMES.bulletins, processor);
 
     const queue = { upsertJobScheduler: vi.fn().mockResolvedValue({}) };
     await upsertBulletinScheduler(queue, config);

@@ -28,18 +28,29 @@ export default function AILegalPage() {
     setAdminToken(v);
   };
   
-  const [analyzeTitle, setAnalyzeTitle] = useState('Resolución del SAT sobre obligaciones fiscales');
-  const [analyzeSummary, setAnalyzeSummary] = useState('Nueva disposición fiscal para contribuyentes y empresas.');
+  const [analyzeTitle, setAnalyzeTitle] = useState('');
+  const [analyzeSummary, setAnalyzeSummary] = useState('');
   const [analyzeResult, setAnalyzeResult] = useState<any>(null);
   const [analyzeLoading, setAnalyzeLoading] = useState(false);
   const [analyzeError, setAnalyzeError] = useState('');
 
-  const [matchRule, setMatchRule] = useState('Avísame sobre cambios fiscales para empresas');
-  const [matchTitle, setMatchTitle] = useState('Resolución del SAT sobre obligaciones fiscales');
-  const [matchSummary, setMatchSummary] = useState('Nueva disposición fiscal para contribuyentes y empresas.');
+  const [matchRule, setMatchRule] = useState('');
+  const [matchTitle, setMatchTitle] = useState('');
+  const [matchSummary, setMatchSummary] = useState('');
   const [matchResult, setMatchResult] = useState<any>(null);
   const [matchLoading, setMatchLoading] = useState(false);
   const [matchError, setMatchError] = useState('');
+
+  const loadAnalyzeSample = () => {
+    setAnalyzeTitle('Resolución Miscelánea Fiscal sobre obligaciones de contribuyentes');
+    setAnalyzeSummary('Publicación del SAT que modifica disposiciones en materia de declaraciones periódicas, firma electrónica y comprobantes fiscales digitales.');
+  };
+
+  const loadMatchSample = () => {
+    setMatchRule('Avísame sobre cambios fiscales e impuestos aplicables a empresas');
+    setMatchTitle('Resolución del SAT sobre obligaciones fiscales corporativas');
+    setMatchSummary('Nueva disposición fiscal dictada para contribuyentes morales con ajustes a plazos de facturación.');
+  };
 
   const [digestDays, setDigestDays] = useState(7);
   const [digestResult, setDigestResult] = useState<any>(null);
@@ -288,17 +299,28 @@ export default function AILegalPage() {
       <div className="grid">
         {/* Card 1: Analizar documento */}
         <div className="glass-card">
-          <h2>Analizar documento</h2>
-          <p className="text-muted" style={{ marginBottom: '1rem', fontSize: '0.9rem' }}>Analiza documento: clasifica y resume una publicación oficial.</p>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+            <h2 style={{ margin: 0 }}>Analizar documento</h2>
+            <button
+              type="button"
+              onClick={loadAnalyzeSample}
+              style={{ background: 'transparent', border: '1px solid var(--accent)', color: 'var(--accent)', padding: '0.2rem 0.5rem', borderRadius: '4px', fontSize: '0.8rem', cursor: 'pointer' }}
+            >
+              Cargar ejemplo
+            </button>
+          </div>
+          <p className="text-muted" style={{ marginBottom: '1rem', fontSize: '0.9rem' }}>
+            Ingresa el título y resumen o extracto de una publicación oficial para clasificarla y extraer su impacto jurídico con IA.
+          </p>
           <form onSubmit={handleAnalyze} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
             <input 
-              placeholder="Título" 
+              placeholder="Ej: Decreto por el que se reforman diversas disposiciones de la Ley del Impuesto sobre la Renta..." 
               value={analyzeTitle} 
               onChange={e => setAnalyzeTitle(e.target.value)}
               style={{ padding: '0.5rem', borderRadius: '4px', background: '#0f172a', color: 'white', border: '1px solid var(--card-border)' }}
             />
             <textarea 
-              placeholder="Resumen" 
+              placeholder="Ej: Extracto o texto principal de la norma, disposición o boletín a analizar..." 
               value={analyzeSummary} 
               onChange={e => setAnalyzeSummary(e.target.value)}
               rows={3}
@@ -335,23 +357,34 @@ export default function AILegalPage() {
 
         {/* Card 2: Comparar alerta */}
         <div className="glass-card">
-          <h2>Comparar alerta</h2>
-          <p className="text-muted" style={{ marginBottom: '1rem', fontSize: '0.9rem' }}>Comparar alerta: revisa si un documento coincide con una alerta del usuario.</p>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+            <h2 style={{ margin: 0 }}>Comparar alerta</h2>
+            <button
+              type="button"
+              onClick={loadMatchSample}
+              style={{ background: 'transparent', border: '1px solid var(--accent)', color: 'var(--accent)', padding: '0.2rem 0.5rem', borderRadius: '4px', fontSize: '0.8rem', cursor: 'pointer' }}
+            >
+              Cargar ejemplo
+            </button>
+          </div>
+          <p className="text-muted" style={{ marginBottom: '1rem', fontSize: '0.9rem' }}>
+            Evalúa si un documento o acuerdo publicado coincide semánticamente con una regla de alerta configurada por el usuario.
+          </p>
           <form onSubmit={handleMatch} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
             <input 
-              placeholder="Regla de alerta" 
+              placeholder="Ej: Notificarme sobre reformas en materia fiscal, laboral o de seguridad social..." 
               value={matchRule} 
               onChange={e => setMatchRule(e.target.value)}
               style={{ padding: '0.5rem', borderRadius: '4px', background: '#0f172a', color: 'white', border: '1px solid var(--card-border)' }}
             />
             <input 
-              placeholder="Título del documento" 
+              placeholder="Ej: Título del documento (ej. Modificaciones a la RMF en materia tributaria)..." 
               value={matchTitle} 
               onChange={e => setMatchTitle(e.target.value)}
               style={{ padding: '0.5rem', borderRadius: '4px', background: '#0f172a', color: 'white', border: '1px solid var(--card-border)' }}
             />
             <textarea 
-              placeholder="Resumen del documento" 
+              placeholder="Ej: Resumen o extracto relevante de la publicación para calcular la coincidencia semántica..." 
               value={matchSummary} 
               onChange={e => setMatchSummary(e.target.value)}
               rows={3}
