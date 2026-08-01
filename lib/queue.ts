@@ -15,7 +15,7 @@ export const QUEUE_NAMES = {
   failedJobs: "failed-jobs",
   documentIngestion: "document-ingestion",
   normMonitoring: "norm-monitoring",
-  bulletins: "bulletins",
+  bulletins: "bulletin-monitor",
 } as const;
 
 export const defaultJobOptions = {
