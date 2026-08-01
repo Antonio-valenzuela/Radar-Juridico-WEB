@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { useState, useEffect, useRef } from 'react';
 import { normalizeLegalDisplayText } from '@/lib/text/normalizeLegalDisplayText';
@@ -166,8 +166,14 @@ export default function FloatingLegalChat() {
         providerSummary = deep.providerSummary;
       } else {
         const fast = data.data || {};
-        contentText = fast.content || data.answer || data.displayAnswer || 'Respuesta generada.';
-        citations = fast.citations || data.citations || [];
+        const rawContent = fast.content || data.answer || data.displayAnswer || 'Respuesta generada.';
+        contentText = rawContent.replace(/```json\n?|```/g, '').trim();
+        const rawCitations = fast.citations || data.citations || [];
+        citations = rawCitations.filter((c: any) => {
+          const title = c.title?.toString().toUpperCase() || '';
+          const fuente = c.fuente?.toString().toUpperCase() || '';
+          return !title.includes('SENADO_WEB') && !fuente.includes('SENADO_WEB');
+        });
         issuesList = (fast.issues || data.issues || []).map((i: any) => ({ ...i, status: 'pending' }));
         consistencyProblems = fast.consistencyProblems || data.consistencyProblems || [];
         missingFields = fast.missingFields || data.missingFields || [];
@@ -188,7 +194,10 @@ export default function FloatingLegalChat() {
         issues: issuesList,
         consistencyProblems,
         missingFields,
-        warnings: data.warnings || [],
+        warnings: (data.warnings || []).filter((w: string) => {
+          const lower = w.toLowerCase();
+          return !lower.includes('religioso') && !lower.includes('curp');
+        }),
         providerSummary,
         followUpQuestions: [
           '¿Deseas verificar los preceptos constitucionales?',

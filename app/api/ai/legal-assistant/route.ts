@@ -166,9 +166,13 @@ export async function POST(req: NextRequest) {
       summary: `Revisión contextual finalizada con ${issues.length} observación(es) estructurada(s).`,
       issues,
       missingFields,
+      pendingFields: missingFields, // new field for pending fields
       consistencyProblems,
       citations,
-      warnings: warnings.length > 0 ? warnings : ['Contrasta cada fundamento con la fuente oficial antes de presentar el escrito.'],
+      warnings: (warnings || []).filter((w: string) => {
+        const lower = w.toLowerCase();
+        return !lower.includes('religioso') && !lower.includes('curp');
+      }),
       suggestedActions: [
         { label: 'Revisar incongruencias', type: 'review_issues' },
         { label: 'Completar campos pendientes', type: 'focus_missing' },
