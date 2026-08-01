@@ -2,36 +2,27 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 type NavItem = {
   href: string;
   label: string;
-  description?: string;
 };
 
-const USER_NAV_ITEMS: NavItem[] = [
+const MAIN_NAV_ITEMS: NavItem[] = [
   { href: '/', label: 'Dashboard' },
   { href: '/search', label: 'Búsqueda' },
   { href: '/documents', label: 'Documentos' },
-  {
-    href: '/monitoreo',
-    label: 'Vigilancia documental',
-    description: 'Estado y cambios por hash del documento completo',
-  },
-  {
-    href: '/legal-hub/cambios',
-    label: 'Cambios por artículo',
-    description: 'NormaDiff con desglose por artículo y resumen de IA',
-  },
-  { href: '/rag', label: 'IA Legal' },
   { href: '/watchlists', label: 'Alertas' },
   { href: '/legal-hub', label: 'Centro Jurídico' },
-];
-
-const ADMIN_NAV_ITEMS = [
+  { href: '/rag', label: 'IA Legal' },
+  { href: '/monitoreo', label: 'Vigilancia documental' },
+  { href: '/legal-hub/cambios', label: 'Cambios por artículo' },
   { href: '/ai', label: 'IA Sandbox' },
   { href: '/metrics', label: 'Métricas' },
+];
+
+const ADMIN_NAV_ITEMS: NavItem[] = [
   { href: '/admin/ingest/manual-url', label: 'Agregar link' },
   { href: '/admin/sources', label: 'Fuentes' },
   { href: '/admin/dashboard', label: 'Admin Dashboard' },
@@ -40,61 +31,105 @@ const ADMIN_NAV_ITEMS = [
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
-  const isAdmin = pathname.startsWith('/admin') || pathname === '/metrics' || pathname === '/ai';
 
-  const isPublicDemo =
-    typeof window !== 'undefined'
-      ? false // env vars not available client-side this way; show admin always for non-demo
-      : false;
+  // Lock body scroll when drawer is open
+  useEffect(() => {
+    if (menuOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [menuOpen]);
+
+  // Close drawer on Escape key
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && menuOpen) {
+        setMenuOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [menuOpen]);
 
   return (
     <>
-      <header className="header">
-        <Link href="/" className="logo">
+      <header className="global-header">
+        <Link href="/" className="logo" onClick={() => setMenuOpen(false)}>
           <div className="logo-icon" />
           Jurídico Radar
         </Link>
         <button
-          className="appshell-menu-btn"
+          className={`hamburger-btn ${menuOpen ? 'is-active' : ''}`}
           onClick={() => setMenuOpen(!menuOpen)}
-          aria-label="Abrir menú"
+          aria-label={menuOpen ? 'Cerrar menú de navegación' : 'Abrir menú de navegación'}
+          aria-expanded={menuOpen}
+          aria-controls="global-drawer"
         >
-          <span /><span /><span />
+          <span />
+          <span />
+          <span />
         </button>
-        <nav className={`nav-menu ${menuOpen ? 'nav-menu--open' : ''}`}>
-          {/* ── Rutas de usuario ── */}
-          {USER_NAV_ITEMS.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={pathname === item.href ? 'appshell-active' : ''}
-              onClick={() => setMenuOpen(false)}
-              title={item.description}
-              aria-label={item.description ? `${item.label}: ${item.description}` : item.label}
-            >
-              {item.label}
-            </Link>
-          ))}
+      </header>
 
-          {/* ── Separador + rutas de admin ── */}
-          {!isPublicDemo && (
-            <>
-              <span className="appshell-divider" />
-              {ADMIN_NAV_ITEMS.map((item) => (
+      {/* Backdrop */}
+      {menuOpen && (
+        <div
+          className="drawer-backdrop"
+          onClick={() => setMenuOpen(false)}
+          aria-hidden="true"
+        />
+      )}
+
+      {/* Side Drawer */}
+      <aside
+        id="global-drawer"
+        className={`global-drawer ${menuOpen ? 'is-open' : ''}`}
+        aria-hidden={!menuOpen}
+      >
+        <nav className="drawer-nav">
+          <div className="drawer-section">
+            <span className="drawer-section-title">Navegación</span>
+            {MAIN_NAV_ITEMS.map((item) => {
+              const isActive = pathname === item.href;
+              return (
                 <Link
                   key={item.href}
                   href={item.href}
-                  className={`appshell-admin-link ${pathname.startsWith(item.href) ? 'appshell-active' : ''}`}
+                  className={`drawer-link ${isActive ? 'is-active' : ''}`}
                   onClick={() => setMenuOpen(false)}
                 >
                   {item.label}
                 </Link>
-              ))}
-            </>
-          )}
+              );
+            })}
+          </div>
+
+          <div className="drawer-section">
+            <span className="drawer-section-title">Administración</span>
+            {ADMIN_NAV_ITEMS.map((item) => {
+              const isActive = pathname.startsWith(item.href);
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={`drawer-link ${isActive ? 'is-active' : ''}`}
+                  onClick={() => setMenuOpen(false)}
+                >
+                  {item.label}
+                </Link>
+              );
+            })}
+          </div>
         </nav>
-      </header>
-      {children}
+      </aside>
+
+      <div className="appshell-content">
+        {children}
+      </div>
     </>
   );
 }

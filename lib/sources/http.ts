@@ -67,3 +67,9 @@ export async function fetchJson<T = unknown>(url: string, init?: RequestInit): P
   }
 }
 import { fetchOfficialUrl } from "@/lib/sources/officialFetch";
+export {
+  fetchPinnedPublicHttpUrl,
+  readResponseBodyWithLimit,
+  validatePublicHttpUrl,
+  validateRedirectTarget,
+} from "@/lib/security/urlValidation";
