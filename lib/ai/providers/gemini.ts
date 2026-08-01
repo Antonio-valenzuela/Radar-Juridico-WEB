@@ -2,7 +2,7 @@ import type { AIHealthResult, AIProvider, AIProviderResult, AIRequest } from "./
 import { sanitizeAiError } from "./types";
 
 export class GeminiProvider implements AIProvider {
-  id: "gemini" = "gemini";
+  readonly id = "gemini" as const;
 
   private getApiKey(): string | null {
     return process.env.GEMINI_API_KEY?.trim() || null;

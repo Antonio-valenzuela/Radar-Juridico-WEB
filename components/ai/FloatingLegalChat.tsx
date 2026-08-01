@@ -365,7 +365,7 @@ export default function FloatingLegalChat() {
                     }}
                     className="text-xs bg-purple-50 text-purple-700 hover:bg-purple-100 border border-purple-200 px-3 py-1.5 rounded-full transition"
                   >
-                    🧠 "Revisión profunda del machote actual"
+                    🧠 &quot;Revisión profunda del machote actual&quot;
                   </button>
                   <button
                     onClick={() => {
@@ -374,7 +374,7 @@ export default function FloatingLegalChat() {
                     }}
                     className="text-xs bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 px-3 py-1.5 rounded-full transition"
                   >
-                    ⚡ "Revisión rápida de campos pendientes"
+                    ⚡ &quot;Revisión rápida de campos pendientes&quot;
                   </button>
                 </div>
               </div>

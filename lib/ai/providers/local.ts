@@ -1,7 +1,7 @@
 import type { AIHealthResult, AIProvider, AIProviderResult, AIRequest } from "./types";
 
 export class LocalProvider implements AIProvider {
-  id: "local" = "local";
+  readonly id = "local" as const;
 
   async isAvailable(): Promise<boolean> {
     return true; // Local fallback is always available
