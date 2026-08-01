@@ -5,6 +5,8 @@ export const FEDERAL_BULLETIN_URL = 'https://sise.cjf.gob.mx/consultasvp/default
 export async function queryFederalBulletin(_query: BulletinQuery): Promise<BulletinAdapterResult> {
   return {
     status: 'AUTH_REQUIRED',
+    queryStatus: 'CAPTCHA_REQUIRED',
+    publicationStatus: 'UNKNOWN',
     checkedAt: new Date(),
     sourceUrl: FEDERAL_BULLETIN_URL,
     results: [],
@@ -12,5 +14,7 @@ export async function queryFederalBulletin(_query: BulletinQuery): Promise<Bulle
     responseHash: null,
     httpStatus: null,
     errorCode: 'AUTH_REQUIRED',
+    adapterVersion: '1.0.0',
+    origin: 'OFFICIAL_PUBLIC_SOURCE',
   };
 }

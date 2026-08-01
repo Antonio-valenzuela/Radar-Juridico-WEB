@@ -17,25 +17,29 @@ export async function POST(request: Request, { params }: RouteContext) {
   const notes = typeof body?.notes === 'string' ? body.notes.trim().slice(0, 5000) : undefined;
   if (!entryId || !action) return NextResponse.json({ ok: false, error: 'invalid_entry_action', message: 'La acción o publicación no es válida.' }, { status: 400 });
 
-  const entry = await prisma.judicialBulletinEntry.findFirst({ where: { id: entryId, matterId: matter.id }, include: { actuation: true } });
-  if (!entry) return NextResponse.json({ ok: false, error: 'entry_not_found', message: 'La publicación no pertenece a este expediente.' }, { status: 404 });
+  const link = await prisma.matterBulletinEntry.findUnique({
+    where: { matterId_bulletinEntryId: { matterId: matter.id, bulletinEntryId: entryId } },
+    include: { bulletinEntry: true, actuation: true },
+  });
+  if (!link) return NextResponse.json({ ok: false, error: 'entry_not_found', message: 'La publicación no pertenece a este expediente.' }, { status: 404 });
+  const entry = link.bulletinEntry;
 
   if (action === 'review' || action === 'notes') {
-    const updated = await prisma.judicialBulletinEntry.update({
-      where: { id: entry.id },
-      data: { reviewed: action === 'review' ? true : entry.reviewed, reviewedAt: action === 'review' ? new Date() : entry.reviewedAt, ...(notes !== undefined ? { notes } : {}) },
+    const updated = await prisma.matterBulletinEntry.update({
+      where: { id: link.id },
+      data: { reviewed: action === 'review' ? true : link.reviewed, reviewedAt: action === 'review' ? new Date() : link.reviewedAt, ...(notes !== undefined ? { notes } : {}) },
     });
     return NextResponse.json({ ok: true, entry: updated });
   }
 
-  const actuation = entry.actuation || await prisma.caseActuation.create({
+  const actuation = link.actuation || await prisma.caseActuation.create({
     data: {
       matterId: matter.id,
       date: entry.publicationDate || entry.agreementDate || new Date(),
       type: entry.proceedingType || 'Boletín Judicial',
       summary: entry.heading || entry.extract || `Publicación del expediente ${entry.expedienteNumber}`,
       sourceUrl: entry.sourceUrl,
-      bulletinEntryId: entry.id,
+      matterBulletinEntryId: link.id,
     },
   });
   return NextResponse.json({ ok: true, actuation });

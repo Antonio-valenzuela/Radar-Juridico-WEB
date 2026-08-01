@@ -63,6 +63,29 @@ test("Diputados separa publicación original y última reforma cuando hay dos fe
   assert.equal(result.published, "2026-06-02T00:00:00.000Z");
 });
 
+test("Diputados retiene sin publicación los documentos sin fecha jurídica verificable", () => {
+  const result = runTs(`
+    import { extractDiputadosPdfItems } from "./lib/sources/diputados";
+    const html = '<a href="pdf/LFT.pdf">Ley Federal del Trabajo</a>';
+    const [item] = extractDiputadosPdfItems(html, 20);
+    console.log(JSON.stringify({
+      qualityStatus: item.qualityStatus,
+      rawQualityStatus: item.raw.qualityStatus,
+      published: item.published,
+      publicationDate: item.publicationDate,
+      lastReformDate: item.lastReformDate,
+      retrievedAt: item.raw.retrievedAt,
+    }));
+  `);
+
+  assert.equal(result.qualityStatus, "suspicious");
+  assert.equal(result.rawQualityStatus, "pending_review");
+  assert.equal(result.published, null);
+  assert.equal(result.publicationDate, null);
+  assert.equal(result.lastReformDate, null);
+  assert.ok(result.retrievedAt);
+});
+
 test("Diputados no usa administrativo como materia por descarte", () => {
   const result = runTs(`
     import { extractDiputadosPdfItems } from "./lib/sources/diputados";
@@ -83,10 +106,12 @@ test("Diputados reconoce abreviaturas oficiales de LeyesBiblio", () => {
     console.log(JSON.stringify(extractDiputadosPdfItems(html, 20)));
   `);
 
-  assert.equal(result[0].qualityStatus, "valid");
+  assert.equal(result[0].qualityStatus, "suspicious");
+  assert.equal(result[0].raw.qualityStatus, "pending_review");
   assert.equal(result[0].title, "Código de Comercio");
   assert.equal(result[0].tema, "mercantil");
-  assert.equal(result[1].qualityStatus, "valid");
+  assert.equal(result[1].qualityStatus, "suspicious");
+  assert.equal(result[1].raw.qualityStatus, "pending_review");
   assert.equal(result[1].title, "Código Nacional de Procedimientos Civiles y Familiares");
 });
 
@@ -95,6 +120,7 @@ test("diagnóstico de Diputados es de solo lectura salvo --reprocess y no borra"
   assert.match(script, /--reprocess/);
   assert.doesNotMatch(script, /deleteMany|delete\s*\(/);
   assert.match(script, /runSourceIngest\("DIPUTADOS"/);
+  assert.match(script, /source:\s*item\.source/);
 });
 
 test("runIngest manda items sospechosos a cuarentena antes de persistir", () => {

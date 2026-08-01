@@ -10,4 +10,7 @@ test('expediente incluye pestaña y acciones del Boletín Judicial', () => {
   assert.match(component, /Consultar ahora/);
   assert.match(component, /Activar vigilancia/);
   assert.match(component, /Descargar evidencia/);
+  assert.match(component, /Coincidencias detectadas/);
+  assert.match(component, /publication\.matches/);
+  assert.match(component, /previewToken/);
 });

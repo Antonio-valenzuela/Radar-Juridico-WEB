@@ -1,10 +1,10 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   BULLETIN_STATUSES,
   normalizeBulletinQuery,
   classifyBulletinFailure,
 } from '@/lib/bulletins/types';
-import { parseJaliscoBulletinResponse, queryJaliscoBulletin } from '@/lib/bulletins/adapters/jalisco';
+import { JaliscoBulletinAdapter, parseJaliscoBulletinResponse, queryJaliscoBulletin } from '@/lib/bulletins/adapters/jalisco';
 import { buildBulletinDedupeKey } from '@/lib/bulletins/dedupe';
 
 describe('boletín judicial', () => {
@@ -85,11 +85,11 @@ describe('boletín judicial', () => {
 
   it('clasifica autenticación, timeout y límite de fuente sin convertirlos en NOT_FOUND_AS_OF', async () => {
     const query = { sourceSlug: 'boletin_judicial_jalisco', expedienteNumber: '123/2026', matter: 'civil', court: 'Juzgado Primero' };
-    const unauthorized = await queryJaliscoBulletin(query, { fetchImpl: async () => new Response('', { status: 401 }), timeoutMs: 1000 });
+    const unauthorized = await queryJaliscoBulletin(query, { fetchImpl: async () => new Response('', { status: 401 }), timeoutMs: 1000, allowAutomatedLookup: true });
     expect(unauthorized.status).toBe('AUTH_REQUIRED');
-    const rateLimited = await queryJaliscoBulletin(query, { fetchImpl: async () => new Response('', { status: 429 }), timeoutMs: 1000 });
+    const rateLimited = await queryJaliscoBulletin(query, { fetchImpl: async () => new Response('', { status: 429 }), timeoutMs: 1000, allowAutomatedLookup: true });
     expect(rateLimited.status).toBe('PENDING_RETRY');
-    const timeout = await queryJaliscoBulletin(query, { fetchImpl: async (_input, init) => new Promise((_resolve, reject) => { init?.signal?.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError'))); }), timeoutMs: 1000 });
+    const timeout = await queryJaliscoBulletin(query, { fetchImpl: async (_input, init) => new Promise((_resolve, reject) => { init?.signal?.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError'))); }), timeoutMs: 1000, allowAutomatedLookup: true });
     expect(timeout.status).toBe('SOURCE_UNAVAILABLE');
   });
 
@@ -108,6 +108,7 @@ describe('boletín judicial', () => {
     }, {
       fetchImpl: async () => new Response(authEnvelope, { status: 200, headers: { 'content-type': 'application/json' } }),
       timeoutMs: 1000,
+      allowAutomatedLookup: true,
     });
     expect(authRequired.status).toBe('AUTH_REQUIRED');
     expect(authRequired.errorCode).toBe('AUTH_REQUIRED');
@@ -123,5 +124,36 @@ describe('boletín judicial', () => {
     };
     expect(buildBulletinDedupeKey(input)).toBe(buildBulletinDedupeKey({ ...input }));
     expect(buildBulletinDedupeKey({ ...input, contentHash: 'different' })).not.toBe(buildBulletinDedupeKey(input));
+  });
+
+  it('resuelve labels oficiales a IDs antes de descargar el boletín diario', async () => {
+    const fetchImpl = vi.fn(async (input: string | URL | Request) => {
+      const url = String(input);
+      if (url.includes('/matters/get_all_matters')) {
+        return Response.json({ data: { matters: [{ value: 2, label: 'Civil Batch Test' }] } });
+      }
+      if (url.includes('/courts_matters/courts_parties/2')) {
+        return Response.json({ data: { options: [{ value: 3, label: 'Partido Batch Test' }] } });
+      }
+      if (url.includes('/courts/get_list/3/2')) {
+        return Response.json({ data: { courts: [{ value: 4, label: 'Juzgado Batch Test' }] } });
+      }
+      if (url.includes('/electronic_expedients/by_date/4/2026/8/1/2')) {
+        return Response.json({ data: { Expedients: [{ expedient: '123/2026', publication_date: '2026-08-01' }] } });
+      }
+      return new Response('not found', { status: 404 });
+    });
+    const adapter = new JaliscoBulletinAdapter({ fetchImpl: fetchImpl as typeof fetch, allowAutomatedLookup: true });
+
+    const result = await adapter.fetchDailyBulletin({
+      subjectId: 'Civil Batch Test',
+      districtId: 'Partido Batch Test',
+      courtId: 'Juzgado Batch Test',
+      publicationDate: '2026-08-01',
+    });
+
+    expect(fetchImpl).toHaveBeenCalledTimes(4);
+    expect(String(fetchImpl.mock.calls[3][0])).toContain('/electronic_expedients/by_date/4/2026/8/1/2');
+    expect(result.results[0].expedienteNumber).toBe('123/2026');
   });
 });

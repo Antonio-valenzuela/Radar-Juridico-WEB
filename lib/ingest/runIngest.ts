@@ -517,7 +517,7 @@ export async function getIngestStatus() {
 export function serializeRawItems(items: RawSourceItem[]) {
   return items.map((item) => ({
     ...item,
-    published: item.published.toISOString(),
+    published: item.published?.toISOString() || null,
   }));
 }
 

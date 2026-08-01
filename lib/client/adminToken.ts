@@ -54,7 +54,12 @@ export async function adminFetch(input: RequestInfo | URL, init: RequestInit = {
   const tokenHeaders = getAdminTokenHeaders(Object.fromEntries(headers.entries()));
   Object.entries(tokenHeaders).forEach(([key, value]) => headers.set(key, value));
   const method = (init.method || 'GET').toUpperCase();
-  if (method !== 'GET' && method !== 'HEAD' && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json');
+  const browserManagedBody = typeof FormData !== 'undefined' && init.body instanceof FormData
+    || typeof Blob !== 'undefined' && init.body instanceof Blob
+    || typeof URLSearchParams !== 'undefined' && init.body instanceof URLSearchParams;
+  if (method !== 'GET' && method !== 'HEAD' && !headers.has('Content-Type') && !browserManagedBody) {
+    headers.set('Content-Type', 'application/json');
+  }
   const response = await fetch(input, { ...init, headers });
   if (response.status === 401) {
     clearAdminToken();

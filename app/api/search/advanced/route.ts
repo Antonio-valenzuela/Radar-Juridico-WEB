@@ -21,7 +21,20 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-function searchErrorResponse(code: SearchErrorCode, status: number, error?: unknown) {
+function isDatabaseUnavailable(error: unknown): boolean {
+  const candidate = error && typeof error === 'object'
+    ? error as { code?: unknown; name?: unknown }
+    : null;
+  const code = typeof candidate?.code === 'string' ? candidate.code.toUpperCase() : '';
+  const name = typeof candidate?.name === 'string' ? candidate.name : '';
+  const message = errorMessage(error).toLowerCase();
+
+  return ['P1000', 'P1001', 'P1002', 'P1003', 'P1017'].includes(code)
+    || name === 'PrismaClientInitializationError'
+    || /can't reach database server|connection refused|econnrefused|connection (?:terminated|closed)|database server.*unavailable/.test(message);
+}
+
+function searchErrorResponse(code: SearchErrorCode, status: number) {
   const messages: Record<SearchErrorCode, string> = {
     search_failed: 'No fue posible completar la búsqueda.',
     local_search_failed: 'No fue posible consultar la búsqueda local.',
@@ -30,15 +43,11 @@ function searchErrorResponse(code: SearchErrorCode, status: number, error?: unkn
     invalid_filters: 'Los filtros de búsqueda no son válidos.',
     database_unavailable: 'La base de datos no está disponible temporalmente.',
   };
-  const payload: { ok: false; error: SearchErrorCode; message: string; details?: string[] } = {
+  const payload: { ok: false; error: SearchErrorCode; message: string } = {
     ok: false,
     error: code,
     message: messages[code],
   };
-
-  if (process.env.NODE_ENV !== 'production' && error) {
-    payload.details = [errorMessage(error)];
-  }
 
   return NextResponse.json(payload, { status });
 }
@@ -142,7 +151,10 @@ export async function POST(req: Request) {
         if (process.env.NODE_ENV === 'test') {
           textResults = [];
         } else {
-          return searchErrorResponse('local_search_failed', 503, dbError);
+          return searchErrorResponse(
+            isDatabaseUnavailable(dbError) ? 'database_unavailable' : 'local_search_failed',
+            503,
+          );
         }
       }
     }
@@ -154,7 +166,12 @@ export async function POST(req: Request) {
         semanticChunks = await semanticSearch(semanticQuery, dbLimit, { suppressErrors: false });
       } catch (semanticError) {
         console.error('[advancedSearch] Semantic search failed:', errorMessage(semanticError));
-        if (process.env.NODE_ENV !== 'test') return searchErrorResponse('semantic_search_failed', 503, semanticError);
+        if (process.env.NODE_ENV !== 'test') {
+          return searchErrorResponse(
+            isDatabaseUnavailable(semanticError) ? 'database_unavailable' : 'semantic_search_failed',
+            503,
+          );
+        }
         semanticChunks = [];
       }
     }
@@ -301,11 +318,7 @@ export async function POST(req: Request) {
         );
         if (federated && federated.results) {
           const federatedWarnings = Array.isArray(federated.warnings) ? federated.warnings : [];
-          if (process.env.NODE_ENV === 'production') {
-            if (federatedWarnings.length > 0) warnings.push('official_source_failed');
-          } else {
-            warnings.push(...federatedWarnings);
-          }
+          if (federatedWarnings.length > 0) warnings.push('official_source_failed');
           for (const group of federated.results) {
             if (!group.results || group.results.length === 0) continue;
             for (const r of group.results) {
@@ -333,11 +346,7 @@ export async function POST(req: Request) {
       } catch (err: any) {
         const message = errorMessage(err);
         console.error("[advancedSearch] Federated search failed:", message);
-        warnings.push(
-          process.env.NODE_ENV === 'production'
-            ? 'official_source_failed'
-            : `Búsqueda federada fallida: ${message}`
-        );
+        warnings.push('official_source_failed');
       }
     }
 
@@ -410,6 +419,10 @@ export async function POST(req: Request) {
 
   } catch (error: unknown) {
     console.error('Advanced Search Error:', error);
-    return searchErrorResponse('search_failed', 500, error);
+    const databaseUnavailable = isDatabaseUnavailable(error);
+    return searchErrorResponse(
+      databaseUnavailable ? 'database_unavailable' : 'search_failed',
+      databaseUnavailable ? 503 : 500,
+    );
   }
 }
