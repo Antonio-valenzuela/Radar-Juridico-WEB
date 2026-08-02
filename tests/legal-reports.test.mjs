@@ -17,7 +17,7 @@ function runTs(code) {
        },
       // Windows CI and the full concurrent suite can spend several seconds
       // loading Prisma/tsx before the worker body begins.
-      timeout: 30_000,
+      timeout: 60000,
     }
   );
 

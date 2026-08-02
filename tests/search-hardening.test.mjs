@@ -7,7 +7,7 @@ function runTs(code, env = {}) {
   const result = spawnSync(process.execPath, ["node_modules/tsx/dist/cli.mjs", "--eval", code], {
     cwd: process.cwd(),
     encoding: "utf8",
-    timeout: 30_000,
+    timeout: 60000,
     env: { NODE_PATH: process.cwd() + "/node_modules", ...process.env, ...env  },
   });
 

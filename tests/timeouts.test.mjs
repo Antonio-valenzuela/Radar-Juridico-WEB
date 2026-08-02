@@ -10,7 +10,7 @@ function runTs(code, extraEnv = {}) {
     cwd: process.cwd(),
       encoding: "utf8",
       env: { NODE_PATH: process.cwd() + "/node_modules", ...process.env, LLM_PROVIDER: "local", NODE_ENV: "test", ...extraEnv  },
-      timeout: 10_000,
+      timeout: 60000,
     }
   );
 

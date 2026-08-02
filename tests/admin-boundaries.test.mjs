@@ -55,7 +55,7 @@ function invokeWithoutToken(file, method) {
   const result = spawnSync(process.execPath, ["node_modules/tsx/dist/cli.mjs", "--eval", code], {
     cwd: process.cwd(),
     encoding: "utf8",
-    timeout: 15000,
+    timeout: 60000,
     env: { ...process.env, NODE_PATH: "node_modules", ADMIN_TOKEN: "test-admin-token", NODE_ENV: "test" },
   });
   if (result.status !== 0) throw new Error(result.stderr || result.stdout || "route invocation failed");

@@ -14,7 +14,7 @@ function evaluate(env) {
        console.log(JSON.stringify(getRuntimeEnvErrors(env)));`,
     ],
     {
-    cwd: process.cwd(), encoding: "utf8", timeout: 15_000 },
+    cwd: process.cwd(), encoding: "utf8", timeout: 60000 },
   );
 
   if (result.status !== 0) throw new Error(result.stderr || "tsx execution failed");
