@@ -10,12 +10,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync, existsSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 
 // ─── Helper: read source file content ────────────────────────────────────────
 
 function readRoute(relPath) {
-  const abs = new URL(`../${relPath}`, import.meta.url).pathname
-    .replace(/^\/([A-Z]:)/, "$1"); // fix Windows path
+  const abs = fileURLToPath(new URL(`../${relPath}`, import.meta.url));
   if (!existsSync(abs)) throw new Error(`File not found: ${abs}`);
   return readFileSync(abs, "utf8");
 }
@@ -24,14 +24,14 @@ function readRoute(relPath) {
 
 test("weekly-changes route file exists", () => {
   assert.ok(
-    existsSync(new URL("../app/api/legal/weekly-changes/route.ts", import.meta.url).pathname.replace(/^\/([A-Z]:)/, "$1")),
+    existsSync(fileURLToPath(new URL("../app/api/legal/weekly-changes/route.ts", import.meta.url))),
     "app/api/legal/weekly-changes/route.ts should exist"
   );
 });
 
 test("radar route file exists", () => {
   assert.ok(
-    existsSync(new URL("../app/api/legal/radar/route.ts", import.meta.url).pathname.replace(/^\/([A-Z]:)/, "$1")),
+    existsSync(fileURLToPath(new URL("../app/api/legal/radar/route.ts", import.meta.url))),
     "app/api/legal/radar/route.ts should exist"
   );
 });
@@ -252,7 +252,7 @@ test("admin routes import requireAdmin", () => {
     "app/api/admin/refresh/route.ts",
   ];
   for (const rel of confirmedProtectedRoutes) {
-    const path = new URL(`../${rel}`, import.meta.url).pathname.replace(/^\/([A-Z]:)/, "$1");
+    const path = fileURLToPath(new URL(`../${rel}`, import.meta.url));
     if (!existsSync(path)) continue;
     const src = readFileSync(path, "utf8");
     assert.ok(
