@@ -14,6 +14,7 @@ function evaluate(env) {
        console.log(JSON.stringify(getRuntimeEnvErrors(env)));`,
     ],
     {
+    env: { NODE_PATH: process.cwd() + "/node_modules", ...process.env },
     cwd: process.cwd(), encoding: "utf8", timeout: 60000 },
   );
 
