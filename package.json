@@ -16,7 +16,7 @@
     "start:prod": "sh scripts/start-prod.sh",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
-    "test": "NODE_PATH=node_modules node --test --test-concurrency=2 tests/*.test.mjs && vitest run",
+    "test": "NODE_PATH=node_modules node --test --test-concurrency=1 tests/*.test.mjs && vitest run",
     "test:vitest": "vitest run",
     "ai:test-providers": "tsx scripts/test-ai-providers.ts",
     "test:legacy": "node --test tests/*.test.mjs",
