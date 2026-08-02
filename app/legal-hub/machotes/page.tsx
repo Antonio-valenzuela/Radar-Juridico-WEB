@@ -16,10 +16,12 @@ import {
 import { generatePrintHtml } from '@/lib/templates/exportPdf';
 import { DRAFT_WARNING, hasPendingMarkers } from '@/lib/templates/templateQuality';
 import { useLegalWorkspaceContext } from '@/context/LegalWorkspaceContext';
+import { AiFillModal } from '@/components/machotes/AiFillModal';
 
 export default function MachotesPage() {
   const { setActiveDocument } = useLegalWorkspaceContext();
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>(templates[0].id);
+  const [isAiFillOpen, setIsAiFillOpen] = useState(false);
 
   const selectedTemplate = useMemo(() => {
     return templates.find(t => t.id === selectedTemplateId) || templates[0];
@@ -295,6 +297,13 @@ export default function MachotesPage() {
             <div className="flex items-center gap-2">
               <button
                 type="button"
+                onClick={() => setIsAiFillOpen(true)}
+                className="bg-emerald-700 hover:bg-emerald-800 text-white font-semibold text-xs px-4 py-2 rounded-lg transition shadow flex items-center gap-1.5"
+              >
+                ✨ Autollenar con IA (Texto / PDF)
+              </button>
+              <button
+                type="button"
                 onClick={triggerQuickReview}
                 className="bg-blue-50 border border-blue-200 text-blue-800 hover:bg-blue-100 font-medium text-xs px-3 py-2 rounded-lg transition flex items-center gap-1.5"
               >
@@ -310,6 +319,18 @@ export default function MachotesPage() {
             </div>
           </div>
         </header>
+
+        <AiFillModal
+          isOpen={isAiFillOpen}
+          onClose={() => setIsAiFillOpen(false)}
+          templateName={selectedTemplate.title}
+          templateSections={selectedTemplate.sections}
+          currentFields={values}
+          onApplyFields={(newFields) => {
+            setValues((prev) => ({ ...prev, ...newFields }));
+            setFeedback({ tone: "success", message: `Se aplicaron ${Object.keys(newFields).length} campos detectados.` });
+          }}
+        />
 
         <div className="machote-template-toolbar">
           <div className="machote-template-select">

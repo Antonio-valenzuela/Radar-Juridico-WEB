@@ -1,15 +1,30 @@
 :root {
-  --primary: #6366f1;
-  --primary-glow: rgba(99, 102, 241, 0.4);
-  --secondary: #ec4899;
-  --secondary-glow: rgba(236, 72, 153, 0.4);
-  --accent: #818cf8;
-  --bg-color: #0f172a;
-  --bg-color-transparent: rgba(15, 23, 42, 0.7);
-  --text-main: #f8fafc;
-  --text-muted: #94a3b8;
-  --card-bg: rgba(30, 41, 59, 0.7);
-  --card-border: rgba(255, 255, 255, 0.1);
+  --background: #f4f6f8;
+  --surface: #ffffff;
+  --surface-secondary: #eef2f6;
+
+  --text-primary: #172033;
+  --text-secondary: #526075;
+  --text-main: #172033;
+  --text-muted: #526075;
+
+  --primary: #173b57;
+  --primary-hover: #102d43;
+  --primary-glow: rgba(23, 59, 87, 0.1);
+  --secondary: #0f766e;
+  --secondary-glow: rgba(15, 118, 110, 0.1);
+  --accent: #0f766e;
+
+  --bg-color: #f4f6f8;
+  --bg-color-transparent: rgba(244, 246, 248, 0.95);
+  --card-bg: #ffffff;
+  --card-border: #d7dee8;
+  --border: #d7dee8;
+  --focus: #2563eb;
+
+  --success: #237a57;
+  --warning: #8a5b00;
+  --danger: #b42318;
 }
 
 * {
@@ -28,18 +43,9 @@ body {
   overflow-x: hidden;
 }
 
-/* Background Gradients */
+/* Subtly clean background */
 .bg-gradient {
-  position: fixed;
-  top: -50%;
-  left: -50%;
-  width: 200%;
-  height: 200%;
-  background: 
-    radial-gradient(circle at 50% 50%, var(--primary-glow) 0%, transparent 40%),
-    radial-gradient(circle at 80% 20%, var(--secondary-glow) 0%, transparent 30%);
-  z-index: -1;
-  animation: bg-pulse 15s ease-in-out infinite alternate;
+  display: none;
 }
 
 @keyframes bg-pulse {

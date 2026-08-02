@@ -71,16 +71,33 @@ export function filterNoise(text: string): string {
   if (!text) return text;
   return text
     .replace(/Inicio\s*\|\s*Contacto\s*\|\s*Ayuda/gi, "")
+    .replace(/Ejemplar de hoy\s*\|\s*Búsqueda/gi, "")
     .replace(/Derechos Reservados/gi, "")
     .replace(/404 Not Found/gi, "")
     .replace(/Please login to continue/gi, "")
+    .replace(/<script[\s\S]*?<\/script>/gi, "")
+    .replace(/<style[\s\S]*?<\/style>/gi, "")
+    .replace(/<nav[\s\S]*?<\/nav>/gi, "")
+    .replace(/<footer[\s\S]*?<\/footer>/gi, "")
+    .replace(/\s+/g, " ")
     .trim();
 }
 
 export function resolveTaxonomy(
   rawTipo: string | null | undefined,
-  hasVerifiableLegalEvidence: boolean = false
+  hasVerifiableLegalEvidence: boolean = false,
+  title?: string
 ): DocumentTaxonomy {
+  const normalizedTitle = (title || "").toLowerCase();
+  
+  // Specific checks for administrative/financial items
+  if (normalizedTitle.includes("saldos") || normalizedTitle.includes("fideicomiso") || normalizedTitle.includes("mandato")) {
+    return "Información administrativa";
+  }
+  if (normalizedTitle.includes("tipo de cambio") || normalizedTitle.includes("udis")) {
+    return "Tipo de cambio";
+  }
+
   if (!rawTipo) return "Sin clasificar";
 
   const normalized = rawTipo.trim().toLowerCase();
@@ -95,6 +112,7 @@ export function resolveTaxonomy(
   if (exactMatch) return exactMatch;
 
   if (normalized.includes("ley")) return "Ley";
+  if (normalized.includes("código") || normalized.includes("codigo")) return "Código";
   if (normalized.includes("acuerdo")) return "Acuerdo";
   if (normalized.includes("decreto")) return "Decreto";
   if (normalized.includes("reglamento")) return "Reglamento";
@@ -103,6 +121,7 @@ export function resolveTaxonomy(
   if (normalized.includes("circular")) return "Circular";
   if (normalized.includes("norma oficial") || normalized.includes("nom")) return "Norma oficial";
   if (normalized.includes("convenio")) return "Convenio";
+  if (normalized.includes("tarifa")) return "Tarifa";
   
   return "Sin clasificar";
 }
@@ -184,7 +203,7 @@ export function normalizeRawItem(item: RawSourceItem): NormalizedItem {
     lastReformDate: item.lastReformDate ?? null,
     retrievedAt: new Date(),
     summary,
-    tipo: resolveTaxonomy(item.tipo, !!item.qualityStatus && item.qualityStatus === "valid"),
+    tipo: resolveTaxonomy(item.tipo, !!item.qualityStatus && item.qualityStatus === "valid", title),
     tema: item.tema ? cleanText(item.tema).toLowerCase() : null,
     impacto: item.impacto || null,
     keywordsHit: item.keywordsHit || [],
