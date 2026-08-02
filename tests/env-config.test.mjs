@@ -13,7 +13,8 @@ function evaluate(env) {
        const env = JSON.parse(Buffer.from("${encoded}", "base64url").toString("utf8"));
        console.log(JSON.stringify(getRuntimeEnvErrors(env)));`,
     ],
-    { encoding: "utf8", timeout: 15_000 },
+    {
+    cwd: process.cwd(), encoding: "utf8", timeout: 15_000 },
   );
 
   if (result.status !== 0) throw new Error(result.stderr || "tsx execution failed");

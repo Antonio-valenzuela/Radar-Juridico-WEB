@@ -5,6 +5,7 @@ import fs from "node:fs";
 
 function runTs(code) {
   const result = spawnSync(process.execPath, ["node_modules/tsx/dist/cli.mjs", "--eval", code], {
+    cwd: process.cwd(),
     encoding: "utf8",
     timeout: 15000
   });

@@ -8,6 +8,7 @@ function runTs(code, env = {}) {
     process.execPath,
     ["node_modules/tsx/dist/cli.mjs", "--eval", code],
     {
+    cwd: process.cwd(),
       encoding: "utf8",
       env: {
         ...process.env,

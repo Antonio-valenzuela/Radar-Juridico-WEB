@@ -7,7 +7,8 @@ function runTs(code) {
   const result = spawnSync(
     process.execPath,
     ["node_modules/tsx/dist/cli.mjs", "--eval", code],
-    { encoding: "utf8", env: { ...process.env, NODE_ENV: "development" }, timeout: 45000 }
+    {
+    cwd: process.cwd(), encoding: "utf8", env: { NODE_PATH: process.cwd() + "/node_modules", ...process.env, NODE_ENV: "development"  }, timeout: 45000 }
   );
   if (result.status !== 0) {
     throw new Error(result.stderr || result.stdout || result.error?.message || "tsx execution failed");

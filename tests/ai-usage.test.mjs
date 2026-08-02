@@ -5,14 +5,15 @@ import fs from "node:fs";
 
 function runTs(code, env = {}) {
   const result = spawnSync(process.execPath, ["node_modules/tsx/dist/cli.mjs", "--eval", code], {
+    cwd: process.cwd(),
     encoding: "utf8",
-    env: {
+    env: { NODE_PATH: process.cwd() + "/node_modules",
       ...process.env,
       NODE_ENV: "test",
       ALLOW_DEV_ADMIN_TOKEN: "true",
       AI_ENABLE_USAGE_TRACKING: "true",
       ...env,
-    },
+     },
   });
 
   if (result.status !== 0) {

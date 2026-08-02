@@ -8,7 +8,7 @@ function runTs(code) {
     cwd: process.cwd(),
     encoding: "utf8",
     timeout: 30000,
-    env: { ...process.env, NODE_ENV: "test" },
+    env: { NODE_PATH: process.cwd() + "/node_modules", ...process.env, NODE_ENV: "test"  },
   });
 
   if (result.status !== 0) {

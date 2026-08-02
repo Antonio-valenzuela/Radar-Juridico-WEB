@@ -5,15 +5,16 @@ import fs from "node:fs";
 
 function runTs(code) {
   const result = spawnSync(process.execPath, ["node_modules/tsx/dist/cli.mjs", "--eval", code], {
+    cwd: process.cwd(),
     encoding: "utf8",
-    env: {
+    env: { NODE_PATH: process.cwd() + "/node_modules",
       ...process.env,
       NODE_ENV: "test",
       LLM_PROVIDER: "gemini",
       GEMINI_API_KEY: "",
       OPENROUTER_API_KEY: "",
       GROQ_API_KEY: "",
-    },
+     },
   });
 
   if (result.status !== 0) {

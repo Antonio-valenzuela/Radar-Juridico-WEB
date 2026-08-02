@@ -4,15 +4,16 @@ import { spawnSync } from "node:child_process";
 
 function runTs(code, envOverrides = {}) {
   const result = spawnSync(process.execPath, ["node_modules/tsx/dist/cli.mjs", "--eval", code], {
+    cwd: process.cwd(),
     encoding: "utf8",
-    env: {
+    env: { NODE_PATH: process.cwd() + "/node_modules",
       ...process.env,
       NODE_ENV: "test",
       GEMINI_API_KEY: "mock-key",
       GROQ_API_KEY: "",
       OPENROUTER_API_KEY: "",
       ...envOverrides,
-    },
+     },
   });
 
   if (result.status !== 0) {

@@ -4,14 +4,15 @@ import { spawnSync } from "node:child_process";
 
 function runTs(code) {
   const result = spawnSync(process.execPath, ["node_modules/tsx/dist/cli.mjs", "--eval", code], {
+    cwd: process.cwd(),
     encoding: "utf8",
-    env: {
+    env: { NODE_PATH: process.cwd() + "/node_modules",
       ...process.env,
       NODE_ENV: "test",
       GEMINI_API_KEY: "mock-gemini-key",
       GROQ_API_KEY: "",
       OPENROUTER_API_KEY: "",
-    },
+     },
   });
 
   if (result.status !== 0) {
@@ -54,14 +55,15 @@ test("providerSelector elige local si no hay api keys configuradas", () => {
       process.exit(1);
     });
   `], {
+    cwd: process.cwd(),
     encoding: "utf8",
-    env: {
+    env: { NODE_PATH: process.cwd() + "/node_modules",
       ...process.env,
       NODE_ENV: "test",
       GEMINI_API_KEY: "",
       GROQ_API_KEY: "",
       OPENROUTER_API_KEY: "",
-    },
+     },
   });
 
   const parsed = JSON.parse(result.stdout.trim());
