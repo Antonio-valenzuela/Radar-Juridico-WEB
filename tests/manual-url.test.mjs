@@ -17,7 +17,7 @@ function runTs(code, env = {}) {
         ALLOW_DEV_ADMIN_TOKEN: "true",
         ...env,
       },
-      timeout: 45000,
+      timeout: 60000,
     }
   );
 

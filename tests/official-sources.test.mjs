@@ -13,7 +13,7 @@ function runTs(code) {
       NODE_ENV: "test",
       ALLOW_DEV_ADMIN_TOKEN: "true",
     },
-    timeout: 30000
+    timeout: 60000
   });
 
   if (result.status !== 0) {

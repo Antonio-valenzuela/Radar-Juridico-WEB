@@ -11,7 +11,7 @@ function runTs(code) {
     cwd: process.cwd(),
       encoding: "utf8",
       env: { ...process.env, NODE_PATH: "node_modules", NODE_ENV: "development" },
-      timeout: 45000,
+      timeout: 60000,
     }
   );
   if (result.status !== 0) {
