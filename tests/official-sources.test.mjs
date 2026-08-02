@@ -7,6 +7,7 @@ function runTs(code) {
     encoding: "utf8",
     env: {
       ...process.env,
+      NODE_PATH: process.cwd() + "/node_modules",
       LLM_PROVIDER: "local",
       NODE_ENV: "test",
       ALLOW_DEV_ADMIN_TOKEN: "true",

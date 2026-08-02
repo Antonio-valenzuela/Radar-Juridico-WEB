@@ -9,7 +9,7 @@ function runTs(code) {
     ["node_modules/tsx/dist/cli.mjs", "--eval", code],
     {
       encoding: "utf8",
-      env: { ...process.env, NODE_ENV: "development" },
+      env: { ...process.env, NODE_PATH: "node_modules", NODE_ENV: "development" },
       timeout: 45000,
     }
   );
