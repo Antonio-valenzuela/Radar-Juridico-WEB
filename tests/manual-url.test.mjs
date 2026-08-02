@@ -11,6 +11,7 @@ function runTs(code, env = {}) {
       encoding: "utf8",
       env: {
         ...process.env,
+        NODE_PATH: "node_modules",
         NODE_ENV: "development",
         ALLOW_DEV_ADMIN_TOKEN: "true",
         ...env,
