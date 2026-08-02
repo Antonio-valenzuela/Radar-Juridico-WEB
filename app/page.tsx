@@ -106,101 +106,97 @@ export default async function Home() {
       }));
 
   return (
-    <>
-      <div className="bg-gradient"></div>
+    <main className="container">
+      <section className="hero">
+        <span className="badge">Inteligencia Regulatoria</span>
+        <h1>Monitorea cambios legales con IA.</h1>
+        <p className="subtitle">
+          Plataforma de monitoreo regulatorio para México. Revisa publicaciones oficiales, leyes vigentes y cambios relevantes con apoyo de IA verificable.
+        </p>
+        <div className="hero-buttons">
+          <Link href="/search" className="btn-primary">Búsqueda Avanzada</Link>
+          <Link href="/monitoreo" className="btn-secondary">Monitoreo legal</Link>
+          <Link href="/legal-hub" className="btn-secondary">Centro Jurídico</Link>
+          <Link href="/rag" className="btn-accent">Preguntar a IA</Link>
+          {process.env.ENABLE_PUBLIC_DEMO !== 'true' && (
+            <Link href="/admin/ingest/manual-url" className="btn-secondary">Agregar link jurídico</Link>
+          )}
+        </div>
+      </section>
 
-      <main className="container">
-        <section className="hero">
-          <span className="badge">Inteligencia Regulatoria</span>
-          <h1>Monitorea cambios legales con IA.</h1>
-          <p className="subtitle">
-            Plataforma de monitoreo regulatorio para México. Revisa publicaciones oficiales, leyes vigentes y cambios relevantes con apoyo de IA verificable.
+      <section className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
+        <div className="glass-card">
+          <span className="stat-value">{documentsCount.toLocaleString()}</span>
+          <span className="stat-label">Documentos</span>
+        </div>
+        <div className="glass-card">
+          <span className="stat-value">{rulesCount.toLocaleString()}</span>
+          <span className="stat-label">Reglas Activas</span>
+        </div>
+        <div className="glass-card">
+          <span className="stat-value">{alertsCount.toLocaleString()}</span>
+          <span className="stat-label">Alertas Generadas</span>
+        </div>
+        <div className="glass-card">
+          <span className="stat-value">{verifiedNormCount.toLocaleString()}</span>
+          <span className="stat-label">Normas verificadas</span>
+        </div>
+        <div className="glass-card">
+          <span className="stat-value">{verifiedJurisprudenciaCount.toLocaleString()}</span>
+          <span className="stat-label">Criterios verificados</span>
+        </div>
+        <div className="glass-card">
+          <span className="stat-value">{activeCaseCount.toLocaleString()}</span>
+          <span className="stat-label">Expedientes activos</span>
+        </div>
+        <div className="glass-card">
+          <span className="stat-value">{pendingCaseAlertCount.toLocaleString()}</span>
+          <span className="stat-label">Avisos de expediente</span>
+        </div>
+        <div className="glass-card">
+          <span className="stat-value">{sourceErrorCount.toLocaleString()}</span>
+          <span className="stat-label">Fuentes con error</span>
+        </div>
+      </section>
+
+      <section className="glass-card" style={{ marginBottom: '2rem' }}>
+        <h2>Monitoreo normativo</h2>
+        {lastNormMonitorRun ? (
+          <p className="text-muted">
+            Última ejecución: {new Date(lastNormMonitorRun.finishedAt || lastNormMonitorRun.createdAt).toLocaleString('es-MX')} · Estado: {lastNormMonitorRun.status}
+            {lastNormMonitorRun.error ? ' · Requiere atención' : ''}
           </p>
-          <div className="hero-buttons">
-            <Link href="/search" className="btn-primary" style={{ textDecoration: 'none' }}>Búsqueda Avanzada</Link>
-            <Link href="/monitoreo" className="btn-primary" style={{ textDecoration: 'none' }}>Monitoreo legal</Link>
-            <Link href="/legal-hub" className="btn-primary" style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.2)', boxShadow: 'none', textDecoration: 'none' }}>Centro Jurídico</Link>
-            <Link href="/rag" className="btn-primary" style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.2)', boxShadow: 'none', textDecoration: 'none' }}>Preguntar a IA</Link>
-            {process.env.ENABLE_PUBLIC_DEMO !== 'true' && (
-              <Link href="/admin/ingest/manual-url" className="btn-primary" style={{ background: 'var(--accent)', color: 'white', textDecoration: 'none' }}>Agregar link jurídico</Link>
-            )}
-          </div>
-        </section>
+        ) : (
+          <p className="text-muted">Aún no hay una ejecución registrada del worker de normas.</p>
+        )}
+      </section>
 
-        <section className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
-          <div className="glass-card">
-            <span className="stat-value">{documentsCount.toLocaleString()}</span>
-            <span className="stat-label">Documentos</span>
-          </div>
-          <div className="glass-card">
-            <span className="stat-value">{rulesCount.toLocaleString()}</span>
-            <span className="stat-label">Reglas Activas</span>
-          </div>
-          <div className="glass-card">
-            <span className="stat-value">{alertsCount.toLocaleString()}</span>
-            <span className="stat-label">Alertas Generadas</span>
-          </div>
-          <div className="glass-card">
-            <span className="stat-value">{verifiedNormCount.toLocaleString()}</span>
-            <span className="stat-label">Normas verificadas</span>
-          </div>
-          <div className="glass-card">
-            <span className="stat-value">{verifiedJurisprudenciaCount.toLocaleString()}</span>
-            <span className="stat-label">Criterios verificados</span>
-          </div>
-          <div className="glass-card">
-            <span className="stat-value">{activeCaseCount.toLocaleString()}</span>
-            <span className="stat-label">Expedientes activos</span>
-          </div>
-          <div className="glass-card">
-            <span className="stat-value">{pendingCaseAlertCount.toLocaleString()}</span>
-            <span className="stat-label">Avisos de expediente</span>
-          </div>
-          <div className="glass-card">
-            <span className="stat-value">{sourceErrorCount.toLocaleString()}</span>
-            <span className="stat-label">Fuentes con error</span>
-          </div>
-        </section>
-
-        <section className="glass-card" style={{ marginBottom: '2rem' }}>
-          <h2>Monitoreo normativo</h2>
-          {lastNormMonitorRun ? (
-            <p className="text-muted">
-              Última ejecución: {new Date(lastNormMonitorRun.finishedAt || lastNormMonitorRun.createdAt).toLocaleString('es-MX')} · Estado: {lastNormMonitorRun.status}
-              {lastNormMonitorRun.error ? ' · Requiere atención' : ''}
-            </p>
-          ) : (
-            <p className="text-muted">Aún no hay una ejecución registrada del worker de normas.</p>
-          )}
-        </section>
-
-        <section className="glass-card" style={{ marginBottom: '4rem' }}>
-          <h2>Últimos Documentos</h2>
-          {recentItems.length === 0 ? (
-            <p className="text-muted">Aún no hay documentos indexados. Agrega una URL jurídica o ejecuta una ingesta manual.</p>
-          ) : (
-            <ul className="alert-list">
-              {recentItems.map(item => (
-                <li key={item.id} className="alert-item">
-                  <div>
-                    <Link href={item.url || "#"} className="alert-title" target="_blank" rel="noopener noreferrer">
-                      {normalizeLegalDisplayText(item.title)}
-                    </Link>
-                    <div className="alert-meta">
-                      {item.source} • {Array.isArray(item.tema) && item.tema.length > 0 ? item.tema.join(', ') : 'materia pendiente'} • {new Date(item.published || '').toLocaleDateString('es-MX')} • lectura: {item.embeddingsStatus}
-                    </div>
+      <section className="glass-card" style={{ marginBottom: '4rem' }}>
+        <h2>Últimos Documentos</h2>
+        {recentItems.length === 0 ? (
+          <p className="text-muted">Aún no hay documentos indexados. Agrega una URL jurídica o ejecuta una ingesta manual.</p>
+        ) : (
+          <ul className="alert-list">
+            {recentItems.map(item => (
+              <li key={item.id} className="alert-item">
+                <div>
+                  <Link href={item.url || "#"} className="alert-title" target="_blank" rel="noopener noreferrer">
+                    {normalizeLegalDisplayText(item.title)}
+                  </Link>
+                  <div className="alert-meta">
+                    {item.source} • {Array.isArray(item.tema) && item.tema.length > 0 ? item.tema.join(', ') : 'materia pendiente'} • {new Date(item.published || '').toLocaleDateString('es-MX')} • lectura: {item.embeddingsStatus}
                   </div>
-                  <div>
-                    <span className={`badge alert-impact-${item.impacto?.toLowerCase() || 'low'}`} style={{ marginBottom: 0 }}>
-                      {item.impacto || 'Bajo'}
-                    </span>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
-      </main>
-    </>
+                </div>
+                <div>
+                  <span className={`badge alert-impact-${item.impacto?.toLowerCase() || 'low'}`} style={{ marginBottom: 0 }}>
+                    {item.impacto || 'Bajo'}
+                  </span>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+    </main>
   );
 }

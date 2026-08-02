@@ -63,10 +63,7 @@ export default function FloatingLegalChat() {
   const [loading, setLoading] = useState(false);
   const [loadingText, setLoadingText] = useState('Analizando contexto...');
   const [executionMode, setExecutionMode] = useState<'fast' | 'deep'>('fast');
-  const [mode, setMode] = useState<
-    'Asistencia General' | 'Estrategia Procesal' | 'Resumen de Documento' | 'Análisis de Reforma' | 'Borrador Jurídico'
-  >('Asistencia General');
-  
+
   const {
     module: activeModule,
     contextMode,
@@ -90,7 +87,6 @@ export default function FloatingLegalChat() {
 
     const handleOpenChat = (e: Event & { detail?: any }) => {
       setIsOpen(true);
-      if (e.detail?.mode) setMode(e.detail.mode);
       if (e.detail?.executionMode) setExecutionMode(e.detail.executionMode);
     };
 
@@ -103,6 +99,17 @@ export default function FloatingLegalChat() {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isOpen]);
+
+  // Handle Escape key to close panel
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isOpen) {
+        setIsOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen]);
 
   const handleSend = async (e?: React.FormEvent, customInput?: string) => {
     if (e) e.preventDefault();
@@ -183,14 +190,11 @@ export default function FloatingLegalChat() {
         role: 'assistant',
         content: contentText,
         contextLabel: activeDocument ? `Demanda / Borrador (${activeDocument.templateName || 'actual'})` : 'Consulta jurídica',
-        provider: executionMode === 'deep' ? 'Multimodelo (Gemini+Groq+OpenRouter Juez)' : (data.data?.provider || 'IA Rápida'),
+        provider: executionMode === 'deep' ? 'Multimodelo (3 IA)' : (data.data?.provider || 'IA Rápida'),
         executionMode,
         usedLocalData: true,
         citations,
-        actions: data.suggestedActions || [
-          { label: 'Aceptar sugerencias', type: 'accept_issues' },
-          { label: 'Revisar contradicciones', type: 'review_contradictions' },
-        ],
+        actions: data.suggestedActions || [],
         issues: issuesList,
         consistencyProblems,
         missingFields,
@@ -202,7 +206,6 @@ export default function FloatingLegalChat() {
         followUpQuestions: [
           '¿Deseas verificar los preceptos constitucionales?',
           '¿Quieres revisar los conceptos de violación?',
-          '¿Deseas generar la versión mejorada del borrador?',
         ],
       };
 
@@ -266,261 +269,425 @@ export default function FloatingLegalChat() {
     sessionStorage.removeItem('juridico_chat_history');
   };
 
+  const handleKeyDownTextarea = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
+    }
+  };
+
   return (
     <>
-      {/* Floating Toggle Button */}
+      {/* Floating Closed Trigger Button */}
       {!isOpen && (
         <button
           id="floating-legal-btn"
           onClick={() => setIsOpen(true)}
           aria-label="Abrir asistente legal"
           style={{
-            position: "fixed",
-            right: "24px",
-            bottom: "24px",
-            width: "56px",
-            height: "56px",
-            borderRadius: "9999px",
+            position: 'fixed',
+            right: '24px',
+            bottom: '24px',
+            width: '60px',
+            height: '60px',
+            borderRadius: '9999px',
             zIndex: 99999,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            cursor: "pointer",
-            boxShadow: "0 8px 24px rgba(0,0,0,0.35)",
-            background: "linear-gradient(135deg, #1d4ed8, #7c3aed)",
-            color: "white",
-            border: "none",
-            fontSize: "24px",
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'pointer',
+            boxShadow: '0 8px 24px rgba(28, 56, 92, 0.4)',
+            backgroundColor: '#1c385c',
+            color: '#ffffff',
+            border: '2px solid #ffffff',
+            fontSize: '26px',
+            transition: 'transform 0.2s, background-color 0.2s',
           }}
         >
           ⚖️
         </button>
       )}
 
-      {/* Main Drawer Container */}
+      {/* Backdrop Overlay */}
+      {isOpen && (
+        <div
+          onClick={() => setIsOpen(false)}
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(15, 23, 42, 0.35)',
+            backdropFilter: 'blur(2px)',
+            zIndex: 99998,
+          }}
+          aria-hidden="true"
+        />
+      )}
+
+      {/* Floating Card Panel with Pure Inline Styles */}
       {isOpen && (
         <div
           id="floating-legal-panel"
+          role="dialog"
+          aria-label="Asistente Legal"
           style={{
-            position: "fixed",
-            right: "24px",
-            bottom: "24px",
-            width: "400px",
-            maxWidth: "calc(100vw - 32px)",
-            height: "620px",
-            maxHeight: "calc(100vh - 48px)",
+            position: 'fixed',
+            bottom: '24px',
+            right: '24px',
+            width: '440px',
+            maxWidth: 'calc(100vw - 32px)',
+            height: '640px',
+            maxHeight: 'calc(100vh - 48px)',
             zIndex: 99999,
-            overflow: "hidden",
-            borderRadius: "16px",
-            boxShadow: "0 16px 40px rgba(0,0,0,0.45)",
-            display: "flex",
-            flexDirection: "column",
-            background: "white",
+            display: 'flex',
+            flexDirection: 'column',
+            backgroundColor: '#f0f4f8',
+            borderRadius: '20px',
+            border: '1px solid #cbd5e1',
+            boxShadow: '0 20px 48px rgba(15, 30, 50, 0.3)',
+            overflow: 'hidden',
+            boxSizing: 'border-box',
+            fontFamily: "'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
           }}
         >
-          {/* Header */}
-          <div className="p-4 border-b border-slate-100 bg-slate-900 text-white rounded-t-2xl flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full bg-emerald-400" />
-              <div>
-                <h3 className="font-semibold text-sm">Asistente Legal Multimodelo (G0DM0D3)</h3>
-                <p className="text-xs text-slate-300">Gemini • Groq • OpenRouter Juez • Local</p>
-              </div>
+          {/* Header Bar */}
+          <div
+            style={{
+              backgroundColor: '#1c385c',
+              padding: '16px 20px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              color: '#ffffff',
+              borderTopLeftRadius: '20px',
+              borderTopRightRadius: '20px',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <span style={{ fontSize: '28px', lineHeight: 1 }}>⚖️</span>
+              <h2 style={{ margin: 0, fontSize: '24px', fontWeight: 700, color: '#ffffff', letterSpacing: '-0.01em' }}>
+                Asistente Legal
+              </h2>
             </div>
-            <div className="flex items-center gap-2">
+            <button
+              onClick={() => setIsOpen(false)}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: '#ffffff',
+                fontSize: '20px',
+                fontWeight: 700,
+                cursor: 'pointer',
+                padding: '4px 8px',
+                borderRadius: '6px',
+              }}
+              aria-label="Cerrar asistente legal"
+            >
+              ✕
+            </button>
+          </div>
+
+          {/* Subheader Controls Section */}
+          <div style={{ padding: '16px 20px 12px 20px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            {/* Subtitle & Limpiar */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span style={{ fontSize: '15px', color: '#2d3748', fontWeight: 500 }}>
+                Consulta y revisión asistida por IA
+              </span>
               <button
                 onClick={handleClearHistory}
-                className="text-xs text-slate-400 hover:text-white px-2 py-1 rounded bg-slate-800"
-                title="Limpiar conversación"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  backgroundColor: '#f8fafc',
+                  border: '1px solid #cbd5e1',
+                  borderRadius: '8px',
+                  padding: '4px 10px',
+                  fontSize: '13px',
+                  color: '#2d3748',
+                  cursor: 'pointer',
+                  fontWeight: 500,
+                }}
               >
-                Limpiar
-              </button>
-              <button
-                onClick={() => setIsOpen(false)}
-                className="text-slate-400 hover:text-white text-lg font-bold px-2"
-              >
-                ✕
-              </button>
-            </div>
-          </div>
-
-          {/* Mode Selector Header */}
-          <div className="bg-slate-800 px-4 py-2 flex items-center justify-between border-b border-slate-700 text-xs">
-            <span className="text-slate-300 font-medium">Modo de Procesamiento:</span>
-            <div className="flex bg-slate-900 p-0.5 rounded-lg border border-slate-700">
-              <button
-                type="button"
-                onClick={() => setExecutionMode('fast')}
-                className={`px-2.5 py-1 rounded-md text-xs font-medium transition ${
-                  executionMode === 'fast'
-                    ? 'bg-blue-600 text-white shadow'
-                    : 'text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                ⚡ Rápido (1 IA)
-              </button>
-              <button
-                type="button"
-                onClick={() => setExecutionMode('deep')}
-                className={`px-2.5 py-1 rounded-md text-xs font-medium transition ${
-                  executionMode === 'deep'
-                    ? 'bg-purple-600 text-white shadow'
-                    : 'text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                🧠 Revisión Profunda (3 IA)
+                <span>🗑️</span>
+                <span>Limpiar</span>
               </button>
             </div>
-          </div>
 
-          {/* Active Context Banner */}
-          <div className="bg-slate-50 border-b border-slate-200 p-3 flex flex-col gap-1.5 text-xs">
-            <div className="flex items-center justify-between">
-              <span className="font-medium text-slate-700 flex items-center gap-1.5 truncate">
-                <span className="w-2 h-2 rounded-full bg-blue-600" />
-                {activeDocument
-                  ? `Usando borrador: ${activeDocument.templateName || 'Documento activo'}`
-                  : 'Sin borrador activo'}
-              </span>
+            {/* Modo de Análisis */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+              <span style={{ fontSize: '14px', fontWeight: 600, color: '#1a202c' }}>Modo de Análisis:</span>
+              <div style={{ display: 'flex', gap: '6px' }}>
+                <button
+                  type="button"
+                  onClick={() => setExecutionMode('fast')}
+                  style={{
+                    backgroundColor: executionMode === 'fast' ? '#38b2ac' : '#ffffff',
+                    color: executionMode === 'fast' ? '#1a202c' : '#2d3748',
+                    border: executionMode === 'fast' ? '1px solid #319795' : '1px solid #cbd5e1',
+                    borderRadius: '12px',
+                    padding: '6px 12px',
+                    fontSize: '13px',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                  }}
+                >
+                  <span>⚡</span>
+                  <span>Consulta rápida</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setExecutionMode('deep')}
+                  style={{
+                    backgroundColor: executionMode === 'deep' ? '#38b2ac' : '#ffffff',
+                    color: executionMode === 'deep' ? '#1a202c' : '#2d3748',
+                    border: executionMode === 'deep' ? '1px solid #319795' : '1px solid #cbd5e1',
+                    borderRadius: '12px',
+                    padding: '6px 12px',
+                    fontSize: '13px',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                  }}
+                >
+                  <span>🧠</span>
+                  <span>Revisión profunda</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Contexto activo */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <span style={{ fontSize: '14px', fontWeight: 600, color: '#1a202c' }}>Contexto activo:</span>
               <select
+                id="context-select"
                 value={contextMode}
                 onChange={(e) => setContextMode(e.target.value as any)}
-                className="bg-white border border-slate-300 rounded px-2 py-0.5 text-slate-700 text-xs focus:ring-1 focus:ring-blue-600"
+                style={{
+                  backgroundColor: '#ffffff',
+                  border: '1px solid #cbd5e1',
+                  borderRadius: '12px',
+                  padding: '6px 14px',
+                  fontSize: '14px',
+                  color: '#1a202c',
+                  outline: 'none',
+                  flex: 1,
+                  cursor: 'pointer',
+                  fontWeight: 500,
+                }}
               >
-                <option value="current_document">Usar borrador actual</option>
                 <option value="none">Sin contexto</option>
+                <option value="current_document">Usar borrador actual</option>
               </select>
             </div>
+            {activeDocument && contextMode === 'current_document' && (
+              <p style={{ margin: 0, fontSize: '12px', color: '#4a5568', fontWeight: 500 }}>
+                📄 Borrador activo: <span style={{ fontWeight: 700, color: '#1c385c' }}>{activeDocument.templateName || 'Machote'}</span>
+              </p>
+            )}
           </div>
 
-          {/* Chat Messages */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-4 text-sm" style={{ overflowY: "auto", flex: 1 }}>
+          {/* Messages Scroll Area */}
+          <div style={{ flex: 1, overflowY: 'auto', padding: '0 20px 16px 20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
             {messages.length === 0 && (
-              <div className="text-center py-8 text-slate-500 space-y-3">
-                <div className="text-2xl">⚖️</div>
-                <p className="font-medium text-slate-700">¿Qué deseas revisar hoy?</p>
-                <p className="text-xs text-slate-500 max-w-xs mx-auto">
-                  Selecciona <b>Revisión Profunda</b> para ejecutar Gemini y Groq en paralelo con OpenRouter actuando como Juez.
-                </p>
-                <div className="flex flex-wrap gap-1.5 justify-center pt-2">
+              <div style={{ padding: '12px 0', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                {/* Mini Badges */}
+                <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                  <span style={{ backgroundColor: '#dce7f5', borderRadius: '10px', padding: '2px 8px', fontSize: '14px' }}>⚖️</span>
+                  <span style={{ backgroundColor: '#dce7f5', borderRadius: '10px', padding: '2px 8px', fontSize: '12px', fontWeight: 700, color: '#1c385c' }}>AI</span>
+                </div>
+
+                <div>
+                  <h3 style={{ margin: '0 0 4px 0', fontSize: '20px', fontWeight: 700, color: '#1a202c' }}>
+                    ¿Qué deseas consultar hoy?
+                  </h3>
+                  <p style={{ margin: 0, fontSize: '14px', color: '#4a5568', lineHeight: 1.4 }}>
+                    Selecciona una sugerencia o escribe directamente tu consulta legal.
+                  </p>
+                </div>
+
+                {/* Suggestion Cards */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '4px' }}>
                   <button
                     onClick={() => {
                       setExecutionMode('deep');
                       handleSend(undefined, 'revisa el machote que acabo de crear');
                     }}
-                    className="text-xs bg-purple-50 text-purple-700 hover:bg-purple-100 border border-purple-200 px-3 py-1.5 rounded-full transition"
+                    style={{
+                      backgroundColor: '#f8fafc',
+                      border: '1px solid #cbd5e1',
+                      borderRadius: '12px',
+                      padding: '10px 14px',
+                      fontSize: '13px',
+                      color: '#1a202c',
+                      textAlign: 'left',
+                      cursor: 'pointer',
+                      boxShadow: '0 2px 4px rgba(0,0,0,0.03)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      fontWeight: 500,
+                    }}
                   >
-                    🧠 &quot;Revisión profunda del machote actual&quot;
+                    <span>🧠</span>
+                    <span>&quot;Revisión profunda del machote actual&quot;</span>
                   </button>
+
                   <button
                     onClick={() => {
                       setExecutionMode('fast');
                       handleSend(undefined, '¿qué le falta a esta demanda?');
                     }}
-                    className="text-xs bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 px-3 py-1.5 rounded-full transition"
+                    style={{
+                      backgroundColor: '#f8fafc',
+                      border: '1px solid #cbd5e1',
+                      borderRadius: '12px',
+                      padding: '10px 14px',
+                      fontSize: '13px',
+                      color: '#1a202c',
+                      textAlign: 'left',
+                      cursor: 'pointer',
+                      boxShadow: '0 2px 4px rgba(0,0,0,0.03)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      fontWeight: 500,
+                    }}
                   >
-                    ⚡ &quot;Revisión rápida de campos pendientes&quot;
+                    <span>⚡</span>
+                    <span>&quot;Revisión rápida de campos pendientes&quot;</span>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setExecutionMode('fast');
+                      handleSend(undefined, 'explicar los fundamentos constitucionales de procedencia');
+                    }}
+                    style={{
+                      backgroundColor: '#f8fafc',
+                      border: '1px solid #cbd5e1',
+                      borderRadius: '12px',
+                      padding: '10px 14px',
+                      fontSize: '13px',
+                      color: '#1a202c',
+                      textAlign: 'left',
+                      cursor: 'pointer',
+                      boxShadow: '0 2px 4px rgba(0,0,0,0.03)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      fontWeight: 500,
+                    }}
+                  >
+                    <span>📜</span>
+                    <span>&quot;Explicar fundamentos constitucionales&quot;</span>
                   </button>
                 </div>
               </div>
             )}
 
+            {/* Conversation Messages */}
             {messages.map((msg, idx) => (
               <div
                 key={idx}
-                className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: msg.role === 'user' ? 'flex-end' : 'flex-start',
+                }}
               >
                 <div
-                  className={`max-w-[92%] p-3.5 rounded-2xl ${
-                    msg.role === 'user'
-                      ? 'bg-blue-700 text-white rounded-br-none'
-                      : 'bg-slate-100 text-slate-800 rounded-bl-none border border-slate-200'
-                  }`}
+                  style={{
+                    maxWidth: '92%',
+                    padding: '14px 16px',
+                    borderRadius: '16px',
+                    backgroundColor: msg.role === 'user' ? '#1c385c' : '#ffffff',
+                    color: msg.role === 'user' ? '#ffffff' : '#1a202c',
+                    border: msg.role === 'user' ? 'none' : '1px solid #cbd5e1',
+                    boxShadow: '0 2px 6px rgba(0,0,0,0.05)',
+                  }}
                 >
-                  {/* Provider Header Badge */}
                   {msg.role === 'assistant' && (
-                    <div className="flex items-center justify-between border-b border-slate-200/60 pb-1.5 mb-2 text-[11px]">
-                      <span className="font-semibold text-slate-600 flex items-center gap-1">
-                        🤖 {msg.provider || 'IA'}
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #e2e8f0', paddingBottom: '6px', marginBottom: '8px', fontSize: '12px' }}>
+                      <span style={{ fontWeight: 700, color: '#1c385c', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        🤖 {msg.provider || 'Asistente Legal'}
                       </span>
                       {msg.executionMode === 'deep' && (
-                        <span className="bg-purple-100 text-purple-800 font-bold px-2 py-0.5 rounded text-[10px]">
-                          REVISIÓN PROFUNDA 3 IA
+                        <span style={{ backgroundColor: '#e6fffa', color: '#234e52', fontWeight: 700, padding: '2px 6px', borderRadius: '6px', fontSize: '10px' }}>
+                          PROFUNDA 3 IA
                         </span>
                       )}
                     </div>
                   )}
 
-                  <p className="whitespace-pre-wrap leading-relaxed">{msg.content}</p>
+                  <p style={{ margin: 0, whiteSpace: 'pre-wrap', lineHeight: 1.5, fontSize: '14px' }}>{msg.content}</p>
 
-                  {/* Provider Execution Summary */}
+                  {/* Provider summary */}
                   {msg.providerSummary && (
-                    <div className="mt-2.5 bg-slate-200/70 p-2 rounded-lg text-[11px] font-mono text-slate-700 flex flex-wrap gap-2 border border-slate-300/50">
+                    <div style={{ marginTop: '10px', backgroundColor: '#edf2f7', padding: '8px', borderRadius: '8px', fontSize: '11px', fontFamily: 'monospace', color: '#1a202c', display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
                       <span>Gemini: {msg.providerSummary.geminiCompleted ? '✓ OK' : '✗ N/D'}</span>
                       <span>Groq: {msg.providerSummary.groqCompleted ? '✓ OK' : '✗ N/D'}</span>
-                      <span>Juez OpenRouter: {msg.providerSummary.judgeCompleted ? '✓ OK' : ' Local Fallback'}</span>
+                      <span>Juez: {msg.providerSummary.judgeCompleted ? '✓ OK' : 'Local'}</span>
                     </div>
                   )}
 
-                  {/* Consistency & Contradiction Warnings */}
+                  {/* Consistency Problems */}
                   {msg.consistencyProblems && msg.consistencyProblems.length > 0 && (
-                    <div className="mt-3 bg-amber-50 border border-amber-300 text-amber-900 p-2.5 rounded-lg text-xs space-y-1">
-                      <p className="font-bold flex items-center gap-1">
-                        ⚠️ Contradicciones e Incongruencias Detectadas:
-                      </p>
+                    <div style={{ marginTop: '10px', backgroundColor: '#fffaf0', border: '1px solid #fbd38d', color: '#744210', padding: '10px', borderRadius: '8px', fontSize: '12px' }}>
+                      <p style={{ fontWeight: 700, margin: '0 0 4px 0' }}>⚠️ Contradicciones Detectadas:</p>
                       {msg.consistencyProblems.map((prob, i) => (
-                        <p key={i} className="leading-normal">• {prob}</p>
+                        <p key={i} style={{ margin: 0 }}>• {prob}</p>
                       ))}
                     </div>
                   )}
 
-                  {/* Issues & Diffs */}
+                  {/* Issues & Suggestions */}
                   {msg.issues && msg.issues.length > 0 && (
-                    <div className="mt-3 space-y-2">
-                      <p className="text-xs font-semibold text-slate-700">Propuestas de Cambio e Inspección:</p>
+                    <div style={{ marginTop: '10px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      <p style={{ fontSize: '12px', fontWeight: 700, color: '#1a202c', margin: 0 }}>Propuestas de Cambio:</p>
                       {msg.issues.map((issue) => (
                         <div
                           key={issue.id}
-                          className="bg-white border border-slate-300 rounded-lg p-2.5 text-xs space-y-1.5 shadow-sm text-slate-800"
+                          style={{ backgroundColor: '#ffffff', border: '1px solid #cbd5e1', borderRadius: '10px', padding: '10px', fontSize: '12px', color: '#1a202c', display: 'flex', flexDirection: 'column', gap: '6px' }}
                         >
-                          <div className="flex items-center justify-between font-semibold">
-                            <span className={issue.severity === 'critical' ? 'text-red-700' : 'text-amber-700'}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontWeight: 600 }}>
+                            <span style={{ color: issue.severity === 'critical' ? '#c53030' : '#dd6b20' }}>
                               [{issue.severity.toUpperCase()}] {issue.title}
                             </span>
                             {issue.status === 'accepted' ? (
-                              <span className="text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded text-[10px] font-bold">
+                              <span style={{ backgroundColor: '#c6f6d5', color: '#22543d', padding: '2px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 700 }}>
                                 ACEPTADO
                               </span>
                             ) : issue.status === 'rejected' ? (
-                              <span className="text-slate-500 bg-slate-100 px-2 py-0.5 rounded text-[10px]">
+                              <span style={{ backgroundColor: '#edf2f7', color: '#718096', padding: '2px 6px', borderRadius: '4px', fontSize: '10px' }}>
                                 RECHAZADO
                               </span>
                             ) : null}
                           </div>
-                          <p className="text-slate-600">{issue.explanation}</p>
-
-                          {issue.modelAgreement && (
-                            <span className="inline-block text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded border border-slate-200 font-mono">
-                              Coincidencia: {issue.modelAgreement === 'both' ? 'Gemini + Groq' : issue.modelAgreement}
-                            </span>
-                          )}
-
-                          <div className="bg-slate-50 p-2 rounded border border-slate-200 font-mono text-[11px] space-y-1">
-                            {issue.currentText && <p className="text-red-700 line-through">- {issue.currentText}</p>}
-                            {issue.suggestedText && <p className="text-emerald-700">+ {issue.suggestedText}</p>}
+                          <p style={{ margin: 0, color: '#4a5568' }}>{issue.explanation}</p>
+                          <div style={{ backgroundColor: '#f7fafc', padding: '6px 8px', borderRadius: '6px', border: '1px solid #e2e8f0', fontFamily: 'monospace', fontSize: '11px' }}>
+                            {issue.currentText && <p style={{ color: '#e53e3e', textDecoration: 'line-through', margin: 0 }}>- {issue.currentText}</p>}
+                            {issue.suggestedText && <p style={{ color: '#276749', margin: 0 }}>+ {issue.suggestedText}</p>}
                           </div>
-
                           {issue.status === 'pending' && (
-                            <div className="flex gap-2 pt-1">
+                            <div style={{ display: 'flex', gap: '6px', paddingTop: '4px' }}>
                               <button
                                 onClick={() => handleApplyIssue(idx, issue.id)}
-                                className="bg-emerald-600 hover:bg-emerald-700 text-white px-2.5 py-1 rounded text-[11px] font-medium"
+                                style={{ backgroundColor: '#2f855a', color: '#ffffff', border: 'none', borderRadius: '6px', padding: '4px 10px', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}
                               >
                                 Aceptar cambio
                               </button>
                               <button
                                 onClick={() => handleRejectIssue(idx, issue.id)}
-                                className="bg-slate-200 hover:bg-slate-300 text-slate-700 px-2 py-1 rounded text-[11px]"
+                                style={{ backgroundColor: '#e2e8f0', color: '#4a5568', border: 'none', borderRadius: '6px', padding: '4px 8px', fontSize: '11px', cursor: 'pointer' }}
                               >
                                 Rechazar
                               </button>
@@ -533,13 +700,12 @@ export default function FloatingLegalChat() {
 
                   {/* Citations */}
                   {msg.citations && msg.citations.length > 0 && (
-                    <div className="mt-3 pt-2 border-t border-slate-200/60 text-xs space-y-1">
-                      <p className="font-semibold text-slate-600">Fuentes Oficiales Verificadas:</p>
+                    <div style={{ marginTop: '10px', paddingTop: '8px', borderTop: '1px solid #e2e8f0', fontSize: '12px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                      <p style={{ fontWeight: 700, color: '#4a5568', margin: 0 }}>Fuentes Oficiales Verificadas:</p>
                       {msg.citations.map((cit, i) => (
-                        <div key={i} className="flex items-center gap-1.5 text-blue-700 hover:underline">
+                        <div key={i} style={{ color: '#2b6cb0', display: 'flex', alignItems: 'center', gap: '4px' }}>
                           <span>📜 {normalizeLegalDisplayText(cit.title)}</span>
-                          <span className="text-slate-500">({normalizeLegalDisplayText(cit.fuente)})</span>
-                          {cit.materia && (<span className="text-slate-400"> · {normalizeLegalDisplayText(cit.materia)}</span>)}
+                          <span style={{ color: '#718096' }}>({normalizeLegalDisplayText(cit.fuente)})</span>
                         </div>
                       ))}
                     </div>
@@ -549,34 +715,81 @@ export default function FloatingLegalChat() {
             ))}
 
             {loading && (
-              <div className="flex items-center gap-2 text-slate-600 text-xs p-3 bg-purple-50 border border-purple-200 rounded-xl animate-pulse">
-                <span className="w-2.5 h-2.5 rounded-full bg-purple-600 animate-bounce" />
-                <span className="font-medium">{loadingText}</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: '#1c385c', fontSize: '13px', padding: '12px 16px', backgroundColor: '#ebf8ff', border: '1px solid #bee3f8', borderRadius: '14px' }}>
+                <span style={{ width: '10px', height: '10px', borderRadius: '9999px', backgroundColor: '#1c385c' }} />
+                <span style={{ fontWeight: 600 }}>{loadingText}</span>
               </div>
             )}
             <div ref={messagesEndRef} />
           </div>
 
-          {/* Input Form */}
-          <form onSubmit={handleSend} className="p-3 border-t border-slate-200 flex gap-2 bg-slate-50 rounded-b-2xl">
-            <input
-              type="text"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder={executionMode === 'deep' ? 'Consulta para revisión profunda multimodelo (3 IA)...' : 'Escribe tu consulta jurídica rápida...'}
-              disabled={loading}
-              className="flex-1 bg-white border border-slate-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-600 text-slate-800"
-            />
-            <button
-              type="submit"
-              disabled={loading || !input.trim()}
-              className={`${
-                executionMode === 'deep' ? 'bg-purple-700 hover:bg-purple-800' : 'bg-blue-700 hover:bg-blue-800'
-              } text-white px-4 py-2 rounded-xl text-sm font-medium transition disabled:opacity-50 flex items-center gap-1.5`}
+          {/* Bottom Composer Container */}
+          <div style={{ padding: '0 20px 16px 20px' }}>
+            <form
+              onSubmit={handleSend}
+              style={{
+                backgroundColor: '#e2e8f0',
+                border: '1px solid #cbd5e1',
+                borderRadius: '16px',
+                padding: '12px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '8px',
+              }}
             >
-              <span>{executionMode === 'deep' ? 'Revisión Profunda' : 'Enviar'}</span>
-            </button>
-          </form>
+              <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-end' }}>
+                <textarea
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={handleKeyDownTextarea}
+                  placeholder="Escribe tu consulta jurídica aquí..."
+                  disabled={loading}
+                  rows={2}
+                  style={{
+                    flex: 1,
+                    backgroundColor: '#ffffff',
+                    border: '1px solid #cbd5e1',
+                    borderRadius: '12px',
+                    padding: '10px 12px',
+                    fontSize: '14px',
+                    color: '#1a202c',
+                    outline: 'none',
+                    resize: 'none',
+                    minHeight: '48px',
+                    fontFamily: 'inherit',
+                  }}
+                />
+                <button
+                  type="submit"
+                  disabled={loading || !input.trim()}
+                  style={{
+                    backgroundColor: '#3b5e7e',
+                    color: '#ffffff',
+                    border: 'none',
+                    borderRadius: '12px',
+                    width: '46px',
+                    height: '46px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                    opacity: loading || !input.trim() ? 0.6 : 1,
+                    transition: 'background-color 0.15s',
+                  }}
+                  aria-label="Enviar consulta"
+                >
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="22" y1="2" x2="11" y2="13"></line>
+                    <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                  </svg>
+                </button>
+              </div>
+
+              <span style={{ fontSize: '12px', color: '#4a5568', paddingLeft: '2px', fontWeight: 500 }}>
+                Enter para enviar, Shift + Enter para línea nueva
+              </span>
+            </form>
+          </div>
         </div>
       )}
     </>
