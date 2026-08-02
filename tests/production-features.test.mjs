@@ -6,11 +6,12 @@ import { spawnSync } from "node:child_process";
 
 function runTs(code) {
   const result = spawnSync(process.execPath, ["node_modules/tsx/dist/cli.mjs", "--eval", code], {
+    cwd: process.cwd(),
     encoding: "utf8",
-    env: {
+    env: { NODE_PATH: process.cwd() + "/node_modules",
       ...process.env,
       NODE_ENV: "test",
-    },
+     },
   });
 
   if (result.status !== 0) {

@@ -7,8 +7,9 @@ function runTs(code, extraEnv = {}) {
     process.execPath,
     ["node_modules/tsx/dist/cli.mjs", "--eval", code],
     {
+    cwd: process.cwd(),
       encoding: "utf8",
-      env: { ...process.env, LLM_PROVIDER: "local", NODE_ENV: "test", ...extraEnv },
+      env: { NODE_PATH: process.cwd() + "/node_modules", ...process.env, LLM_PROVIDER: "local", NODE_ENV: "test", ...extraEnv  },
       timeout: 10_000,
     }
   );

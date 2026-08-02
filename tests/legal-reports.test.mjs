@@ -7,13 +7,14 @@ function runTs(code) {
     process.execPath,
     ["node_modules/tsx/dist/cli.mjs", "--eval", code],
     {
+    cwd: process.cwd(),
       encoding: "utf8",
-      env: {
+      env: { NODE_PATH: process.cwd() + "/node_modules",
         ...process.env,
         NODE_ENV: "test",
         LLM_PROVIDER: "local",
         ALLOW_DEV_ADMIN_TOKEN: "true",
-      },
+       },
       // Windows CI and the full concurrent suite can spend several seconds
       // loading Prisma/tsx before the worker body begins.
       timeout: 30_000,
