@@ -27,6 +27,7 @@ test("process health server separates liveness from readiness", () => {
        })();`,
     ],
     {
+    env: { NODE_PATH: process.cwd() + "/node_modules", ...process.env },
     cwd: process.cwd(), encoding: "utf8", timeout: 60000 },
   );
 
