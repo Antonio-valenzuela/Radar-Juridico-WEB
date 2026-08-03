@@ -207,14 +207,14 @@ export default function AILegalPage() {
           Analiza publicaciones oficiales, compara alertas y genera resumen semanal usando la capa de IA de Jurídico Radar.
         </p>
         {process.env.NEXT_PUBLIC_ENABLE_PUBLIC_DEMO !== 'true' && (
-          <div style={{ marginTop: '1rem', display: 'flex', gap: '1rem', alignItems: 'center' }}>
+          <div className="admin-token-input" style={{ marginTop: 'var(--space-4)' }}>
             <label style={{ fontWeight: 'bold' }}>Admin Token:</label>
-            <div style={{ display: 'flex', alignItems: 'center', background: '#1e293b', borderRadius: '4px', border: '1px solid #ccc' }}>
+            <div style={{ display: 'flex', alignItems: 'center', flex: 1, maxWidth: '220px' }}>
               <input 
                 type={showToken ? "text" : "password"} 
                 value={token} 
                 onChange={(e) => handleTokenChange(e.target.value)} 
-                style={{ padding: '0.5rem', border: 'none', background: 'transparent', color: 'white', outline: 'none' }}
+                style={{ flex: 1, border: 'none', background: 'transparent', fontSize: '0.9rem', outline: 'none' }}
               />
               <button 
                 type="button" 
@@ -226,7 +226,7 @@ export default function AILegalPage() {
                 {showToken ? "👁️‍🗨️" : "👁️"}
               </button>
             </div>
-            <button onClick={handleCheckLimits} className="btn-primary" disabled={limitsLoading} style={{ background: '#3b82f6' }}>
+            <button onClick={handleCheckLimits} className="btn-primary" disabled={limitsLoading}>
               {limitsLoading ? 'Consultando...' : 'Ver intentos restantes de IA'}
             </button>
           </div>
@@ -298,13 +298,14 @@ export default function AILegalPage() {
 
       <div className="grid">
         {/* Card 1: Analizar documento */}
-        <div className="glass-card">
+        <div className="card">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
             <h2 style={{ margin: 0 }}>Analizar documento</h2>
             <button
               type="button"
               onClick={loadAnalyzeSample}
-              style={{ background: 'transparent', border: '1px solid var(--accent)', color: 'var(--accent)', padding: '0.2rem 0.5rem', borderRadius: '4px', fontSize: '0.8rem', cursor: 'pointer' }}
+              className="btn-secondary"
+              style={{ padding: '0.2rem 0.5rem', fontSize: '0.8rem' }}
             >
               Cargar ejemplo
             </button>
@@ -317,22 +318,20 @@ export default function AILegalPage() {
               placeholder="Ej: Decreto por el que se reforman diversas disposiciones de la Ley del Impuesto sobre la Renta..." 
               value={analyzeTitle} 
               onChange={e => setAnalyzeTitle(e.target.value)}
-              style={{ padding: '0.5rem', borderRadius: '4px', background: '#0f172a', color: 'white', border: '1px solid var(--card-border)' }}
             />
             <textarea 
               placeholder="Ej: Extracto o texto principal de la norma, disposición o boletín a analizar..." 
               value={analyzeSummary} 
               onChange={e => setAnalyzeSummary(e.target.value)}
               rows={3}
-              style={{ padding: '0.5rem', borderRadius: '4px', background: '#0f172a', color: 'white', border: '1px solid var(--card-border)' }}
             />
             <button type="submit" className="btn-primary" disabled={analyzeLoading}>
               {analyzeLoading ? 'Analizando...' : 'Analizar con IA'}
             </button>
           </form>
-          {analyzeError && <p style={{ color: '#ef4444', marginTop: '1rem' }}>{analyzeError}</p>}
+          {analyzeError && <p className="text-error" style={{ marginTop: '1rem' }}>{analyzeError}</p>}
           {analyzeResult && analyzeResult.analysis && (
-            <div style={{ marginTop: '1rem', padding: '1rem', background: 'rgba(0,0,0,0.2)', borderRadius: '8px' }}>
+            <div className="card" style={{ marginTop: '1rem', padding: '1rem' }}>
               <p><strong>Materia:</strong> {analyzeResult.analysis.matter}</p>
               <p><strong>Confianza:</strong> {analyzeResult.analysis.confidence}</p>
               <p><strong>Resumen:</strong> {analyzeResult.analysis.summary}</p>
@@ -345,7 +344,7 @@ export default function AILegalPage() {
                   <p><strong>Proveedor:</strong> {analyzeResult.provider}</p>
                   <details style={{ marginTop: '1rem' }}>
                     <summary style={{ cursor: 'pointer', color: 'var(--text-muted)' }}>Ver JSON completo</summary>
-                    <pre style={{ background: '#0f172a', padding: '1rem', borderRadius: '4px', overflowX: 'auto', marginTop: '0.5rem', fontSize: '0.8rem' }}>
+                    <pre style={{ background: 'var(--surface-muted)', padding: '1rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', overflowX: 'auto', marginTop: '0.5rem', fontSize: '0.8rem' }}>
                       {JSON.stringify(analyzeResult, null, 2)}
                     </pre>
                   </details>
@@ -356,13 +355,14 @@ export default function AILegalPage() {
         </div>
 
         {/* Card 2: Comparar alerta */}
-        <div className="glass-card">
+        <div className="card">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
             <h2 style={{ margin: 0 }}>Comparar alerta</h2>
             <button
               type="button"
               onClick={loadMatchSample}
-              style={{ background: 'transparent', border: '1px solid var(--accent)', color: 'var(--accent)', padding: '0.2rem 0.5rem', borderRadius: '4px', fontSize: '0.8rem', cursor: 'pointer' }}
+              className="btn-secondary"
+              style={{ padding: '0.2rem 0.5rem', fontSize: '0.8rem' }}
             >
               Cargar ejemplo
             </button>
@@ -375,29 +375,26 @@ export default function AILegalPage() {
               placeholder="Ej: Notificarme sobre reformas en materia fiscal, laboral o de seguridad social..." 
               value={matchRule} 
               onChange={e => setMatchRule(e.target.value)}
-              style={{ padding: '0.5rem', borderRadius: '4px', background: '#0f172a', color: 'white', border: '1px solid var(--card-border)' }}
             />
             <input 
               placeholder="Ej: Título del documento (ej. Modificaciones a la RMF en materia tributaria)..." 
               value={matchTitle} 
               onChange={e => setMatchTitle(e.target.value)}
-              style={{ padding: '0.5rem', borderRadius: '4px', background: '#0f172a', color: 'white', border: '1px solid var(--card-border)' }}
             />
             <textarea 
               placeholder="Ej: Resumen o extracto relevante de la publicación para calcular la coincidencia semántica..." 
               value={matchSummary} 
               onChange={e => setMatchSummary(e.target.value)}
               rows={3}
-              style={{ padding: '0.5rem', borderRadius: '4px', background: '#0f172a', color: 'white', border: '1px solid var(--card-border)' }}
             />
             <button type="submit" className="btn-primary" disabled={matchLoading}>
               {matchLoading ? 'Comparando...' : 'Comparar alerta'}
             </button>
           </form>
-          {matchError && <p style={{ color: '#ef4444', marginTop: '1rem' }}>{matchError}</p>}
+          {matchError && <p className="text-error" style={{ marginTop: '1rem' }}>{matchError}</p>}
           {matchResult && matchResult.match && (
-            <div style={{ marginTop: '1rem', padding: '1rem', background: 'rgba(0,0,0,0.2)', borderRadius: '8px' }}>
-              <p><strong>Matched:</strong> <span style={{ color: matchResult.match.matched ? '#10b981' : '#ef4444', fontWeight: 'bold' }}>{matchResult.match.matched ? 'True' : 'False'}</span></p>
+            <div className="card" style={{ marginTop: '1rem', padding: '1rem' }}>
+              <p><strong>Matched:</strong> <span style={{ color: matchResult.match.matched ? 'var(--success)' : 'var(--error)', fontWeight: 'bold' }}>{matchResult.match.matched ? 'True' : 'False'}</span></p>
               <p><strong>Score:</strong> {matchResult.match.score}</p>
               <p><strong>Reasons:</strong></p>
               <ul style={{ marginLeft: '1.5rem', marginBottom: '0.5rem', fontSize: '0.9rem', color: 'var(--text-muted)' }}>
@@ -407,7 +404,7 @@ export default function AILegalPage() {
               {process.env.NEXT_PUBLIC_ENABLE_PUBLIC_DEMO !== 'true' && (
                 <details style={{ marginTop: '1rem' }}>
                   <summary style={{ cursor: 'pointer', color: 'var(--text-muted)' }}>Ver JSON completo</summary>
-                  <pre style={{ background: '#0f172a', padding: '1rem', borderRadius: '4px', overflowX: 'auto', marginTop: '0.5rem', fontSize: '0.8rem' }}>
+                  <pre style={{ background: 'var(--surface-muted)', padding: '1rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', overflowX: 'auto', marginTop: '0.5rem', fontSize: '0.8rem' }}>
                     {JSON.stringify(matchResult, null, 2)}
                   </pre>
                 </details>
@@ -417,7 +414,7 @@ export default function AILegalPage() {
         </div>
 
         {/* Card 3: Resumen semanal */}
-        <div className="glass-card">
+        <div className="card">
           <h2>Resumen semanal</h2>
           <p className="text-muted" style={{ marginBottom: '1rem', fontSize: '0.9rem' }}>Resumen semanal: genera digest de documentos recientes.</p>
           <form onSubmit={handleDigest} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
@@ -427,16 +424,16 @@ export default function AILegalPage() {
                 type="number" 
                 value={digestDays} 
                 onChange={e => setDigestDays(Number(e.target.value))}
-                style={{ width: '80px', padding: '0.5rem', borderRadius: '4px', background: '#0f172a', color: 'white', border: '1px solid var(--card-border)' }}
+                style={{ width: '80px' }}
               />
             </div>
             <button type="submit" className="btn-primary" disabled={digestLoading}>
               {digestLoading ? 'Generando...' : 'Generar resumen semanal'}
             </button>
           </form>
-          {digestError && <p style={{ color: '#ef4444', marginTop: '1rem' }}>{digestError}</p>}
+          {digestError && <p className="text-error" style={{ marginTop: '1rem' }}>{digestError}</p>}
           {digestResult && digestResult.digest && (
-            <div style={{ marginTop: '1rem', padding: '1rem', background: 'rgba(0,0,0,0.2)', borderRadius: '8px' }}>
+            <div className="card" style={{ marginTop: '1rem', padding: '1rem' }}>
               <p><strong>Total Documents:</strong> {digestResult.digest.totalDocuments}</p>
               <p><strong>High Impact Count:</strong> {digestResult.digest.highImpactCount}</p>
               <p><strong>Matters:</strong> {Object.keys(digestResult.digest.matters || {}).join(', ')}</p>
@@ -451,7 +448,7 @@ export default function AILegalPage() {
               {process.env.NEXT_PUBLIC_ENABLE_PUBLIC_DEMO !== 'true' && (
                 <details style={{ marginTop: '1rem' }}>
                   <summary style={{ cursor: 'pointer', color: 'var(--text-muted)' }}>Ver JSON completo</summary>
-                  <pre style={{ background: '#0f172a', padding: '1rem', borderRadius: '4px', overflowX: 'auto', marginTop: '0.5rem', fontSize: '0.8rem' }}>
+                  <pre style={{ background: 'var(--surface-muted)', padding: '1rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', overflowX: 'auto', marginTop: '0.5rem', fontSize: '0.8rem' }}>
                     {JSON.stringify(digestResult, null, 2)}
                   </pre>
                 </details>

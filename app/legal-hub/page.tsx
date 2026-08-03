@@ -42,27 +42,28 @@ export default function LegalHubPage() {
             Accesos listos para civil, mercantil, CNPCF, jurisprudencia SCJN, boletines judiciales,
             SISE/CJF y formatos base de escritos.
           </p>
-          <div className="hero-buttons">
-            <Link href="/legal-hub/boletines" className="btn-primary" style={{ background: "var(--accent)", color: "white", textDecoration: "none" }}>
+          <div className="hero-buttons" aria-label="Accesos rápidos">
+            <Link href="/legal-hub/boletines" className="btn-accent">
               Boletines Judiciales (Rastreo API)
             </Link>
-            <Link href="/legal-hub/cambios" className="btn-primary" style={{ textDecoration: "none" }}>
+            <Link href="/legal-hub/cambios" className="btn-primary">
               Cambios por Materia (IA)
             </Link>
-            <Link href="/legal-hub/leyes-vigentes" className="btn-primary" style={{ textDecoration: "none" }}>
+            <Link href="/legal-hub/leyes-vigentes" className="btn-primary">
               Leyes vigentes
             </Link>
-            <Link href="/legal-hub/jurisprudencia" className="btn-primary" style={{ textDecoration: "none" }}>
+            <Link href="/legal-hub/jurisprudencia" className="btn-primary">
               Jurisprudencia
             </Link>
-            <Link href="/legal-hub/expedientes" className="btn-primary" style={{ textDecoration: "none" }}>
+            <Link href="/legal-hub/expedientes" className="btn-primary">
               Expedientes
             </Link>
-            <Link href="/legal-hub/machotes" className="btn-primary" style={{ textDecoration: "none" }}>
+            <Link href="/legal-hub/machotes" className="btn-primary">
               Machotes guiados
             </Link>
           </div>
         </section>
+
 
         <section className="legal-hub-tabs" aria-label="Pestanas del Centro Juridico">
           {LEGAL_HUB_TABS.map((tab) => (
@@ -84,12 +85,12 @@ export default function LegalHubPage() {
             <h2>{activeTabInfo.description}</h2>
           </div>
           {activeTab === "boletines" && (
-            <div style={{ marginTop: "1rem", padding: "1rem", background: "rgba(59,130,246,0.12)", border: "1px solid #3b82f6", borderRadius: "8px" }}>
-              <h3 style={{ margin: "0 0 0.5rem 0", color: "#60a5fa" }}>📡 Motor Interno de Seguimiento de Boletines</h3>
-              <p style={{ margin: "0 0 1rem 0", fontSize: "0.9rem" }}>
+            <div className="info-block">
+              <h3>📡 Motor Interno de Seguimiento de Boletines</h3>
+              <p>
                 Crea reglas de rastreo automatizado por número de expediente, actor, demandado, juzgado y palabras clave con alertas periódicas y revisión manual.
               </p>
-              <Link href="/legal-hub/boletines" className="btn-primary" style={{ textDecoration: "none", display: "inline-block" }}>
+              <Link href="/legal-hub/boletines" className="btn-primary">
                 Abrir Administrador de Boletines →
               </Link>
             </div>
