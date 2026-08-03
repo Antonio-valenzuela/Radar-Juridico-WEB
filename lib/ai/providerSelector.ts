@@ -4,7 +4,7 @@ import { getAllowedProvidersForMode } from "./providerCapabilities";
 export async function selectLeastUsedProvider(
   mode: string,
   route: string | null = null
-): Promise<{ provider: string; strategy: string }> {
+): Promise<{ provider: string; strategy: string; usedFallbackNoKeys?: boolean }> {
   // 1. Get the allowed providers for this mode
   const allowed = getAllowedProvidersForMode(mode);
 
@@ -18,8 +18,16 @@ export async function selectLeastUsedProvider(
     return false;
   });
 
+  const nonLocalConfigured = configured.filter((p) => p.toLowerCase().trim() !== "local");
+
+  if (nonLocalConfigured.length === 0) {
+    console.warn("[AI Router] Fallback a 'local': ninguna API key configurada (GEMINI_API_KEY/GROQ_API_KEY/OPENROUTER_API_KEY)");
+    return { provider: "local", strategy: "least-used", usedFallbackNoKeys: true };
+  }
+
   if (configured.length === 0) {
-    return { provider: "local", strategy: "least-used" };
+    console.warn("[AI Router] Fallback a 'local': ninguna API key configurada (GEMINI_API_KEY/GROQ_API_KEY/OPENROUTER_API_KEY)");
+    return { provider: "local", strategy: "least-used", usedFallbackNoKeys: true };
   }
   if (configured.length === 1) {
     return { provider: configured[0], strategy: "least-used" };
@@ -96,6 +104,10 @@ export async function selectLeastUsedProvider(
     console.error("[providerSelector] Error selecting least used provider:", err);
     // Safe default to the first configured non-local provider if available
     const nonLocal = configured.find((p) => p !== "local");
-    return { provider: nonLocal || "local", strategy: "fallback-default" };
+    if (!nonLocal) {
+      console.warn("[AI Router] Fallback a 'local': ninguna API key configurada (GEMINI_API_KEY/GROQ_API_KEY/OPENROUTER_API_KEY)");
+      return { provider: "local", strategy: "fallback-default", usedFallbackNoKeys: true };
+    }
+    return { provider: nonLocal, strategy: "fallback-default" };
   }
 }
