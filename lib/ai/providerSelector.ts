@@ -25,10 +25,6 @@ export async function selectLeastUsedProvider(
     return { provider: "local", strategy: "least-used", usedFallbackNoKeys: true };
   }
 
-  if (configured.length === 0) {
-    console.warn("[AI Router] Fallback a 'local': ninguna API key configurada (GEMINI_API_KEY/GROQ_API_KEY/OPENROUTER_API_KEY)");
-    return { provider: "local", strategy: "least-used", usedFallbackNoKeys: true };
-  }
   if (configured.length === 1) {
     return { provider: configured[0], strategy: "least-used" };
   }
