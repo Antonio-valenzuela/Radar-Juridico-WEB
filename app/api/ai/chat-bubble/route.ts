@@ -521,7 +521,10 @@ export async function POST(req: NextRequest) {
   }
 
   // Validaciones del entorno
-  const hasGeminiKey = !!process.env.GEMINI_API_KEY;
+  const hasGeminiKey = !!process.env.GEMINI_API_KEY?.trim();
+  const hasGroqKey = !!process.env.GROQ_API_KEY?.trim();
+  const hasOpenRouterKey = !!process.env.OPENROUTER_API_KEY?.trim();
+  const hasAnyApiKey = hasGeminiKey || hasGroqKey || hasOpenRouterKey;
   const geminiModel = process.env.GEMINI_MODEL || "gemini-2.5-flash";
   const provider = process.env.LLM_PROVIDER || "gemini";
   console.error(`[legal-ai] config check: LLM_PROVIDER=${provider}, GEMINI_MODEL=${geminiModel}, GEMINI_API_KEY_CONFIGURED=${hasGeminiKey}`);
@@ -604,6 +607,7 @@ Debes responder ÚNICAMENTE con un objeto JSON válido que contenga:
           actions: latestActions,
           mode: "latest_changes",
           usedLocalData: false,
+          usedFallbackNoKeys: !hasAnyApiKey,
           warnings: ["Verifica directamente en la fuente oficial si el asunto depende de una fecha o plazo."],
           followUpQuestions: [
             "¿Quieres crear una alerta para esta materia?",
@@ -615,6 +619,8 @@ Debes responder ÚNICAMENTE con un objeto JSON válido que contenga:
             resultCount: 0,
             usedLocalData: false,
             mode: intent,
+            provider: !hasAnyApiKey ? "local" : provider,
+            usedFallbackNoKeys: !hasAnyApiKey,
           },
         });
       }
@@ -640,6 +646,7 @@ Debes responder ÚNICAMENTE con un objeto JSON válido que contenga:
         actions: latestActions,
         mode: "latest_changes",
         usedLocalData: true,
+        usedFallbackNoKeys: !hasAnyApiKey,
         warnings: ["Contrasta cada resultado con la fuente oficial antes de tomar una decisión jurídica."],
         followUpQuestions: [
           "¿Quieres ver el detalle del documento monitoreado?",
@@ -651,6 +658,8 @@ Debes responder ÚNICAMENTE con un objeto JSON válido que contenga:
           resultCount: indexedEvidence.changes.length,
           usedLocalData: true,
           mode: intent,
+          provider: !hasAnyApiKey ? "local" : provider,
+          usedFallbackNoKeys: !hasAnyApiKey,
         },
       });
     }
@@ -862,6 +871,8 @@ Te sugiero contrastar esta orientación con los textos normativos vigentes o ref
     console.error("[legal-ai] response.done");
 
     const mappedMode = intent === "general_platform_help" ? "general_platform_help" : intent;
+    const effectiveProvider = usedFallback ? "local" : provider;
+    const isNoKeysLocal = (effectiveProvider === "local" || usedFallback) && !hasAnyApiKey;
 
     return NextResponse.json({
       ok: true,
@@ -872,14 +883,16 @@ Te sugiero contrastar esta orientación con los textos normativos vigentes o ref
       actions: finalActions, // backward compatibility
       mode: mappedMode, // backward compatibility
       usedLocalData: chunks.length > 0, // backward compatibility
+      usedFallbackNoKeys: isNoKeysLocal,
       warnings: usedFallback ? ["Se utilizó orientación preliminar local."] : [],
       followUpQuestions,
       technical: {
-        provider: usedFallback ? "local" : provider,
+        provider: effectiveProvider,
         intent,
         resultCount: chunks.length,
         usedLocalData: chunks.length > 0,
-        mode: intent
+        mode: intent,
+        usedFallbackNoKeys: isNoKeysLocal,
       }
     });
 

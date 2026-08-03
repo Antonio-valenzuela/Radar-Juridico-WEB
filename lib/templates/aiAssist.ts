@@ -114,7 +114,7 @@ const stripJsonFence = (answer: string): string => {
 export const parseAiAssistResponse = (
   answer: string,
   verifiedSources: VerifiedTemplateSource[]
-): AIAssistResult => {
+): AIAssistResult & { usedFallbackNoKeys?: boolean } => {
   try {
     const parsed = JSON.parse(stripJsonFence(answer)) as Record<string, unknown>;
     if (
@@ -154,7 +154,7 @@ export const developWithAI = async (params: {
   userInput: string;
   caseContext: Record<string, string>;
   verifiedSources: VerifiedTemplateSource[];
-}): Promise<AIAssistResult> => {
+}): Promise<AIAssistResult & { usedFallbackNoKeys?: boolean }> => {
   const {
     templateId,
     sectionId,
@@ -202,13 +202,33 @@ REGLAS:
 
   try {
     const response = await routeLlmCompletion(prompt, 'template_ai_assist');
-    return parseAiAssistResponse(response.answer, verifiedSources);
+    const hasAnyApiKey = !!(
+      process.env.GEMINI_API_KEY?.trim() ||
+      process.env.GROQ_API_KEY?.trim() ||
+      process.env.OPENROUTER_API_KEY?.trim()
+    );
+    const usedFallbackNoKeys = (response.provider === 'local' || response.usedFallback) && !hasAnyApiKey;
+
+    return {
+      ...parseAiAssistResponse(response.answer, verifiedSources),
+      usedFallbackNoKeys,
+    };
   } catch (error) {
     if (
       error instanceof Error &&
       (error.message.includes('sección') || error.message.includes('estructurada'))
     ) {
       throw error;
+    }
+    const hasAnyApiKey = !!(
+      process.env.GEMINI_API_KEY?.trim() ||
+      process.env.GROQ_API_KEY?.trim() ||
+      process.env.OPENROUTER_API_KEY?.trim()
+    );
+    if (!hasAnyApiKey) {
+      console.warn(
+        "[AI Router] Fallback a 'local': ninguna API key configurada (GEMINI_API_KEY/GROQ_API_KEY/OPENROUTER_API_KEY)"
+      );
     }
     throw new Error('No fue posible generar la propuesta asistida.');
   }
