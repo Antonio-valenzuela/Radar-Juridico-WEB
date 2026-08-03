@@ -51,50 +51,49 @@ export default function DigestsPage() {
   };
 
   return (
-    <div className="container" style={{ padding: '2rem 0' }}>
-      <Link href="/" style={{ color: 'var(--accent)', textDecoration: 'none', display: 'inline-block', marginBottom: '1rem' }}>
+    <div className="container page-content">
+      <Link href="/" className="back-link">
         &larr; Volver al Dashboard
       </Link>
       <h1>Resumen Semanal IA</h1>
-      <p style={{ color: 'var(--text-muted)' }}>Genera un digest ejecutivo de los documentos más importantes.</p>
-      
+      <p className="text-muted">Genera un digest ejecutivo de los documentos más importantes.</p>
+
       {process.env.NEXT_PUBLIC_ENABLE_PUBLIC_DEMO !== 'true' && (
-        <div style={{ marginTop: '1rem', display: 'flex', gap: '1rem', alignItems: 'center' }}>
-          <label style={{ fontWeight: 'bold' }}>Admin Token:</label>
-          <input 
-            type="text" 
-            value={token} 
-            onChange={(e) => handleTokenChange(e.target.value)} 
-            style={{ padding: '0.5rem', borderRadius: '4px', border: '1px solid #ccc', background: '#1e293b', color: 'white' }}
+        <div className="admin-token-input">
+          <label>Admin Token:</label>
+          <input
+            type="text"
+            value={token}
+            onChange={(e) => handleTokenChange(e.target.value)}
           />
         </div>
       )}
 
-      <div style={{ display: 'flex', gap: '1rem', marginTop: '2rem', alignItems: 'center' }}>
-        <label>Días a analizar:</label>
-        <input 
-          type="number" 
+      <div style={{ display: 'flex', gap: 'var(--space-4)', marginTop: 'var(--space-6)', alignItems: 'center' }}>
+        <label style={{ color: 'var(--text-primary)' }}>Días a analizar:</label>
+        <input
+          type="number"
           value={days}
           onChange={(e) => setDays(Number(e.target.value))}
-          style={{ width: '80px', padding: '0.5rem', borderRadius: '4px', border: '1px solid var(--card-border)', background: '#0f172a', color: 'white' }}
+          className="days-input"
         />
         <button onClick={handleGenerate} className="btn-primary" disabled={loading}>
           {loading ? 'Generando...' : 'Generar Digest'}
         </button>
       </div>
 
-      {error && <p style={{ color: '#ef4444', marginTop: '1rem' }}>{error}</p>}
+      {error && <p className="text-error" style={{ marginTop: 'var(--space-4)' }}>{error}</p>}
 
-      {loading && <p style={{ marginTop: '2rem' }}>Analizando documentos, por favor espera...</p>}
+      {loading && <p style={{ marginTop: 'var(--space-6)' }}>Analizando documentos, por favor espera...</p>}
 
       {!loading && digest && (
-        <div className="glass-card" style={{ marginTop: '2rem' }}>
+        <div className="card" style={{ marginTop: 'var(--space-6)' }}>
           <h2>Digest generado</h2>
-          <div style={{ marginTop: '1rem' }}>
+          <div style={{ marginTop: 'var(--space-4)' }}>
             <p><strong>Total de documentos evaluados:</strong> {digest.totalDocuments || 0}</p>
             <p><strong>Documentos de alto impacto:</strong> {digest.highImpactCount || 0}</p>
-            
-            <h3 style={{ marginTop: '1.5rem', color: 'var(--accent)' }}>Materias principales</h3>
+
+            <h3 style={{ marginTop: 'var(--space-5)', color: 'var(--accent)' }}>Materias principales</h3>
             {digest.matters && Object.keys(digest.matters).length > 0 ? (
               <ul>
                 {Object.entries(digest.matters).map(([matter, count]) => (
@@ -103,14 +102,14 @@ export default function DigestsPage() {
               </ul>
             ) : <p>Ninguna destacada.</p>}
 
-            <h3 style={{ marginTop: '1.5rem', color: 'var(--accent)' }}>Highlights</h3>
+            <h3 style={{ marginTop: 'var(--space-5)', color: 'var(--accent)' }}>Highlights</h3>
             {digest.highlights && digest.highlights.length > 0 ? (
               <ul style={{ lineHeight: 1.6 }}>
                 {digest.highlights.map((h: string, i: number) => <li key={i}>{h}</li>)}
               </ul>
             ) : <p>Sin highlights.</p>}
 
-            <h3 style={{ marginTop: '1.5rem', color: 'var(--accent)' }}>Recomendaciones</h3>
+            <h3 style={{ marginTop: 'var(--space-5)', color: 'var(--accent)' }}>Recomendaciones</h3>
             {digest.recommendations && digest.recommendations.length > 0 ? (
               <ul style={{ lineHeight: 1.6 }}>
                 {digest.recommendations.map((r: string, i: number) => <li key={i}>{r}</li>)}

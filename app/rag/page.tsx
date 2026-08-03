@@ -437,8 +437,8 @@ export default function RadarLegalPage() {
       </div>
 
       {/* Search form */}
-      <div className="glass-card" style={{ marginBottom: '1.5rem', padding: '1.5rem' }}>
-        <form onSubmit={handleSearch} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+      <div className="card" style={{ marginBottom: 'var(--space-5)' }}>
+        <form onSubmit={handleSearch} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
           <div className="rag-search-row">
             <input
               id="radar-keyword-input"
@@ -446,7 +446,7 @@ export default function RadarLegalPage() {
               placeholder="Palabra clave opcional (ej. amparo, ISR, reforma laboral)…"
               value={keyword}
               onChange={(e) => setKeyword(e.target.value)}
-              style={{ flex: 1, padding: '1rem', borderRadius: '8px', border: '1px solid var(--card-border)', background: '#0f172a', color: 'white', fontSize: '1.05rem' }}
+              style={{ flex: 1, fontSize: '1.05rem' }}
             />
             <button
               id="radar-search-btn"
@@ -459,15 +459,14 @@ export default function RadarLegalPage() {
             </button>
           </div>
 
-          <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'center' }}>
+          <div style={{ display: 'flex', gap: 'var(--space-4)', flexWrap: 'wrap', alignItems: 'center' }}>
             {/* Materia */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', flex: 1, minWidth: '160px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-1)', flex: 1, minWidth: '160px' }}>
               <label style={{ fontSize: '0.82rem', color: 'var(--text-muted)', fontWeight: 600 }}>Materia:</label>
               <select
                 id="radar-materia-select"
                 value={matter}
                 onChange={(e) => setMatter(e.target.value)}
-                style={{ padding: '0.5rem 0.75rem', borderRadius: '6px', border: '1px solid var(--card-border)', background: '#0f172a', color: 'white', fontSize: '0.9rem' }}
               >
                 <option value="">Cualquier materia</option>
                 <option value="constitucional">Constitucional</option>
@@ -482,26 +481,26 @@ export default function RadarLegalPage() {
             </div>
 
             {/* Date from */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', flex: 1, minWidth: '160px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-1)', flex: 1, minWidth: '160px' }}>
               <label style={{ fontSize: '0.82rem', color: 'var(--text-muted)', fontWeight: 600 }}>Desde:</label>
               <input
                 id="radar-date-from"
                 type="date"
                 value={dateFrom}
                 onChange={(e) => setDateFrom(e.target.value)}
-                style={{ padding: '0.5rem 0.75rem', borderRadius: '6px', border: '1px solid var(--card-border)', background: '#0f172a', color: 'white', fontSize: '0.9rem' }}
+                style={{ width: 'auto' }}
               />
             </div>
 
             {/* Date to */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', flex: 1, minWidth: '160px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-1)', flex: 1, minWidth: '160px' }}>
               <label style={{ fontSize: '0.82rem', color: 'var(--text-muted)', fontWeight: 600 }}>Hasta:</label>
               <input
                 id="radar-date-to"
                 type="date"
                 value={dateTo}
                 onChange={(e) => setDateTo(e.target.value)}
-                style={{ padding: '0.5rem 0.75rem', borderRadius: '6px', border: '1px solid var(--card-border)', background: '#0f172a', color: 'white', fontSize: '0.9rem' }}
+                style={{ width: 'auto' }}
               />
             </div>
           </div>

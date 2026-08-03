@@ -480,50 +480,29 @@ export default function SearchPage() {
     handleSearch(nextParams);
   };
 
-  const chipStyle = (active: boolean) => ({
-    padding: '0.3rem 0.8rem',
-    borderRadius: '16px',
-    border: 'none',
-    cursor: 'pointer',
-    fontSize: '0.85rem',
-    fontWeight: 600,
-    background: active ? '#3b82f6' : '#1e293b',
-    color: active ? 'white' : '#94a3b8',
-    transition: 'all 0.2s ease',
-  } as const);
 
-  const selectStyle = {
-    padding: '0.5rem 0.7rem',
-    borderRadius: '6px',
-    border: '1px solid var(--card-border)',
-    background: '#0f172a',
-    color: 'white',
-    fontSize: '0.9rem',
-  };
+  // chipStyle, selectStyle, inputStyle eliminados — usar clases CSS globales:
+  // .chip, .chip.is-active en globals.css
 
-  const inputStyle = {
-    ...selectStyle,
-    flex: 1,
-    minWidth: '140px',
-  };
+
 
   return (
-    <div className="container" style={{ padding: '2rem 0' }}>
-      <Link href="/" style={{ color: 'var(--accent)', textDecoration: 'none', display: 'inline-block', marginBottom: '1rem' }}>
+    <div className="container page-content">
+      <Link href="/" className="back-link">
         &larr; Volver al Dashboard
       </Link>
       <h1>Búsqueda Avanzada</h1>
-      <p style={{ color: 'var(--text-muted)', marginBottom: '1.5rem' }}>
+      <p className="text-muted" style={{ marginBottom: 'var(--space-5)' }}>
         Encuentra publicaciones por tema, palabra clave, autoridad, impacto, fecha, fuente y más.
       </p>
 
       {/* Search form */}
-      <div className="glass-card" style={{ marginBottom: '1.5rem', padding: '2rem' }}>
-        <form onSubmit={(e) => { e.preventDefault(); handleSearch(); }} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-          
+      <div className="card" style={{ marginBottom: 'var(--space-5)' }}>
+        <form onSubmit={(e) => { e.preventDefault(); handleSearch(); }} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-5)' }}>
+
           {/* Main query field with label */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-            <label htmlFor="search-query-field" style={{ fontSize: '1.4rem', fontWeight: 600, color: 'white' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
+            <label htmlFor="search-query-field" style={{ fontSize: '1.4rem', fontWeight: 600, color: 'var(--text-primary)' }}>
               ¿Qué quieres buscar?
             </label>
             <input
@@ -532,54 +511,46 @@ export default function SearchPage() {
               placeholder="Escribe palabras clave o preguntas legales (ej. aduanal, reformas, amparo...)"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              style={{ padding: '1.2rem', fontSize: '1.2rem', borderRadius: '8px', background: '#0f172a', color: 'white', border: '1px solid var(--card-border)', width: '100%' }}
+              style={{ fontSize: '1.2rem' }}
             />
           </div>
 
           {/* Action buttons */}
-          <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'center' }}>
-            <button type="submit" className="btn-primary" disabled={loading} style={{ padding: '0.8rem 2rem', fontSize: '1rem', flex: 1 }}>
+          <div style={{ display: 'flex', gap: 'var(--space-3)', flexWrap: 'wrap', alignItems: 'center' }}>
+            <button type="submit" className="btn-primary" disabled={loading} style={{ flex: 1 }}>
               {loading ? 'Buscando...' : 'Buscar'}
             </button>
-            
-            <button 
-              type="button" 
+
+            <button
+              type="button"
               onClick={() => {
                 if (query.trim()) {
                   window.location.href = `/rag?q=${encodeURIComponent(query)}`;
                 } else {
                   window.location.href = `/rag`;
                 }
-              }} 
-              className="btn-primary"
-              style={{ 
-                padding: '0.8rem 2rem', 
-                fontSize: '1rem', 
-                flex: 1, 
-                background: 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)', 
-                border: 'none', 
-                boxShadow: '0 4px 12px rgba(99, 102, 241, 0.3)' 
               }}
+              className="btn-accent"
+              style={{ flex: 1 }}
             >
               Preguntar a IA
             </button>
-            
-            <button 
-              type="button" 
-              onClick={clearFilters} 
-              style={{ padding: '0.8rem 1.5rem', borderRadius: '8px', background: '#1e293b', color: '#94a3b8', border: '1px solid var(--card-border)', cursor: 'pointer', fontSize: '0.9rem' }}
+
+            <button
+              type="button"
+              onClick={clearFilters}
+              className="btn-secondary"
             >
               Limpiar filtros
             </button>
 
-            <button 
-              type="button" 
+            <button
+              type="button"
               onClick={() => {
                 setAlertName(query ? `Alerta: ${query}` : `Alerta materia: ${matter || 'todas'}`);
                 setShowCreateAlert(!showCreateAlert);
               }}
               className="btn-primary"
-              style={{ padding: '0.8rem 1.5rem', borderRadius: '8px', background: '#0284c7', color: 'white', border: 'none', cursor: 'pointer', fontSize: '0.9rem', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}
             >
               🔔 Crear alerta
             </button>
@@ -587,7 +558,7 @@ export default function SearchPage() {
             <button
               type="button"
               onClick={() => setShowAdvanced(!showAdvanced)}
-              style={{ padding: '0.8rem 1.5rem', borderRadius: '8px', background: 'transparent', color: 'var(--accent)', border: '1px solid var(--accent)', cursor: 'pointer', fontSize: '0.9rem', fontWeight: 600 }}
+              className="btn-secondary"
             >
               {showAdvanced ? 'Ocultar filtros avanzados' : 'Mostrar filtros avanzados'}
             </button>
@@ -595,58 +566,58 @@ export default function SearchPage() {
 
           {/* Collapsible Advanced Filters */}
           {showAdvanced && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', borderTop: '1px solid var(--card-border)', paddingTop: '1.5rem', marginTop: '0.5rem' }}>
-              <h3 style={{ margin: 0, fontSize: '1.1rem', color: '#cbd5e1' }}>Filtros avanzados</h3>
-              
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '0.75rem' }}>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)', borderTop: '1px solid var(--border)', paddingTop: 'var(--space-5)', marginTop: 'var(--space-2)' }}>
+              <h3 style={{ margin: 0, fontSize: '1.1rem', color: 'var(--text-secondary)' }}>Filtros avanzados</h3>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 'var(--space-3)' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-1)' }}>
                   <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Materia</label>
-                  <select value={matter} onChange={e => setMatter(e.target.value)} style={{ ...selectStyle, width: '100%' }}>
+                  <select value={matter} onChange={e => setMatter(e.target.value)}>
                     {MATERIAS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
                   </select>
                 </div>
 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-1)' }}>
                   <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Fuente</label>
-                  <select value={source} onChange={e => setSource(e.target.value)} style={{ ...selectStyle, width: '100%' }}>
+                  <select value={source} onChange={e => setSource(e.target.value)}>
                     {SOURCE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                   </select>
                 </div>
 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-1)' }}>
                   <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Impacto</label>
-                  <select value={impactLevel} onChange={e => setImpactLevel(e.target.value)} style={{ ...selectStyle, width: '100%' }}>
+                  <select value={impactLevel} onChange={e => setImpactLevel(e.target.value)}>
                     {IMPACT_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                   </select>
                 </div>
 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-1)' }}>
                   <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Autoridad</label>
-                  <input type="text" placeholder="ej. SAT, IMSS, ANAM" value={authority} onChange={e => setAuthority(e.target.value)} style={{ ...inputStyle, width: '100%' }} />
+                  <input type="text" placeholder="ej. SAT, IMSS, ANAM" value={authority} onChange={e => setAuthority(e.target.value)} />
                 </div>
 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-1)' }}>
                   <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Tipo de documento</label>
-                  <input type="text" placeholder="ej. LEY, DECRETO" value={tipo} onChange={e => setTipo(e.target.value)} style={{ ...inputStyle, width: '100%' }} />
+                  <input type="text" placeholder="ej. LEY, DECRETO" value={tipo} onChange={e => setTipo(e.target.value)} />
                 </div>
               </div>
 
-              <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
-                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+              <div style={{ display: 'flex', gap: 'var(--space-3)', flexWrap: 'wrap', alignItems: 'center' }}>
+                <div style={{ display: 'flex', gap: 'var(--space-2)', alignItems: 'center' }}>
                   <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Desde:</span>
-                  <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} style={{ ...selectStyle, minWidth: '130px' }} />
+                  <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} style={{ minWidth: '130px', width: 'auto' }} />
                 </div>
-                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                <div style={{ display: 'flex', gap: 'var(--space-2)', alignItems: 'center' }}>
                   <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Hasta:</span>
-                  <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} style={{ ...selectStyle, minWidth: '130px' }} />
+                  <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} style={{ minWidth: '130px', width: 'auto' }} />
                 </div>
-                
-                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', marginLeft: 'auto' }}>
+
+                <div style={{ display: 'flex', gap: 'var(--space-2)', alignItems: 'center', marginLeft: 'auto' }}>
                   <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Orden:</span>
-                  <select value={sort} onChange={e => setSort(e.target.value)} style={selectStyle}>
+                  <select value={sort} onChange={e => setSort(e.target.value)} style={{ width: 'auto' }}>
                     {SORT_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                   </select>
-                  <select value={mode} onChange={e => setMode(e.target.value)} style={selectStyle}>
+                  <select value={mode} onChange={e => setMode(e.target.value)} style={{ width: 'auto' }}>
                     {MODE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                   </select>
                 </div>
@@ -656,68 +627,68 @@ export default function SearchPage() {
         </form>
 
         {/* Chips rápidos */}
-        <div style={{ marginTop: '1.5rem', display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '1rem' }}>
+        <div style={{ marginTop: 'var(--space-5)', display: 'flex', gap: 'var(--space-2)', flexWrap: 'wrap', alignItems: 'center', borderTop: '1px solid var(--border)', paddingTop: 'var(--space-4)' }}>
           <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: 600 }}>Temas de interés:</span>
-          <button type="button" onClick={() => applyChip({ matter: 'penal' })} style={chipStyle(matter === 'penal')}>Penal</button>
-          <button type="button" onClick={() => applyChip({ matter: 'civil' })} style={chipStyle(matter === 'civil')}>Civil</button>
-          <button type="button" onClick={() => applyChip({ matter: 'familiar' })} style={chipStyle(matter === 'familiar')}>Familiar</button>
-          <button type="button" onClick={() => applyChip({ matter: 'mercantil' })} style={chipStyle(matter === 'mercantil')}>Mercantil</button>
-          <button type="button" onClick={() => applyChip({ matter: 'fiscal' })} style={chipStyle(matter === 'fiscal')}>Fiscal</button>
-          <button type="button" onClick={() => applyChip({ matter: 'laboral' })} style={chipStyle(matter === 'laboral')}>Laboral</button>
-          <button type="button" onClick={() => applyChip({ matter: 'salud' })} style={chipStyle(matter === 'salud')}>Salud</button>
-          <button type="button" onClick={() => applyChip({ matter: 'amparo' })} style={chipStyle(matter === 'amparo')}>Amparo</button>
-          <button type="button" onClick={() => applyChip({ matter: 'aduanal' })} style={chipStyle(matter === 'aduanal')}>Aduanal</button>
-          <button type="button" onClick={() => applyChip({ matter: 'comercio_exterior' })} style={chipStyle(matter === 'comercio_exterior')}>Comercio exterior</button>
-          <button type="button" onClick={() => applyChip({ entity: 'SAT' })} style={chipStyle(entity === 'SAT')}>SAT</button>
-          <button type="button" onClick={() => applyChip({ entity: 'IMSS' })} style={chipStyle(entity === 'IMSS')}>IMSS</button>
-          <button type="button" onClick={() => applyChip({ impactLevel: 'alto' })} style={chipStyle(impactLevel === 'alto')}>Alto impacto</button>
-          <button type="button" onClick={() => applyChip({ sector: 'empresas' })} style={chipStyle(sector === 'empresas')}>Empresas</button>
-          <button type="button" onClick={() => applyChip({ source: 'DOF' })} style={chipStyle(source === 'DOF')}>DOF</button>
-          <button type="button" onClick={() => applyChip({ source: 'SCJN' })} style={chipStyle(source === 'SCJN')}>SCJN</button>
+          <button type="button" onClick={() => applyChip({ matter: 'penal' })} className={`chip${matter === 'penal' ? ' is-active' : ''}`}>Penal</button>
+          <button type="button" onClick={() => applyChip({ matter: 'civil' })} className={`chip${matter === 'civil' ? ' is-active' : ''}`}>Civil</button>
+          <button type="button" onClick={() => applyChip({ matter: 'familiar' })} className={`chip${matter === 'familiar' ? ' is-active' : ''}`}>Familiar</button>
+          <button type="button" onClick={() => applyChip({ matter: 'mercantil' })} className={`chip${matter === 'mercantil' ? ' is-active' : ''}`}>Mercantil</button>
+          <button type="button" onClick={() => applyChip({ matter: 'fiscal' })} className={`chip${matter === 'fiscal' ? ' is-active' : ''}`}>Fiscal</button>
+          <button type="button" onClick={() => applyChip({ matter: 'laboral' })} className={`chip${matter === 'laboral' ? ' is-active' : ''}`}>Laboral</button>
+          <button type="button" onClick={() => applyChip({ matter: 'salud' })} className={`chip${matter === 'salud' ? ' is-active' : ''}`}>Salud</button>
+          <button type="button" onClick={() => applyChip({ matter: 'amparo' })} className={`chip${matter === 'amparo' ? ' is-active' : ''}`}>Amparo</button>
+          <button type="button" onClick={() => applyChip({ matter: 'aduanal' })} className={`chip${matter === 'aduanal' ? ' is-active' : ''}`}>Aduanal</button>
+          <button type="button" onClick={() => applyChip({ matter: 'comercio_exterior' })} className={`chip${matter === 'comercio_exterior' ? ' is-active' : ''}`}>Comercio exterior</button>
+          <button type="button" onClick={() => applyChip({ entity: 'SAT' })} className={`chip${entity === 'SAT' ? ' is-active' : ''}`}>SAT</button>
+          <button type="button" onClick={() => applyChip({ entity: 'IMSS' })} className={`chip${entity === 'IMSS' ? ' is-active' : ''}`}>IMSS</button>
+          <button type="button" onClick={() => applyChip({ impactLevel: 'alto' })} className={`chip${impactLevel === 'alto' ? ' is-active' : ''}`}>Alto impacto</button>
+          <button type="button" onClick={() => applyChip({ sector: 'empresas' })} className={`chip${sector === 'empresas' ? ' is-active' : ''}`}>Empresas</button>
+          <button type="button" onClick={() => applyChip({ source: 'DOF' })} className={`chip${source === 'DOF' ? ' is-active' : ''}`}>DOF</button>
+          <button type="button" onClick={() => applyChip({ source: 'SCJN' })} className={`chip${source === 'SCJN' ? ' is-active' : ''}`}>SCJN</button>
           <button type="button" onClick={() => {
             const range = getThisWeekRange();
             applyChip(range);
-          }} style={chipStyle(!!dateFrom && !query)}>Esta semana</button>
-          <button type="button" onClick={() => applyChip({ query: 'reforma', sort: 'date' })} style={chipStyle(query === 'reforma')}>Reformas recientes</button>
+          }} className={`chip${!!dateFrom && !query ? ' is-active' : ''}`}>Esta semana</button>
+          <button type="button" onClick={() => applyChip({ query: 'reforma', sort: 'date' })} className={`chip${query === 'reforma' ? ' is-active' : ''}`}>Reformas recientes</button>
         </div>
       </div>
 
       {showCreateAlert && (
-        <div className="glass-card" style={{ marginBottom: '1.5rem', border: '1px solid #0284c7', padding: '1.5rem', borderRadius: '12px' }}>
-          <h3 style={{ margin: '0 0 1rem 0', color: '#38bdf8', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+        <div className="card" style={{ marginBottom: 'var(--space-5)', border: '1px solid var(--border-focus)' }}>
+          <h3 style={{ margin: '0 0 var(--space-4) 0', color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
             <span>🔔</span> Configurar Alerta Regulatoria
           </h3>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '0.75rem', marginBottom: '1rem' }}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 'var(--space-3)', marginBottom: 'var(--space-4)' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-1)' }}>
               <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Email para notificaciones</label>
-              <input type="email" value={alertEmail} onChange={e => setAlertEmail(e.target.value)} style={inputStyle} />
+              <input type="email" value={alertEmail} onChange={e => setAlertEmail(e.target.value)} />
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-1)' }}>
               <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Nombre de la alerta</label>
-              <input type="text" value={alertName} onChange={e => setAlertName(e.target.value)} style={inputStyle} />
+              <input type="text" value={alertName} onChange={e => setAlertName(e.target.value)} />
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-1)' }}>
               <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Frecuencia</label>
-              <select value={alertFrequency} onChange={e => setAlertFrequency(e.target.value)} style={selectStyle}>
+              <select value={alertFrequency} onChange={e => setAlertFrequency(e.target.value)}>
                 <option value="diaria">Diaria</option>
                 <option value="semanal">Semanal</option>
               </select>
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-1)' }}>
               <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Estado</label>
-              <select style={selectStyle}>
+              <select>
                 <option value="activa">Activa</option>
                 <option value="inactiva">Inactiva</option>
               </select>
             </div>
           </div>
-          <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '1rem' }}>
+          <p className="text-muted" style={{ fontSize: '0.85rem', marginBottom: 'var(--space-4)' }}>
             Se creará una alerta por <strong>{query ? `palabra clave "${query}"` : `materia "${matter || 'general'}"`}</strong> en el tenant compartida de demostración.
-          </div>
-          <div style={{ display: 'flex', gap: '0.5rem' }}>
-            <button 
-              type="button" 
-              className="btn-primary" 
+          </p>
+          <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
+            <button
+              type="button"
+              className="btn-primary"
               onClick={async () => {
                 try {
                   let token = getAdminToken();
@@ -753,32 +724,32 @@ export default function SearchPage() {
                   setAlertMessage(err?.message === 'ADMIN_TOKEN_REQUIRED' ? 'Ingresa un token administrativo válido.' : `Error: ${err?.message || 'No fue posible crear la alerta.'}`);
                 }
               }}
-              style={{ padding: '0.5rem 1.5rem', fontSize: '0.9rem' }}
             >
               Guardar Alerta
             </button>
-            <button 
-              type="button" 
-              onClick={() => setShowCreateAlert(false)} 
-              style={{ padding: '0.5rem 1.5rem', borderRadius: '8px', background: '#334155', color: 'white', border: 'none', cursor: 'pointer', fontSize: '0.9rem' }}
+            <button
+              type="button"
+              onClick={() => setShowCreateAlert(false)}
+              className="btn-secondary"
             >
               Cancelar
             </button>
           </div>
-          {alertMessage && <p style={{ marginTop: '1rem', color: alertMessage.includes('Error') ? '#f87171' : '#4ade80', fontWeight: 600 }}>{alertMessage}</p>}
+          {alertMessage && <p style={{ marginTop: 'var(--space-4)', fontWeight: 600 }} className={alertMessage.includes('Error') ? 'text-error' : 'text-success'}>{alertMessage}</p>}
         </div>
       )}
 
       {/* AI Report Progress / Result Card */}
       {reportStatus && (
-        <div className="glass-card" style={{ marginBottom: '1.5rem', border: '1px solid #6366f1', padding: '1.5rem', borderRadius: '12px', background: 'rgba(30, 27, 75, 0.2)', backdropFilter: 'blur(8px)' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
-            <h3 style={{ margin: 0, color: '#a5b4fc', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+        <div className="card" style={{ marginBottom: 'var(--space-5)', borderColor: 'var(--border-focus)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-5)' }}>
+            <h3 style={{ margin: 0, color: 'var(--info)', display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
               <span>🤖</span> Reporte Jurídico Asíncrono con IA
             </h3>
-            <button 
-              onClick={() => setReportStatus('')} 
-              style={{ background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: '1.2rem', padding: '0.25rem' }}
+            <button
+              onClick={() => setReportStatus('')}
+              className="btn-secondary"
+              style={{ minHeight: 'auto', padding: 'var(--space-1) var(--space-2)', fontSize: '1rem' }}
             >
               ✕
             </button>
@@ -787,21 +758,21 @@ export default function SearchPage() {
           {/* Progress bar */}
           {reportStatus !== 'COMPLETED' && reportStatus !== 'FAILED' && (
             <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem', fontSize: '0.9rem' }}>
-                <span style={{ fontWeight: 600, color: '#e2e8f0' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 'var(--space-2)', fontSize: '0.9rem' }}>
+                <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
                   {reportStage === 'queued' && '⏳ Reporte en cola...'}
                   {reportStage === 'searching' && '🔍 Buscando información...'}
-                  {reportStage === 'collecting_sources' && '🏛️ Recopilando fuentes oficiales...'}
+                  {reportStage === 'collecting_sources' && '🏗️ Recopilando fuentes oficiales...'}
                   {reportStage === 'analyzing' && '🧠 Analizando con Inteligencia Artificial...'}
                   {reportStage === 'generating_summary' && '✍️ Generando resumen ejecutivo...'}
                   {!['queued', 'searching', 'collecting_sources', 'analyzing', 'generating_summary'].includes(reportStage) && 'Procesando reporte...'}
                 </span>
-                <span style={{ color: '#a5b4fc', fontWeight: 'bold' }}>{reportProgress}%</span>
+                <span style={{ color: 'var(--info)', fontWeight: 'bold' }}>{reportProgress}%</span>
               </div>
-              <div style={{ width: '100%', height: '8px', background: '#0f172a', borderRadius: '4px', overflow: 'hidden', border: '1px solid rgba(255,255,255,0.05)' }}>
-                <div style={{ width: `${reportProgress}%`, height: '100%', background: 'linear-gradient(90deg, #4f46e5 0%, #818cf8 100%)', borderRadius: '4px', transition: 'width 0.4s ease' }} />
+              <div style={{ width: '100%', height: '8px', background: 'var(--surface-muted)', borderRadius: 'var(--radius-full)', overflow: 'hidden', border: '1px solid var(--border)' }}>
+                <div style={{ width: `${reportProgress}%`, height: '100%', background: 'var(--info)', borderRadius: 'var(--radius-full)', transition: 'width 0.4s ease' }} />
               </div>
-              <p style={{ fontSize: '0.82rem', color: '#94a3b8', marginTop: '0.65rem', marginBottom: 0 }}>
+              <p className="text-muted" style={{ fontSize: '0.82rem', marginTop: 'var(--space-3)', marginBottom: 0 }}>
                 La tarea se ejecuta en background mediante BullMQ. No requiere mantener la búsqueda abierta.
               </p>
             </div>
@@ -809,73 +780,73 @@ export default function SearchPage() {
 
           {/* Error display */}
           {reportStatus === 'FAILED' && (
-            <div style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)', borderRadius: '8px', padding: '1rem', color: '#f87171' }}>
+            <div className="status-error" style={{ borderRadius: 'var(--radius-md)', padding: 'var(--space-4)', display: 'block' }}>
               <p style={{ margin: 0, fontWeight: 600 }}>⚠️ El reporte no pudo ser completado:</p>
-              <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.9rem', color: '#cbd5e1' }}>{reportError}</p>
+              <p className="text-secondary" style={{ margin: 'var(--space-1) 0 0 0', fontSize: '0.9rem' }}>{reportError}</p>
             </div>
           )}
 
           {/* Successful result display */}
           {reportStatus === 'COMPLETED' && reportResult && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-              <div style={{ background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.25)', borderRadius: '8px', padding: '1.25rem' }}>
-                <strong style={{ display: 'block', color: 'white', marginBottom: '0.5rem', fontSize: '1.05rem' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-5)' }}>
+              <div style={{ background: 'var(--info-bg)', border: '1px solid rgba(29,78,216,0.25)', borderRadius: 'var(--radius-md)', padding: 'var(--space-5)' }}>
+                <strong style={{ display: 'block', color: 'var(--text-primary)', marginBottom: 'var(--space-2)', fontSize: '1.05rem' }}>
                   📊 Resumen Ejecutivo
                 </strong>
-                <p style={{ margin: 0, fontSize: '0.95rem', color: '#e2e8f0', lineHeight: 1.6 }}>
+                <p style={{ margin: 0, fontSize: '0.95rem', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
                   {reportResult.resumenEjecutivo}
                 </p>
               </div>
 
               {reportResult.posiblesImpactos && (
-                <div style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.25)', borderRadius: '8px', padding: '1.25rem' }}>
-                  <strong style={{ display: 'block', color: 'white', marginBottom: '0.5rem', fontSize: '1.05rem' }}>
+                <div style={{ background: 'var(--warning-bg)', border: '1px solid rgba(148,98,0,0.25)', borderRadius: 'var(--radius-md)', padding: 'var(--space-5)' }}>
+                  <strong style={{ display: 'block', color: 'var(--text-primary)', marginBottom: 'var(--space-2)', fontSize: '1.05rem' }}>
                     ⚠️ Impactos Jurídicos Detectados
                   </strong>
-                  <p style={{ margin: 0, fontSize: '0.95rem', color: '#e2e8f0', lineHeight: 1.6 }}>
+                  <p style={{ margin: 0, fontSize: '0.95rem', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
                     {reportResult.posiblesImpactos}
                   </p>
                 </div>
               )}
 
               {reportResult.puntosRelevantes && reportResult.puntosRelevantes.length > 0 && (
-                <div className="glass-card" style={{ background: 'rgba(255,255,255,0.01)', border: '1px solid var(--card-border)' }}>
-                  <strong style={{ display: 'block', color: 'white', marginBottom: '0.50rem', fontSize: '1rem' }}>
+                <div className="card">
+                  <strong style={{ display: 'block', color: 'var(--text-primary)', marginBottom: 'var(--space-2)', fontSize: '1rem' }}>
                     📌 Puntos Relevantes
                   </strong>
-                  <ul style={{ margin: 0, paddingLeft: '1.2rem', color: '#cbd5e1', fontSize: '0.92rem', lineHeight: 1.5 }}>
+                  <ul style={{ margin: 0, paddingLeft: 'var(--space-5)', color: 'var(--text-secondary)', fontSize: '0.92rem', lineHeight: 1.5 }}>
                     {reportResult.puntosRelevantes.map((pt: string, idx: number) => (
-                      <li key={idx} style={{ marginBottom: '0.4rem' }}>{pt}</li>
+                      <li key={idx} style={{ marginBottom: 'var(--space-1)' }}>{pt}</li>
                     ))}
                   </ul>
                 </div>
               )}
 
               {reportResult.fuentesConsultadas && reportResult.fuentesConsultadas.length > 0 && (
-                <div style={{ fontSize: '0.85rem', color: '#cbd5e1' }}>
-                  🏛️ <strong>Fuentes oficiales consultadas:</strong> {reportResult.fuentesConsultadas.join(', ')}
-                </div>
+                <p className="text-muted" style={{ fontSize: '0.85rem' }}>
+                  🏗️ <strong>Fuentes oficiales consultadas:</strong> {reportResult.fuentesConsultadas.join(', ')}
+                </p>
               )}
 
               {reportResult.documentosEncontrados && reportResult.documentosEncontrados.length > 0 && (
                 <div>
-                  <strong style={{ display: 'block', color: 'white', marginBottom: '0.75rem', fontSize: '0.98rem' }}>
+                  <strong style={{ display: 'block', color: 'var(--text-primary)', marginBottom: 'var(--space-3)', fontSize: '0.98rem' }}>
                     📂 Documentos y Evidencia Asociada
                   </strong>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
                     {reportResult.documentosEncontrados.map((doc: any, idx: number) => (
-                      <div key={idx} style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid var(--card-border)', borderRadius: '8px', padding: '0.85rem', fontSize: '0.88rem' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', color: '#a5b4fc', fontWeight: 600, marginBottom: '0.35rem', gap: '1rem' }}>
+                      <div key={idx} className="card" style={{ fontSize: '0.88rem' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--info)', fontWeight: 600, marginBottom: 'var(--space-1)', gap: 'var(--space-4)' }}>
                           <span>{doc.titulo}</span>
-                          <span style={{ fontSize: '0.72rem', background: 'rgba(165,180,252,0.15)', color: '#c7d2fe', padding: '2px 6px', borderRadius: '4px', height: 'fit-content', whiteSpace: 'nowrap' }}>
+                          <span className="tag-ai" style={{ whiteSpace: 'nowrap' }}>
                             Similitud: {doc.similitudSemantica ? `${(doc.similitudSemantica * 100).toFixed(0)}%` : 'Manual'}
                           </span>
                         </div>
-                        <div style={{ fontSize: '0.8rem', color: '#94a3b8', marginBottom: '0.4rem' }}>
+                        <p className="text-muted" style={{ fontSize: '0.8rem', marginBottom: 'var(--space-1)', margin: 'var(--space-1) 0' }}>
                           Fuente: {doc.fuente} | Publicado: {doc.fecha}
-                        </div>
+                        </p>
                         {doc.fragment && (
-                          <p style={{ margin: 0, fontStyle: 'italic', color: '#cbd5e1', background: 'rgba(0,0,0,0.15)', padding: '0.5rem', borderRadius: '6px', lineHeight: 1.4 }}>
+                          <p className="text-secondary" style={{ margin: 0, fontStyle: 'italic', background: 'var(--surface-muted)', padding: 'var(--space-2)', borderRadius: 'var(--radius-md)', lineHeight: 1.4 }}>
                             &ldquo;{doc.fragment}&rdquo;
                           </p>
                         )}
@@ -885,7 +856,7 @@ export default function SearchPage() {
                 </div>
               )}
 
-              <div style={{ fontSize: '0.75rem', color: '#64748b', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '0.75rem', display: 'flex', justifyContent: 'space-between' }}>
+              <div className="text-muted" style={{ fontSize: '0.75rem', borderTop: '1px solid var(--border)', paddingTop: 'var(--space-3)', display: 'flex', justifyContent: 'space-between' }}>
                 <span>ID del reporte: {reportJobId}</span>
                 <span>Generado el: {new Date(reportResult.generatedAt).toLocaleString('es-MX')}</span>
               </div>
@@ -896,8 +867,8 @@ export default function SearchPage() {
 
       {/* Error state */}
       {error && (
-        <div className="glass-card" style={{ borderColor: '#ef4444', marginBottom: '1rem' }}>
-          <p style={{ color: '#ef4444', margin: 0 }}>⚠️ {error}</p>
+        <div className="card" style={{ borderColor: 'var(--error)', marginBottom: 'var(--space-4)' }}>
+          <p className="text-error" style={{ margin: 0 }}>⚠️ {error}</p>
         </div>
       )}
 
@@ -906,7 +877,7 @@ export default function SearchPage() {
 
       {/* Diagnóstico de estado para pruebas de UX */}
       {searchMeta.partial && (
-        <div style={{ background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.3)', padding: '0.75rem', borderRadius: '4px', marginBottom: '1rem' }}>
+        <div className="status-warn" style={{ padding: 'var(--space-3)', borderRadius: 'var(--radius-md)', marginBottom: 'var(--space-4)', display: 'block' }}>
           ⚠️ Se muestran <strong>resultados parciales</strong> (respuesta parcial) debido a retrasos en fuentes oficiales.
         </div>
       )}

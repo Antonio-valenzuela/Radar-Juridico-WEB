@@ -1,29 +1,70 @@
 :root {
-  --background: #f5f7fa;
-  --surface: #ffffff;
-  --surface-muted: #edf1f5;
-
-  --text-primary: #172230;
-  --text-secondary: #536171;
-  --text-muted: #6b7785;
-  --text-main: #172230;
-
-  --primary: #173b57;
-  --primary-hover: #102d43;
+  /* ── Colores de marca ── */
+  --primary:        #173b57;
+  --primary-hover:  #102d43;
   --primary-active: #0b2436;
+  --accent:         #0f766e;
+  --accent-hover:   #0b5f59;
 
-  --accent: #0f766e;
-  --accent-hover: #0b5f59;
+  /* ── Superficies ── */
+  --background:      #f5f7fa;
+  --surface:         #ffffff;
+  --surface-muted:   #edf1f5;
+  --surface-elevated:#ffffff;
+  --surface-overlay: rgba(23, 59, 87, 0.04);
 
-  --border: #d5dde7;
+  /* ── Texto ── */
+  --text-primary:   #172230;
+  --text-secondary: #536171;
+  --text-muted:     #6b7785;
+  --text-main:      #172230;
+  --text-on-primary:#ffffff;
+
+  /* ── Bordes ── */
+  --border:        #d5dde7;
   --border-strong: #b8c4d1;
-  --card-bg: #ffffff;
-  --card-border: #d5dde7;
+  --border-focus:  #173b57;
+  --card-bg:       #ffffff;
+  --card-border:   #d5dde7;
 
-  --success: #1f7a55;
-  --warning: #946200;
-  --danger: #b42318;
-  --focus: #2563eb;
+  /* ── Estado ── */
+  --success:     #1f7a55;
+  --success-bg:  rgba(31, 122, 85, 0.10);
+  --warning:     #946200;
+  --warning-bg:  rgba(148, 98, 0, 0.10);
+  --danger:      #b42318;
+  --danger-bg:   rgba(180, 35, 24, 0.10);
+  --error:       #b42318;
+  --error-bg:    rgba(180, 35, 24, 0.10);
+  --info:        #1d4ed8;
+  --info-bg:     rgba(29, 78, 216, 0.10);
+  --disabled:    #b8c4d1;
+  --focus:       #173b57;
+
+  /* ── Espaciado (grid 8px) ── */
+  --space-1:  4px;
+  --space-2:  8px;
+  --space-3:  12px;
+  --space-4:  16px;
+  --space-5:  24px;
+  --space-6:  32px;
+  --space-7:  48px;
+  --space-8:  64px;
+
+  /* ── Radios ── */
+  --radius-sm:   6px;
+  --radius-md:   8px;
+  --radius-lg:   12px;
+  --radius-full: 9999px;
+
+  /* ── Sombras ── */
+  --shadow-sm: 0 1px 3px rgba(23, 59, 87, 0.06);
+  --shadow-md: 0 4px 12px rgba(23, 59, 87, 0.08);
+  --shadow-lg: 0 8px 24px rgba(23, 59, 87, 0.12);
+
+  /* ── Transición única ── */
+  --transition:      0.15s ease;
+  --transition-slow: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 * {
@@ -48,19 +89,26 @@ body {
   padding: 2rem;
 }
 
-/* Legal Cards */
-.glass-card, .legal-card {
+/* Cards — un solo sistema */
+/* .card es la clase base; .glass-card, .legal-card y .document-card son aliases compatibles */
+.card,
+.glass-card,
+.legal-card,
+.document-card {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 1.5rem;
-  transition: border-color 0.2s, box-shadow 0.2s;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5);
+  transition: border-color var(--transition), box-shadow var(--transition);
+  box-shadow: var(--shadow-sm);
 }
 
-.glass-card:hover, .legal-card:hover {
+.card:hover,
+.glass-card:hover,
+.legal-card:hover,
+.document-card:hover {
   border-color: var(--border-strong);
-  box-shadow: 0 4px 12px rgba(23, 59, 87, 0.08);
+  box-shadow: var(--shadow-md);
 }
 
 /* Typography */
@@ -104,11 +152,12 @@ p.subtitle {
 
 .hero-buttons {
   display: flex;
-  gap: 0.75rem;
+  gap: var(--space-3);
   justify-content: center;
   flex-wrap: wrap;
-  margin-top: 1.5rem;
+  margin-top: var(--space-5);
 }
+
 
 .grid {
   display: grid;
@@ -146,71 +195,106 @@ p.subtitle {
   font-weight: 500;
 }
 
-.btn-primary {
-  background-color: var(--primary);
-  color: #ffffff !important;
-  border: 1px solid var(--primary);
-  padding: 0.65rem 1.35rem;
-  border-radius: 8px;
-  font-size: 0.95rem;
-  font-weight: 600;
-  cursor: pointer;
-  text-decoration: none;
+/* ============================================================
+   SISTEMA DE BOTONES — UN Único sistema, 3 variantes
+   Base compartida: min-height 44px, radius-md, transition
+   ============================================================ */
+
+/* Base */
+.btn,
+.btn-primary,
+.btn-secondary,
+.btn-accent,
+.btn-doc-primary,
+.btn-doc-secondary {
+  min-height: 44px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  transition: background-color 0.15s, border-color 0.15s;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  border-radius: var(--radius-md);
+  padding: 0 var(--space-5);
+  font-size: 0.95rem;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  text-decoration: none;
+  transition: background-color var(--transition), border-color var(--transition), color var(--transition), box-shadow var(--transition);
+  border: 1px solid transparent;
+  white-space: nowrap;
 }
 
-.btn-primary:hover {
+/* Variante primaria */
+.btn-primary,
+.btn-doc-primary {
+  background-color: var(--primary);
+  color: var(--text-on-primary) !important;
+  border-color: var(--primary);
+  box-shadow: var(--shadow-sm);
+}
+
+.btn-primary:hover,
+.btn-doc-primary:hover {
   background-color: var(--primary-hover);
   border-color: var(--primary-hover);
-  color: #ffffff !important;
+  color: var(--text-on-primary) !important;
 }
 
-.btn-secondary {
+.btn-primary:active,
+.btn-doc-primary:active {
+  background-color: var(--primary-active);
+}
+
+/* Variante secundaria */
+.btn-secondary,
+.btn-doc-secondary {
   background-color: var(--surface);
   color: var(--primary) !important;
-  border: 1px solid var(--border-strong);
-  padding: 0.65rem 1.35rem;
-  border-radius: 8px;
-  font-size: 0.95rem;
-  font-weight: 600;
-  cursor: pointer;
-  text-decoration: none;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  transition: background-color 0.15s, border-color 0.15s;
+  border-color: var(--border-strong);
 }
 
-.btn-secondary:hover {
+.btn-secondary:hover,
+.btn-doc-secondary:hover {
   background-color: var(--surface-muted);
   border-color: var(--primary);
   color: var(--primary-hover) !important;
 }
 
+/* Variante acento */
 .btn-accent {
   background-color: var(--accent);
-  color: #ffffff !important;
-  border: 1px solid var(--accent);
-  padding: 0.65rem 1.35rem;
-  border-radius: 8px;
-  font-size: 0.95rem;
-  font-weight: 600;
-  cursor: pointer;
-  text-decoration: none;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  transition: background-color 0.15s;
+  color: var(--text-on-primary) !important;
+  border-color: var(--accent);
 }
 
 .btn-accent:hover {
   background-color: var(--accent-hover);
-  color: #ffffff !important;
+  color: var(--text-on-primary) !important;
 }
+
+/* Estado disabled unificado */
+.btn:disabled,
+.btn-primary:disabled,
+.btn-secondary:disabled,
+.btn-accent:disabled,
+.btn-doc-primary:disabled,
+.btn-doc-secondary:disabled {
+  opacity: 0.48;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+/* Focus accesible */
+.btn:focus-visible,
+.btn-primary:focus-visible,
+.btn-secondary:focus-visible,
+.btn-accent:focus-visible,
+.btn-doc-primary:focus-visible,
+.btn-doc-secondary:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+}
+
+
 
 /* Alert List */
 .alert-list {
@@ -494,91 +578,63 @@ p.subtitle {
   margin-top: 1.5rem;
 }
 
-.btn-doc-primary {
-  min-height: 44px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  background-color: var(--primary);
-  color: white !important;
-  border: 1px solid var(--primary);
-  border-radius: 8px;
-  padding: 0 1.5rem;
-  font-weight: 600;
-  text-decoration: none;
-  cursor: pointer;
-  transition: background-color 0.15s;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+/* .btn-doc-primary y .btn-doc-secondary son aliases: ya definidos arriba */
+/* Se conservan las reglas de margin para document-actions */
+.document-card {
+  margin-bottom: var(--space-5);
 }
 
-.btn-doc-primary:hover {
-  background-color: var(--primary-hover);
-}
 
-.btn-doc-secondary {
-  min-height: 44px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  background-color: var(--surface);
-  color: var(--primary) !important;
-  border: 1px solid var(--border-strong);
-  border-radius: 8px;
-  padding: 0 1.5rem;
-  font-weight: 600;
-  text-decoration: none;
-  cursor: pointer;
-  transition: background-color 0.15s, border-color 0.15s;
-}
 
-.btn-doc-secondary:hover {
-  background-color: var(--surface-muted);
-  border-color: var(--primary);
-}
-
-.btn-doc-primary:disabled,
-.btn-doc-secondary:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-/* Native Form Controls Styling */
+/* ============================================================
+   INPUTS UNIFICADOS — un solo estilo, 3 estados
+   ============================================================ */
 input[type="text"],
 input[type="date"],
 input[type="number"],
 input[type="search"],
+input[type="email"],
+input[type="password"],
 select,
 textarea {
   background-color: var(--surface);
   color: var(--text-primary);
   border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 0.6rem 0.85rem;
+  border-radius: var(--radius-md);
+  padding: 0.625rem 0.875rem;
+  min-height: 44px;
   font-size: 0.95rem;
   font-family: inherit;
   outline: none;
-  transition: border-color 0.15s, box-shadow 0.15s;
+  width: 100%;
+  transition: border-color var(--transition), box-shadow var(--transition);
+}
+
+textarea {
+  min-height: 96px;
+  resize: vertical;
 }
 
 input:focus,
 select:focus,
 textarea:focus {
-  border-color: var(--primary);
+  border-color: var(--border-focus);
   box-shadow: 0 0 0 3px rgba(23, 59, 87, 0.12);
 }
 
-/* ==========================================
-   Responsive & Mobile Support
-   ========================================== */
-
-/* Hero buttons wrap & stack */
-.hero-buttons {
-  display: flex;
-  gap: 1rem;
-  justify-content: center;
-  flex-wrap: wrap;
-  margin-top: 1.5rem;
+input:disabled,
+select:disabled,
+textarea:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  background-color: var(--surface-muted);
 }
+
+
+
+
+
+
 
 /* RAG search form row */
 .rag-search-row {
@@ -752,10 +808,10 @@ textarea:focus {
 .legal-form-grid textarea {
   width: 100%;
   min-height: 44px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  border-radius: 8px;
-  background: rgba(2, 6, 23, 0.55);
-  color: var(--text-main);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--text-primary);
   padding: 0.72rem 0.85rem;
   font: inherit;
   outline: none;
@@ -764,8 +820,8 @@ textarea:focus {
 .legal-form-grid input:focus,
 .legal-form-grid select:focus,
 .legal-form-grid textarea:focus {
-  border-color: rgba(129, 140, 248, 0.8);
-  box-shadow: 0 0 0 3px rgba(129, 140, 248, 0.16);
+  border-color: var(--border-focus);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
 }
 
 .legal-form-grid textarea {
@@ -785,10 +841,10 @@ textarea:focus {
 }
 
 .legal-meta-block {
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 8px;
-  background: rgba(2, 6, 23, 0.35);
-  color: #cbd5e1;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-muted);
+  color: var(--text-secondary);
   padding: 0.9rem;
   font-size: 0.92rem;
   line-height: 1.6;
@@ -880,10 +936,10 @@ textarea:focus {
 .machote-field input {
   width: 100%;
   min-height: 44px;
-  border: 1px solid rgba(148, 163, 184, 0.26);
-  border-radius: 8px;
-  background: rgba(2, 6, 23, 0.68);
-  color: #f8fafc;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--text-primary);
   padding: 0.72rem 0.85rem;
   font: inherit;
   outline: none;
@@ -892,8 +948,8 @@ textarea:focus {
 .machote-template-select select:focus,
 .machote-field input:focus,
 .machote-document-paper:focus {
-  border-color: rgba(96, 165, 250, 0.85);
-  box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.18);
+  border-color: var(--border-focus);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
 }
 
 .machote-template-summary {
@@ -1333,10 +1389,10 @@ textarea:focus {
 .alerts-rule-form input,
 .alerts-rule-form select {
   min-height: 44px;
-  border: 1px solid rgba(148, 163, 184, 0.26);
-  border-radius: 8px;
-  background: rgba(2, 6, 23, 0.62);
-  color: #f8fafc;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--text-primary);
   padding: 0.72rem 0.85rem;
   font: inherit;
   outline: none;
@@ -1345,8 +1401,8 @@ textarea:focus {
 .alerts-account-grid input:focus,
 .alerts-rule-form input:focus,
 .alerts-rule-form select:focus {
-  border-color: rgba(96, 165, 250, 0.85);
-  box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.18);
+  border-color: var(--border-focus);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
 }
 
 .alerts-actions-row {
@@ -1580,4 +1636,233 @@ textarea:focus {
     bottom: 16px !important;
     width: calc(100vw - 32px) !important;
   }
+}
+
+/* ============================================================
+   CLASES UTILITARIAS — eliminar estilos inline de páginas
+   ============================================================ */
+
+/* Navegación de retorno */
+.back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--accent);
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 0.9rem;
+  margin-bottom: var(--space-4);
+  transition: color var(--transition);
+}
+.back-link:hover {
+  color: var(--accent-hover);
+}
+
+/* Cabecera de página */
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  margin-bottom: var(--space-6);
+}
+
+/* Hero de página (sin centrado) */
+.page-hero {
+  max-width: 860px;
+  padding: var(--space-7) 0 var(--space-5);
+}
+
+/* Subtítulo izquierdo */
+.page-hero .subtitle {
+  margin: 0;
+  text-align: left;
+  max-width: 720px;
+}
+
+/* Contenido de página */
+.page-content {
+  padding: var(--space-5) 0;
+}
+
+/* Meta info de items */
+.item-meta {
+  display: flex;
+  gap: var(--space-4);
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  flex-wrap: wrap;
+  align-items: center;
+  margin-top: var(--space-3);
+}
+
+/* Chips de filtro (búsqueda) */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-full);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  transition: background-color var(--transition), color var(--transition);
+  background: var(--surface-muted);
+  color: var(--text-secondary);
+}
+.chip:hover {
+  background: var(--border);
+}
+.chip.is-active {
+  background: var(--primary);
+  color: var(--text-on-primary);
+}
+
+/* Texto de error inline */
+.text-error { color: var(--error); }
+.text-success { color: var(--success); }
+.text-warning { color: var(--warning); }
+.text-info { color: var(--info); }
+.text-muted { color: var(--text-muted); }
+.text-secondary { color: var(--text-secondary); }
+
+/* Etiqueta de impacto */
+.impact-alto   { color: var(--error);   font-weight: 700; }
+.impact-medio  { color: var(--warning); font-weight: 700; }
+.impact-bajo   { color: var(--success); font-weight: 700; }
+
+/* Tag de AI enrichment */
+.tag-ai {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  background: var(--info-bg);
+  color: var(--info);
+  padding: 2px var(--space-2);
+  border-radius: var(--radius-sm);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+.tag-authority {
+  display: inline-flex;
+  align-items: center;
+  background: var(--success-bg);
+  color: var(--success);
+  padding: 2px var(--space-2);
+  border-radius: var(--radius-sm);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+/* Input de token admin (inline en digests) */
+.admin-token-input {
+  display: flex;
+  gap: var(--space-4);
+  align-items: center;
+  margin-top: var(--space-4);
+}
+.admin-token-input label {
+  font-weight: 700;
+  white-space: nowrap;
+  color: var(--text-primary);
+}
+.admin-token-input input {
+  max-width: 320px;
+}
+
+/* ============================================================
+   STATUS PILLS — sistema unificado con tokens semánticos
+   ============================================================ */
+
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  min-height: 28px;
+  border-radius: var(--radius-full);
+  padding: 0.2rem 0.7rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  border: 1px solid transparent;
+}
+
+/* Alias de monitor-status para compatibilidad con páginas existentes */
+.monitor-status {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  min-height: 28px;
+  border-radius: var(--radius-full);
+  padding: 0.2rem 0.7rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  border: 1px solid transparent;
+}
+
+.status-ok,
+.monitor-status-ok {
+  background: var(--success-bg);
+  color: var(--success);
+  border-color: rgba(31, 122, 85, 0.28);
+}
+
+.status-warn,
+.monitor-status-review {
+  background: var(--warning-bg);
+  color: var(--warning);
+  border-color: rgba(148, 98, 0, 0.28);
+}
+
+.status-error,
+.monitor-status-change {
+  background: var(--danger-bg);
+  color: var(--danger);
+  border-color: rgba(180, 35, 24, 0.28);
+}
+
+.status-neutral,
+.monitor-status-pending {
+  background: var(--surface-muted);
+  color: var(--text-muted);
+  border-color: var(--border-strong);
+}
+
+.status-info {
+  background: var(--info-bg);
+  color: var(--info);
+  border-color: rgba(29, 78, 216, 0.28);
+}
+
+/* Input de días (digests page) */
+.days-input {
+  width: 80px;
+}
+
+/* Separador vertical entre meta items */
+.meta-divider {
+  display: inline-block;
+  width: 1px;
+  height: 12px;
+  background: var(--border-strong);
+  margin: 0 var(--space-1);
+  vertical-align: middle;
+}
+
+/* Bloque de información (boletines) */
+.info-block {
+  margin-top: var(--space-4);
+  padding: var(--space-4);
+  background: var(--info-bg);
+  border: 1px solid var(--info);
+  border-radius: var(--radius-md);
+}
+.info-block h3 {
+  margin: 0 0 var(--space-2) 0;
+  color: var(--info);
+}
+.info-block p {
+  margin: 0 0 var(--space-4) 0;
+  font-size: 0.9rem;
+  color: var(--text-secondary);
 }

@@ -356,14 +356,14 @@ export default function AdminSourcesPage() {
           <p style={{ color: 'var(--text-muted)' }}>Administra los portales jurídicos y URLs autorizadas para la ingesta y RAG de Jurídico Radar.</p>
         </div>
         
-        <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', background: 'rgba(255,255,255,0.05)', padding: '0.75rem 1rem', borderRadius: '8px', border: '1px solid var(--card-border)' }}>
+        <div className="admin-token-input" style={{ margin: 0 }}>
           <label style={{ fontWeight: 'bold', fontSize: '0.9rem' }}>Admin Token:</label>
-          <div style={{ display: 'flex', alignItems: 'center', background: '#0f172a', borderRadius: '4px', border: '1px solid var(--card-border)', width: '220px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', flex: 1, maxWidth: '220px' }}>
             <input 
               type={showToken ? "text" : "password"} 
               value={token} 
               onChange={(e) => handleTokenChange(e.target.value)} 
-              style={{ flex: 1, padding: '0.4rem 0.5rem', border: 'none', background: 'transparent', color: 'white', fontSize: '0.9rem', minWidth: 0, outline: 'none' }}
+              style={{ flex: 1, border: 'none', background: 'transparent', fontSize: '0.9rem', minWidth: 0, outline: 'none' }}
             />
             <button 
               type="button" 
@@ -375,23 +375,23 @@ export default function AdminSourcesPage() {
               {showToken ? "👁️‍🗨️" : "👁️"}
             </button>
           </div>
-          <button onClick={fetchSources} className="btn-primary" style={{ padding: '0.4rem 1rem', fontSize: '0.9rem', boxShadow: 'none' }} disabled={loading}>
+          <button onClick={fetchSources} className="btn-primary" style={{ padding: '0.4rem 1rem', fontSize: '0.9rem' }} disabled={loading}>
             {loading ? 'Cargando...' : 'Cargar'}
           </button>
         </div>
       </div>
 
       {error && (
-        <div style={{ background: 'rgba(239, 68, 68, 0.15)', border: '1px solid #ef4444', color: '#fca5a5', padding: '1rem', borderRadius: '8px', marginBottom: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem' }}>
+        <div className="status-error" style={{ padding: 'var(--space-4)', borderRadius: 'var(--radius-md)', marginBottom: 'var(--space-5)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem' }}>
           <span>⚠️ <strong>Error:</strong> {error}</span>
-          <button onClick={() => fetchSources()} className="btn-primary" style={{ padding: '0.35rem 0.85rem', fontSize: '0.85rem', background: '#3b82f6', boxShadow: 'none', whiteSpace: 'nowrap', flexShrink: 0 }}>
+          <button onClick={() => fetchSources()} className="btn-primary" style={{ padding: '0.35rem 0.85rem', fontSize: '0.85rem', whiteSpace: 'nowrap', flexShrink: 0 }}>
             🔄 Reintentar
           </button>
         </div>
       )}
 
       {success && (
-        <div style={{ background: 'rgba(16, 185, 129, 0.15)', border: '1px solid #10b981', color: '#a7f3d0', padding: '1rem', borderRadius: '8px', marginBottom: '1.5rem' }}>
+        <div className="status-ok" style={{ padding: 'var(--space-4)', borderRadius: 'var(--radius-md)', marginBottom: 'var(--space-5)' }}>
           ✓ {success}
         </div>
       )}
@@ -411,7 +411,6 @@ export default function AdminSourcesPage() {
                 placeholder="Ej. Diario Oficial de la Federación"
                 value={formName} 
                 onChange={e => setFormName(e.target.value)}
-                style={{ padding: '0.6rem', borderRadius: '6px', background: '#0f172a', color: 'white', border: '1px solid var(--card-border)' }}
                 required
               />
             </div>
@@ -423,7 +422,6 @@ export default function AdminSourcesPage() {
                 placeholder="Ej. dof_web"
                 value={formSlug} 
                 onChange={e => setFormSlug(e.target.value)}
-                style={{ padding: '0.6rem', borderRadius: '6px', background: '#0f172a', color: 'white', border: '1px solid var(--card-border)' }}
                 disabled={editId !== null}
                 required
               />
@@ -436,7 +434,6 @@ export default function AdminSourcesPage() {
                 placeholder="Ej. https://www.dof.gob.mx"
                 value={formBaseUrl} 
                 onChange={e => setFormBaseUrl(e.target.value)}
-                style={{ padding: '0.6rem', borderRadius: '6px', background: '#0f172a', color: 'white', border: '1px solid var(--card-border)' }}
                 required
               />
             </div>
@@ -446,7 +443,6 @@ export default function AdminSourcesPage() {
               <select 
                 value={formType} 
                 onChange={e => setFormType(e.target.value)}
-                style={{ padding: '0.6rem', borderRadius: '6px', background: '#0f172a', color: 'white', border: '1px solid var(--card-border)' }}
               >
                 <option value="sidof">SIDOF (Nativo)</option>
                 <option value="diputados">Cámara de Diputados (Nativo)</option>
@@ -464,7 +460,6 @@ export default function AdminSourcesPage() {
               <select 
                 value={formCrawlMode} 
                 onChange={e => setFormCrawlMode(e.target.value)}
-                style={{ padding: '0.6rem', borderRadius: '6px', background: '#0f172a', color: 'white', border: '1px solid var(--card-border)' }}
               >
                 <option value="api">API / Native Ingestor</option>
                 <option value="rss">Crawl Canal RSS</option>
@@ -479,7 +474,6 @@ export default function AdminSourcesPage() {
                 type="text" 
                 value={formJurisdiction} 
                 onChange={e => setFormJurisdiction(e.target.value)}
-                style={{ padding: '0.6rem', borderRadius: '6px', background: '#0f172a', color: 'white', border: '1px solid var(--card-border)' }}
               />
             </div>
 
@@ -489,7 +483,6 @@ export default function AdminSourcesPage() {
                 type="text" 
                 value={formCountry} 
                 onChange={e => setFormCountry(e.target.value)}
-                style={{ padding: '0.6rem', borderRadius: '6px', background: '#0f172a', color: 'white', border: '1px solid var(--card-border)' }}
               />
             </div>
 
@@ -500,7 +493,6 @@ export default function AdminSourcesPage() {
                 placeholder="Ej. CDMX"
                 value={formState} 
                 onChange={e => setFormState(e.target.value)}
-                style={{ padding: '0.6rem', borderRadius: '6px', background: '#0f172a', color: 'white', border: '1px solid var(--card-border)' }}
               />
             </div>
 
@@ -511,7 +503,6 @@ export default function AdminSourcesPage() {
                 placeholder="Ej. Fiscal, Constitucional"
                 value={formMatter} 
                 onChange={e => setFormMatter(e.target.value)}
-                style={{ padding: '0.6rem', borderRadius: '6px', background: '#0f172a', color: 'white', border: '1px solid var(--card-border)' }}
               />
             </div>
 
@@ -520,7 +511,6 @@ export default function AdminSourcesPage() {
               <select 
                 value={formRefreshFrequency} 
                 onChange={e => setFormRefreshFrequency(e.target.value)}
-                style={{ padding: '0.6rem', borderRadius: '6px', background: '#0f172a', color: 'white', border: '1px solid var(--card-border)' }}
               >
                 <option value="hourly">Cada hora</option>
                 <option value="daily">Diario</option>
@@ -534,7 +524,6 @@ export default function AdminSourcesPage() {
               <select 
                 value={formTrustLevel} 
                 onChange={e => setFormTrustLevel(e.target.value)}
-                style={{ padding: '0.6rem', borderRadius: '6px', background: '#0f172a', color: 'white', border: '1px solid var(--card-border)' }}
               >
                 <option value="official">Máxima Oficial (Gubernamental)</option>
                 <option value="high">Alta (Institucional/SCJN)</option>
@@ -549,7 +538,7 @@ export default function AdminSourcesPage() {
                 placeholder="Detalle sobre los alcances y contenidos de la fuente jurídica..."
                 value={formDescription} 
                 onChange={e => setFormDescription(e.target.value)}
-                style={{ padding: '0.6rem', borderRadius: '6px', background: '#0f172a', color: 'white', border: '1px solid var(--card-border)', resize: 'vertical' }}
+                style={{ resize: 'vertical' }}
               />
             </div>
 
