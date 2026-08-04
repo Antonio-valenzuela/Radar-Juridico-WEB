@@ -142,7 +142,7 @@ export default function FloatingLegalChat() {
       route: typeof window !== 'undefined' ? window.location.pathname : '',
       module: activeModule,
       pageTitle: typeof document !== 'undefined' ? document.title : '',
-      activeDocument: activeDocument ? {
+      activeDocument: (contextMode === 'current_document' && activeDocument) ? {
         templateId: activeDocument.templateId,
         templateName: activeDocument.templateName,
         matter: activeDocument.matter,
@@ -162,7 +162,7 @@ export default function FloatingLegalChat() {
           message: userMsg.content,
           mode: executionMode,
           contextMode,
-          activeDocument,
+          activeDocument: contextMode === 'current_document' ? activeDocument : null,
           module: activeModule,
           pageContext,
         }),
@@ -211,7 +211,7 @@ export default function FloatingLegalChat() {
       const assistantMsg: Message = {
         role: 'assistant',
         content: contentText,
-        contextLabel: activeDocument ? `Demanda / Borrador (${activeDocument.templateName || 'actual'})` : 'Consulta jurídica',
+        contextLabel: (contextMode === 'current_document' && activeDocument) ? `Demanda / Borrador (${activeDocument.templateName || 'actual'})` : 'Consulta de pantalla',
         provider: executionMode === 'deep' ? 'Multimodelo (3 IA)' : (data.data?.provider || 'IA Rápida'),
         executionMode,
         usedLocalData: true,
@@ -729,7 +729,7 @@ export default function FloatingLegalChat() {
                       {msg.citations.map((cit, i) => (
                         <div key={i} style={{ color: '#007AFF', display: 'flex', alignItems: 'center', gap: '4px' }}>
                           <span>📜 {normalizeLegalDisplayText(cit.title)}</span>
-                          <span style={{ color: '#6E6E73' }}>({normalizeLegalDisplayText(cit.fuente)})</span>
+                          <span style={{ color: '#6E6E73' }}>({normalizeLegalDisplayText(cit.materia)})</span>
                         </div>
                       ))}
                     </div>
