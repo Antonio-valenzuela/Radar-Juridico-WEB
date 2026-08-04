@@ -11,10 +11,50 @@ export class LocalProvider implements AIProvider {
     const startTime = Date.now();
     const message = request.userMessage.toLowerCase();
     const docContext = request.legalContext || {};
+    const pageContext = docContext.pageContext || {};
+    const route = pageContext.route || "";
+
+    const isPageQuery =
+      message.includes("pestaña") ||
+      message.includes("pantalla") ||
+      message.includes("página") ||
+      message.includes("hace esta") ||
+      message.includes("donde estoy") ||
+      message.includes("que hace") ||
+      message.includes("sección");
 
     let content = "Análisis legal preliminar generado localmente por Jurídico Radar.\n\n";
 
-    if (message.includes("machote") || message.includes("documento") || docContext.templateName) {
+    if (isPageQuery) {
+      if (route === "/" || route === "" || route === "/index") {
+        content =
+          "📌 **Resumen de la pantalla actual (Dashboard / Inteligencia Regulatoria)**:\n\n" +
+          "Te encuentras en el **Panel Principal de Inteligencia Regulatoria** de Jurídico Radar. En esta vista puedes:\n" +
+          "• Monitorear publicaciones del Diario Oficial de la Federación (DOF), Periódico Oficial de Jalisco y Gacetas Oficiales.\n" +
+          "• Consultar métricas de la plataforma (1,013 documentos legales analizados y procesados).\n" +
+          "• Revisar el estado de las reglas activas de vigilancia y fuentes en monitoreo.\n" +
+          "• Acceder a las herramientas de Búsqueda Avanzada, Monitoreo Legal, Centro Jurídico e IA Sandbox.";
+      } else if (route.includes("/legal-hub/machotes")) {
+        content =
+          "📌 **Resumen de la pantalla actual (Generador de Machotes y Plantillas)**:\n\n" +
+          "Te encuentras en la herramienta de **Generación de Machotes Legales**. Aquí puedes:\n" +
+          "• Crear y estructurar escritos procesales (Amparo, Civil, Mercantil, Familiar).\n" +
+          "• Subir y guardar tus propios machotes de despacho.\n" +
+          "• Autollenar campos con IA desde descripciones o archivos PDF.\n" +
+          "• Cargar datos de ejemplo y exportar a Word (DOCX) o PDF.";
+      } else if (route.includes("/legal-hub/boletines")) {
+        content =
+          "📌 **Resumen de la pantalla actual (Boletines Judiciales)**:\n\n" +
+          "Te encuentras en el módulo de **Seguimiento Automatizado de Boletines Judiciales**. Te permite dar seguimiento automático a expedientes, juzgados y partes promoventes.";
+      } else {
+        content =
+          `📌 **Resumen de la pantalla actual (${pageContext.pageTitle || "Jurídico Radar"})**:\n\n` +
+          `Te encuentras navegando en la sección ${route || "principal"}. En esta pantalla puedes gestionar la información jurídica del módulo activo.`;
+      }
+    } else if (
+      docContext.templateName &&
+      (message.includes("machote") || message.includes("documento") || message.includes("borrador"))
+    ) {
       const title = docContext.templateName || "borrador de documento";
       content += `Revisión determinística del borrador "${title}":\n`;
       content += `1. Verificación estructural: El borrador conserva los apartados jurídicos requeridos.\n`;
@@ -25,8 +65,9 @@ export class LocalProvider implements AIProvider {
       content += `1. Consulte el Diario Oficial de la Federación (DOF) o la Gaceta Oficial correspondiente.\n`;
       content += `2. Verifique la fecha de entrada en vigor en los artículos transitorios.`;
     } else {
-      content += `Orientación previa:\n`;
-      content += `No fue posible conectar con los proveedores externos de IA en este momento. Sin embargo, puede revisar la jurisprudencia del SJF o consultar las normas vigentes en el módulo correspondiente.`;
+      content +=
+        "Orientación de Jurídico Radar:\n\n" +
+        "Puedes realizar consultas sobre la pantalla o pestaña actual, consultar jurisprudencia del SJF, revisar reformas o generar escritos procesales.";
     }
 
     const latencyMs = Date.now() - startTime;
