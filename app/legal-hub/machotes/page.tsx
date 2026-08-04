@@ -17,15 +17,28 @@ import { generatePrintHtml } from '@/lib/templates/exportPdf';
 import { DRAFT_WARNING, hasPendingMarkers } from '@/lib/templates/templateQuality';
 import { useLegalWorkspaceContext } from '@/context/LegalWorkspaceContext';
 import { AiFillModal } from '@/components/machotes/AiFillModal';
+import { getSampleValuesForTemplate } from '@/lib/templates/templateSampleData';
+import { getCustomTemplates, deleteCustomTemplate } from '@/lib/templates/customTemplateStore';
+import { SaveCustomTemplateModal } from '@/components/machotes/SaveCustomTemplateModal';
 
 export default function MachotesPage() {
   const { setActiveDocument } = useLegalWorkspaceContext();
+  const [customTemplates, setCustomTemplates] = useState<ProfessionalTemplate[]>([]);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>(templates[0].id);
   const [isAiFillOpen, setIsAiFillOpen] = useState(false);
+  const [isSaveCustomOpen, setIsSaveCustomOpen] = useState(false);
+
+  useEffect(() => {
+    setCustomTemplates(getCustomTemplates());
+  }, []);
+
+  const allTemplates = useMemo(() => {
+    return [...customTemplates, ...templates];
+  }, [customTemplates]);
 
   const selectedTemplate = useMemo(() => {
-    return templates.find(t => t.id === selectedTemplateId) || templates[0];
-  }, [selectedTemplateId]);
+    return allTemplates.find(t => t.id === selectedTemplateId) || allTemplates[0];
+  }, [allTemplates, selectedTemplateId]);
 
   const [values, setValues] = useState<Record<string, string | string[]>>({});
   const [aiLoading, setAiLoading] = useState<string | null>(null);
@@ -38,15 +51,18 @@ export default function MachotesPage() {
     message: string;
   } | null>(null);
 
-  // Group templates by category
+  // Group templates by category including custom ones
   const categories = useMemo(() => {
     const cats: Record<string, ProfessionalTemplate[]> = {};
+    if (customTemplates.length > 0) {
+      cats['📂 Mis Machotes Guardados (Personalizados)'] = customTemplates;
+    }
     templates.forEach(t => {
       if (!cats[t.category]) cats[t.category] = [];
       cats[t.category].push(t);
     });
     return cats;
-  }, []);
+  }, [customTemplates]);
 
   useEffect(() => {
     setValues({});
@@ -268,6 +284,21 @@ export default function MachotesPage() {
     'puntos_petitorios',
   ]);
 
+  const handleLoadSample = () => {
+    const sampleData = getSampleValuesForTemplate(selectedTemplate.id);
+    setValues(sampleData);
+    setFeedback({
+      tone: 'success',
+      message: `Se cargó la plantilla con información jurídica de ejemplo realista para ${selectedTemplate.title}.`,
+    });
+  };
+
+  useEffect(() => {
+    const handleEvent = () => handleLoadSample();
+    window.addEventListener('fill-sample-data', handleEvent);
+    return () => window.removeEventListener('fill-sample-data', handleEvent);
+  }, [selectedTemplate.id]);
+
   const triggerQuickReview = () => {
     window.dispatchEvent(new CustomEvent('open-legal-chat', {
       detail: { executionMode: 'fast', query: 'revisa el machote que acabo de crear' }
@@ -294,31 +325,55 @@ export default function MachotesPage() {
               <h1>Generador de Machotes y Plantillas</h1>
               <p className="subtitle">Crea documentos legales estructurados con asistencia de IA. Revisa siempre el documento final.</p>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="machote-actions-bar">
               <button
                 type="button"
                 onClick={() => setIsAiFillOpen(true)}
-                className="bg-emerald-700 hover:bg-emerald-800 text-white font-semibold text-xs px-4 py-2 rounded-lg transition shadow flex items-center gap-1.5"
+                className="machote-btn-primary"
               >
                 ✨ Autollenar con IA (Texto / PDF)
               </button>
               <button
                 type="button"
+                onClick={() => setIsSaveCustomOpen(true)}
+                className="machote-btn-secondary"
+              >
+                📥 Subir Mi Machote
+              </button>
+              <button
+                type="button"
+                onClick={handleLoadSample}
+                className="machote-btn-secondary"
+              >
+                📋 Cargar Ejemplo
+              </button>
+              <button
+                type="button"
                 onClick={triggerQuickReview}
-                className="bg-blue-50 border border-blue-200 text-blue-800 hover:bg-blue-100 font-medium text-xs px-3 py-2 rounded-lg transition flex items-center gap-1.5"
+                className="machote-btn-secondary"
               >
                 ⚡ Revisión Rápida
               </button>
               <button
                 type="button"
                 onClick={triggerDeepReview}
-                className="bg-purple-700 hover:bg-purple-800 text-white font-medium text-xs px-3.5 py-2 rounded-lg transition shadow flex items-center gap-1.5"
+                className="machote-btn-secondary"
               >
                 🧠 Revisión Profunda (3 IA)
               </button>
             </div>
           </div>
         </header>
+
+        <SaveCustomTemplateModal
+          isOpen={isSaveCustomOpen}
+          onClose={() => setIsSaveCustomOpen(false)}
+          onTemplateCreated={(newTemplate) => {
+            setCustomTemplates(getCustomTemplates());
+            setSelectedTemplateId(newTemplate.id);
+            setFeedback({ tone: 'success', message: `Tu machote "${newTemplate.title}" se guardó y está listo para usarse.` });
+          }}
+        />
 
         <AiFillModal
           isOpen={isAiFillOpen}
@@ -352,14 +407,32 @@ export default function MachotesPage() {
           <div className="machote-template-summary">
             <strong>{selectedTemplate.title}</strong>
             <span>{selectedTemplate.description}</span>
-            <span style={{ fontSize: '0.8rem', color: '#93c5fd' }}>Fundamento: {selectedTemplate.legalBasis}</span>
+            <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', fontWeight: 600 }}>Fundamento: {selectedTemplate.legalBasis}</span>
           </div>
-          <div className="machote-status-pill">
-            En revisión
+          <div className="flex flex-col items-end gap-2">
+            <div className="machote-status-pill">
+              {selectedTemplate.id.startsWith('custom-') ? 'Personalizado' : 'En revisión'}
+            </div>
+            {selectedTemplate.id.startsWith('custom-') && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (window.confirm(`¿Seguro que deseas eliminar tu machote "${selectedTemplate.title}"?`)) {
+                    const updated = deleteCustomTemplate(selectedTemplate.id);
+                    setCustomTemplates(updated);
+                    setSelectedTemplateId(templates[0].id);
+                    setFeedback({ tone: 'success', message: 'Se eliminó tu machote personalizado.' });
+                  }
+                }}
+                className="text-xs text-red-600 hover:text-red-800 font-semibold underline"
+              >
+                🗑️ Eliminar este machote
+              </button>
+            )}
           </div>
         </div>
 
-        <div className="legal-warning glass-card" style={{ marginBottom: '2rem' }}>
+        <div className="legal-warning" style={{ marginBottom: '1.5rem' }}>
           <strong>ADVERTENCIA PROFESIONAL:</strong> {selectedTemplate.disclaimer}
           {selectedTemplate.warnings && selectedTemplate.warnings.length > 0 && (
             <ul style={{ marginTop: '0.5rem', marginLeft: '1.5rem' }}>
@@ -369,7 +442,7 @@ export default function MachotesPage() {
         </div>
 
         {hasDraftMarkers && (
-          <div className="legal-warning glass-card" role="alert" style={{ marginBottom: '2rem', borderColor: '#f59e0b' }}>
+          <div className="legal-warning" role="alert" style={{ marginBottom: '1.5rem' }}>
             <strong>{DRAFT_WARNING}</strong>. El contenido contiene marcadores pendientes y no debe presentarse sin validación profesional.
           </div>
         )}
@@ -571,6 +644,7 @@ export default function MachotesPage() {
               className="machote-document-paper"
               role="document"
               aria-label="Vista previa del documento jurídico"
+              suppressHydrationWarning
             >
               {renderedText || 'Complete el formulario para ver la previsualización del documento.'}
             </div>

@@ -36,7 +36,8 @@ const numberToOrdinal = (num: number): string => {
 
 export const renderToDocument = (
   template: ProfessionalTemplate,
-  values: Record<string, string | string[]>
+  values: Record<string, string | string[]>,
+  options?: { generatedAt?: string | number }
 ): RenderedDocument => {
   const getVal = (id: string, label: string, isArray: boolean = false) => {
     const val = values[id];
@@ -61,7 +62,7 @@ export const renderToDocument = (
     footer: '',
     warnings: template.warnings,
     disclaimer: template.disclaimer,
-    generatedAt: new Date().toISOString()
+    generatedAt: options?.generatedAt ? new Date(options.generatedAt).toISOString() : new Date().toISOString()
   };
 
   const auth = getVal('autoridad_competente', 'Autoridad competente');
@@ -209,9 +210,10 @@ export const renderToDocument = (
 
 export const renderToText = (
   template: ProfessionalTemplate,
-  values: Record<string, string | string[]>
+  values: Record<string, string | string[]>,
+  options?: { generatedAt?: string | number }
 ): string => {
-  const doc = renderToDocument(template, values);
+  const doc = renderToDocument(template, values, options);
   let text = '';
 
   text += doc.header + '\n';

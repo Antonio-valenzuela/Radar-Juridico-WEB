@@ -38,12 +38,17 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const legalContext = {
+      ...(activeDocument || {}),
+      ...(payload.pageContext ? { pageContext: payload.pageContext } : {}),
+    };
+
     if (mode === "deep") {
       const deepResult = await runDeepReviewMode({
         userMessage: message,
         mode: "deep",
         taskType,
-        legalContext: activeDocument || {},
+        legalContext,
         retrievedSources,
       });
 
@@ -62,7 +67,7 @@ export async function POST(req: NextRequest) {
       userMessage: message,
       mode: "fast",
       taskType,
-      legalContext: activeDocument || {},
+      legalContext,
       retrievedSources,
     });
 

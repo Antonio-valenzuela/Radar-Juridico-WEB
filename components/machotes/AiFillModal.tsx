@@ -129,28 +129,23 @@ export function AiFillModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-3xl overflow-hidden flex flex-col max-h-[90vh]">
+    <div className="machote-modal-backdrop" onClick={onClose}>
+      <div className="machote-modal-dialog" onClick={(e) => e.stopPropagation()}>
         {/* Header */}
-        <div className="bg-slate-900 text-white p-4 flex items-center justify-between">
+        <div className="machote-modal-header">
           <div>
-            <h2 className="text-base font-semibold flex items-center gap-2">
-              <span>✨ Autollenado Inteligente del Machote</span>
-            </h2>
-            <p className="text-xs text-slate-300">
-              Plantilla seleccionada: <span className="font-semibold text-white">{templateName}</span>
+            <h2>✨ Autollenado Inteligente del Machote</h2>
+            <p>
+              Plantilla seleccionada: <strong>{templateName}</strong>
             </p>
           </div>
-          <button
-            onClick={onClose}
-            className="text-slate-400 hover:text-white font-bold text-lg px-2"
-          >
+          <button onClick={onClose} className="machote-modal-close">
             ✕
           </button>
         </div>
 
         {/* Modal Body */}
-        <div className="p-5 flex-1 overflow-y-auto space-y-4">
+        <div className="machote-modal-body">
           {reviewData ? (
             <FieldReviewPanel
               detectedFields={reviewData.detectedFields}
@@ -162,26 +157,18 @@ export function AiFillModal({
           ) : (
             <>
               {/* Mode Tabs */}
-              <div className="flex border-b border-slate-200 gap-4 text-sm font-medium">
+              <div className="machote-modal-tabs">
                 <button
                   type="button"
                   onClick={() => setActiveTab("text")}
-                  className={`pb-2.5 px-1 border-b-2 transition ${
-                    activeTab === "text"
-                      ? "border-blue-700 text-blue-900 font-semibold"
-                      : "border-transparent text-slate-500 hover:text-slate-700"
-                  }`}
+                  className={`machote-modal-tab ${activeTab === "text" ? "active" : ""}`}
                 >
                   1. Describir el asunto
                 </button>
                 <button
                   type="button"
                   onClick={() => setActiveTab("pdf")}
-                  className={`pb-2.5 px-1 border-b-2 transition ${
-                    activeTab === "pdf"
-                      ? "border-blue-700 text-blue-900 font-semibold"
-                      : "border-transparent text-slate-500 hover:text-slate-700"
-                  }`}
+                  className={`machote-modal-tab ${activeTab === "pdf" ? "active" : ""}`}
                 >
                   2. Subir formato anterior en PDF
                 </button>
@@ -189,8 +176,8 @@ export function AiFillModal({
 
               {/* Tab 1: Text Description */}
               {activeTab === "text" && (
-                <div className="space-y-2">
-                  <label className="block text-xs font-semibold text-slate-700">
+                <div className="machote-input-group">
+                  <label>
                     Describe los hechos, partes, fechas, juzgado y acto reclamado:
                   </label>
                   <textarea
@@ -199,15 +186,15 @@ export function AiFillModal({
                     disabled={loading}
                     rows={8}
                     placeholder="Ejemplo: El Sr. Juan Pérez López fue notificado el 15 de julio de una orden emitida por el Juzgado Segundo Civil de Guadalajara en el expediente 452/2026..."
-                    className="w-full bg-white border border-slate-300 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-600 text-slate-800"
+                    className="machote-input-control"
                   />
                 </div>
               )}
 
               {/* Tab 2: PDF Upload */}
               {activeTab === "pdf" && (
-                <div className="space-y-3">
-                  <label className="block text-xs font-semibold text-slate-700">
+                <div className="machote-input-group">
+                  <label>
                     Selecciona un archivo PDF previo (demanda, contestación o formato anterior):
                   </label>
                   <PdfUploader
@@ -218,15 +205,14 @@ export function AiFillModal({
               )}
 
               {error && (
-                <div className="bg-red-50 border border-red-200 text-red-700 p-3 rounded-xl text-xs font-medium">
+                <div className="legal-warning" style={{ borderColor: 'var(--danger)', color: 'var(--danger)' }}>
                   {error}
                 </div>
               )}
 
               {loading && (
-                <div className="bg-purple-50 border border-purple-200 p-4 rounded-xl flex items-center gap-3 text-xs text-purple-900 animate-pulse">
-                  <span className="w-3 h-3 rounded-full bg-purple-600 animate-ping" />
-                  <span className="font-semibold">{loadingStep}</span>
+                <div className="info-block">
+                  <strong>⏳ {loadingStep}</strong>
                 </div>
               )}
             </>
@@ -235,12 +221,12 @@ export function AiFillModal({
 
         {/* Modal Footer */}
         {!reviewData && (
-          <div className="bg-slate-50 border-t border-slate-200 p-4 flex justify-end gap-3">
+          <div className="machote-modal-footer">
             <button
               type="button"
               onClick={onClose}
               disabled={loading}
-              className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-900 border border-slate-300 rounded-xl transition"
+              className="machote-btn-secondary"
             >
               Cancelar
             </button>
@@ -248,9 +234,9 @@ export function AiFillModal({
               type="button"
               onClick={handleProcess}
               disabled={loading || (activeTab === "text" && !textDescription.trim()) || (activeTab === "pdf" && !selectedFile)}
-              className="px-5 py-2 text-sm font-semibold text-white bg-blue-800 hover:bg-blue-900 rounded-xl shadow transition disabled:opacity-50 flex items-center gap-1.5"
+              className="machote-btn-primary"
             >
-              <span>{loading ? "Analizando..." : "Analizar y rellenar machote"}</span>
+              {loading ? "Analizando..." : "Analizar y rellenar machote"}
             </button>
           </div>
         )}

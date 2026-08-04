@@ -120,6 +120,13 @@ export default function FloatingLegalChat() {
     const newMessages = [...messages, userMsg];
     setMessages(newMessages);
     setInput('');
+
+    const lowerQuery = textToSend.toLowerCase();
+    const isSampleFillIntent = lowerQuery.includes('rellen') || lowerQuery.includes('llena') || lowerQuery.includes('ejemplo') || lowerQuery.includes('autollen');
+    if (isSampleFillIntent && typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('fill-sample-data'));
+    }
+
     setLoading(true);
 
     if (executionMode === 'deep') {
@@ -130,6 +137,20 @@ export default function FloatingLegalChat() {
 
     const controller = new AbortController();
     abortControllerRef.current = controller;
+
+    const pageContext = {
+      route: typeof window !== 'undefined' ? window.location.pathname : '',
+      module: activeModule,
+      pageTitle: typeof document !== 'undefined' ? document.title : '',
+      activeDocument: activeDocument ? {
+        templateId: activeDocument.templateId,
+        templateName: activeDocument.templateName,
+        matter: activeDocument.matter,
+        jurisdiction: activeDocument.jurisdiction,
+        fields: activeDocument.fields,
+        pendingMarkers: activeDocument.pendingMarkers,
+      } : null,
+    };
 
     try {
       const endpoint = executionMode === 'deep' ? '/api/ai/deep-review' : '/api/ai/generate';
@@ -143,6 +164,7 @@ export default function FloatingLegalChat() {
           contextMode,
           activeDocument,
           module: activeModule,
+          pageContext,
         }),
       });
 
@@ -278,7 +300,7 @@ export default function FloatingLegalChat() {
 
   return (
     <>
-      {/* Floating Closed Trigger Button */}
+      {/* Floating Closed Trigger Button Apple */}
       {!isOpen && (
         <button
           id="floating-legal-btn"
@@ -288,20 +310,20 @@ export default function FloatingLegalChat() {
             position: 'fixed',
             right: '24px',
             bottom: '24px',
-            width: '60px',
-            height: '60px',
+            width: '56px',
+            height: '56px',
             borderRadius: '9999px',
             zIndex: 99999,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             cursor: 'pointer',
-            boxShadow: '0 8px 24px rgba(28, 56, 92, 0.4)',
-            backgroundColor: '#1c385c',
+            boxShadow: '0 8px 30px rgba(0, 122, 255, 0.35)',
+            backgroundColor: '#007AFF',
             color: '#ffffff',
-            border: '2px solid #ffffff',
-            fontSize: '26px',
-            transition: 'transform 0.2s, background-color 0.2s',
+            border: 'none',
+            fontSize: '24px',
+            transition: 'transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), background-color 0.2s',
           }}
         >
           ⚖️
@@ -318,15 +340,16 @@ export default function FloatingLegalChat() {
             left: 0,
             right: 0,
             bottom: 0,
-            backgroundColor: 'rgba(15, 23, 42, 0.35)',
-            backdropFilter: 'blur(2px)',
+            backgroundColor: 'rgba(0, 0, 0, 0.20)',
+            backdropFilter: 'blur(6px)',
+            WebkitBackdropFilter: 'blur(6px)',
             zIndex: 99998,
           }}
           aria-hidden="true"
         />
       )}
 
-      {/* Floating Card Panel with Pure Inline Styles */}
+      {/* Floating Card Panel Apple HIG */}
       {isOpen && (
         <div
           id="floating-legal-panel"
@@ -338,36 +361,37 @@ export default function FloatingLegalChat() {
             right: '24px',
             width: '440px',
             maxWidth: 'calc(100vw - 32px)',
-            height: '640px',
+            height: '650px',
             maxHeight: 'calc(100vh - 48px)',
             zIndex: 99999,
             display: 'flex',
             flexDirection: 'column',
-            backgroundColor: '#f0f4f8',
-            borderRadius: '20px',
-            border: '1px solid #cbd5e1',
-            boxShadow: '0 20px 48px rgba(15, 30, 50, 0.3)',
+            backgroundColor: '#FFFFFF',
+            borderRadius: '24px',
+            border: '1px solid rgba(0, 0, 0, 0.08)',
+            boxShadow: '0 24px 60px rgba(0, 0, 0, 0.12)',
             overflow: 'hidden',
             boxSizing: 'border-box',
-            fontFamily: "'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+            fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
           }}
         >
           {/* Header Bar */}
           <div
             style={{
-              backgroundColor: '#1c385c',
+              backgroundColor: '#FAFAFC',
               padding: '16px 20px',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
-              color: '#ffffff',
-              borderTopLeftRadius: '20px',
-              borderTopRightRadius: '20px',
+              color: '#1D1D1F',
+              borderBottom: '1px solid rgba(0, 0, 0, 0.08)',
+              borderTopLeftRadius: '24px',
+              borderTopRightRadius: '24px',
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <span style={{ fontSize: '28px', lineHeight: 1 }}>⚖️</span>
-              <h2 style={{ margin: 0, fontSize: '24px', fontWeight: 700, color: '#ffffff', letterSpacing: '-0.01em' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <span style={{ fontSize: '24px', lineHeight: 1 }}>⚖️</span>
+              <h2 style={{ margin: 0, fontSize: '20px', fontWeight: 700, color: '#1D1D1F', letterSpacing: '-0.02em' }}>
                 Asistente Legal
               </h2>
             </div>
@@ -376,12 +400,12 @@ export default function FloatingLegalChat() {
               style={{
                 background: 'transparent',
                 border: 'none',
-                color: '#ffffff',
-                fontSize: '20px',
-                fontWeight: 700,
+                color: '#6E6E73',
+                fontSize: '18px',
+                fontWeight: 600,
                 cursor: 'pointer',
                 padding: '4px 8px',
-                borderRadius: '6px',
+                borderRadius: '8px',
               }}
               aria-label="Cerrar asistente legal"
             >
@@ -390,10 +414,10 @@ export default function FloatingLegalChat() {
           </div>
 
           {/* Subheader Controls Section */}
-          <div style={{ padding: '16px 20px 12px 20px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          <div style={{ padding: '16px 20px 12px 20px', display: 'flex', flexDirection: 'column', gap: '12px', borderBottom: '1px solid rgba(0,0,0,0.04)' }}>
             {/* Subtitle & Limpiar */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <span style={{ fontSize: '15px', color: '#2d3748', fontWeight: 500 }}>
+              <span style={{ fontSize: '13px', color: '#6E6E73', fontWeight: 500 }}>
                 Consulta y revisión asistida por IA
               </span>
               <button
@@ -402,12 +426,12 @@ export default function FloatingLegalChat() {
                   display: 'inline-flex',
                   alignItems: 'center',
                   gap: '4px',
-                  backgroundColor: '#f8fafc',
-                  border: '1px solid #cbd5e1',
-                  borderRadius: '8px',
+                  backgroundColor: '#F5F5F7',
+                  border: '1px solid rgba(0, 0, 0, 0.08)',
+                  borderRadius: '10px',
                   padding: '4px 10px',
-                  fontSize: '13px',
-                  color: '#2d3748',
+                  fontSize: '12px',
+                  color: '#6E6E73',
                   cursor: 'pointer',
                   fontWeight: 500,
                 }}
@@ -419,18 +443,18 @@ export default function FloatingLegalChat() {
 
             {/* Modo de Análisis */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-              <span style={{ fontSize: '14px', fontWeight: 600, color: '#1a202c' }}>Modo de Análisis:</span>
+              <span style={{ fontSize: '13px', fontWeight: 600, color: '#1D1D1F' }}>Modo de Análisis:</span>
               <div style={{ display: 'flex', gap: '6px' }}>
                 <button
                   type="button"
                   onClick={() => setExecutionMode('fast')}
                   style={{
-                    backgroundColor: executionMode === 'fast' ? '#38b2ac' : '#ffffff',
-                    color: executionMode === 'fast' ? '#1a202c' : '#2d3748',
-                    border: executionMode === 'fast' ? '1px solid #319795' : '1px solid #cbd5e1',
+                    backgroundColor: executionMode === 'fast' ? '#007AFF' : '#F5F5F7',
+                    color: executionMode === 'fast' ? '#FFFFFF' : '#1D1D1F',
+                    border: executionMode === 'fast' ? '1px solid #007AFF' : '1px solid rgba(0, 0, 0, 0.08)',
                     borderRadius: '12px',
                     padding: '6px 12px',
-                    fontSize: '13px',
+                    fontSize: '12px',
                     fontWeight: 600,
                     cursor: 'pointer',
                     display: 'flex',
@@ -445,12 +469,12 @@ export default function FloatingLegalChat() {
                   type="button"
                   onClick={() => setExecutionMode('deep')}
                   style={{
-                    backgroundColor: executionMode === 'deep' ? '#38b2ac' : '#ffffff',
-                    color: executionMode === 'deep' ? '#1a202c' : '#2d3748',
-                    border: executionMode === 'deep' ? '1px solid #319795' : '1px solid #cbd5e1',
+                    backgroundColor: executionMode === 'deep' ? '#007AFF' : '#F5F5F7',
+                    color: executionMode === 'deep' ? '#FFFFFF' : '#1D1D1F',
+                    border: executionMode === 'deep' ? '1px solid #007AFF' : '1px solid rgba(0, 0, 0, 0.08)',
                     borderRadius: '12px',
                     padding: '6px 12px',
-                    fontSize: '13px',
+                    fontSize: '12px',
                     fontWeight: 600,
                     cursor: 'pointer',
                     display: 'flex',
@@ -466,18 +490,18 @@ export default function FloatingLegalChat() {
 
             {/* Contexto activo */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <span style={{ fontSize: '14px', fontWeight: 600, color: '#1a202c' }}>Contexto activo:</span>
+              <span style={{ fontSize: '13px', fontWeight: 600, color: '#1D1D1F' }}>Contexto activo:</span>
               <select
                 id="context-select"
                 value={contextMode}
                 onChange={(e) => setContextMode(e.target.value as any)}
                 style={{
-                  backgroundColor: '#ffffff',
-                  border: '1px solid #cbd5e1',
-                  borderRadius: '12px',
-                  padding: '6px 14px',
-                  fontSize: '14px',
-                  color: '#1a202c',
+                  backgroundColor: '#FFFFFF',
+                  border: '1px solid rgba(0, 0, 0, 0.08)',
+                  borderRadius: '10px',
+                  padding: '4px 10px',
+                  fontSize: '13px',
+                  color: '#1D1D1F',
                   outline: 'none',
                   flex: 1,
                   cursor: 'pointer',
@@ -607,21 +631,21 @@ export default function FloatingLegalChat() {
                 <div
                   style={{
                     maxWidth: '92%',
-                    padding: '14px 16px',
-                    borderRadius: '16px',
-                    backgroundColor: msg.role === 'user' ? '#1c385c' : '#ffffff',
-                    color: msg.role === 'user' ? '#ffffff' : '#1a202c',
-                    border: msg.role === 'user' ? 'none' : '1px solid #cbd5e1',
-                    boxShadow: '0 2px 6px rgba(0,0,0,0.05)',
+                    padding: '12px 16px',
+                    borderRadius: msg.role === 'user' ? '18px 18px 4px 18px' : '18px 18px 18px 4px',
+                    backgroundColor: msg.role === 'user' ? '#007AFF' : '#F5F5F7',
+                    color: msg.role === 'user' ? '#FFFFFF' : '#1D1D1F',
+                    border: msg.role === 'user' ? 'none' : '1px solid rgba(0, 0, 0, 0.06)',
+                    boxShadow: msg.role === 'user' ? '0 2px 8px rgba(0, 122, 255, 0.22)' : '0 1px 4px rgba(0, 0, 0, 0.03)',
                   }}
                 >
                   {msg.role === 'assistant' && (
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #e2e8f0', paddingBottom: '6px', marginBottom: '8px', fontSize: '12px' }}>
-                      <span style={{ fontWeight: 700, color: '#1c385c', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid rgba(0, 0, 0, 0.06)', paddingBottom: '6px', marginBottom: '8px', fontSize: '12px' }}>
+                      <span style={{ fontWeight: 600, color: '#007AFF', display: 'flex', alignItems: 'center', gap: '4px' }}>
                         🤖 {msg.provider || 'Asistente Legal'}
                       </span>
                       {msg.executionMode === 'deep' && (
-                        <span style={{ backgroundColor: '#e6fffa', color: '#234e52', fontWeight: 700, padding: '2px 6px', borderRadius: '6px', fontSize: '10px' }}>
+                        <span style={{ backgroundColor: 'rgba(52, 199, 89, 0.12)', color: '#34C759', fontWeight: 700, padding: '2px 6px', borderRadius: '6px', fontSize: '10px' }}>
                           PROFUNDA 3 IA
                         </span>
                       )}
@@ -632,7 +656,7 @@ export default function FloatingLegalChat() {
 
                   {/* Provider summary */}
                   {msg.providerSummary && (
-                    <div style={{ marginTop: '10px', backgroundColor: '#edf2f7', padding: '8px', borderRadius: '8px', fontSize: '11px', fontFamily: 'monospace', color: '#1a202c', display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                    <div style={{ marginTop: '10px', backgroundColor: '#FFFFFF', padding: '8px', borderRadius: '8px', fontSize: '11px', fontFamily: 'monospace', color: '#1D1D1F', border: '1px solid rgba(0, 0, 0, 0.08)', display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
                       <span>Gemini: {msg.providerSummary.geminiCompleted ? '✓ OK' : '✗ N/D'}</span>
                       <span>Groq: {msg.providerSummary.groqCompleted ? '✓ OK' : '✗ N/D'}</span>
                       <span>Juez: {msg.providerSummary.judgeCompleted ? '✓ OK' : 'Local'}</span>
@@ -641,7 +665,7 @@ export default function FloatingLegalChat() {
 
                   {/* Consistency Problems */}
                   {msg.consistencyProblems && msg.consistencyProblems.length > 0 && (
-                    <div style={{ marginTop: '10px', backgroundColor: '#fffaf0', border: '1px solid #fbd38d', color: '#744210', padding: '10px', borderRadius: '8px', fontSize: '12px' }}>
+                    <div style={{ marginTop: '10px', backgroundColor: 'rgba(255, 159, 10, 0.10)', border: '1px solid rgba(255, 159, 10, 0.3)', color: '#946200', padding: '10px', borderRadius: '10px', fontSize: '12px' }}>
                       <p style={{ fontWeight: 700, margin: '0 0 4px 0' }}>⚠️ Contradicciones Detectadas:</p>
                       {msg.consistencyProblems.map((prob, i) => (
                         <p key={i} style={{ margin: 0 }}>• {prob}</p>
@@ -652,42 +676,42 @@ export default function FloatingLegalChat() {
                   {/* Issues & Suggestions */}
                   {msg.issues && msg.issues.length > 0 && (
                     <div style={{ marginTop: '10px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                      <p style={{ fontSize: '12px', fontWeight: 700, color: '#1a202c', margin: 0 }}>Propuestas de Cambio:</p>
+                      <p style={{ fontSize: '12px', fontWeight: 700, color: '#1D1D1F', margin: 0 }}>Propuestas de Cambio:</p>
                       {msg.issues.map((issue) => (
                         <div
                           key={issue.id}
-                          style={{ backgroundColor: '#ffffff', border: '1px solid #cbd5e1', borderRadius: '10px', padding: '10px', fontSize: '12px', color: '#1a202c', display: 'flex', flexDirection: 'column', gap: '6px' }}
+                          style={{ backgroundColor: '#FFFFFF', border: '1px solid rgba(0, 0, 0, 0.08)', borderRadius: '12px', padding: '10px', fontSize: '12px', color: '#1D1D1F', display: 'flex', flexDirection: 'column', gap: '6px' }}
                         >
                           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontWeight: 600 }}>
-                            <span style={{ color: issue.severity === 'critical' ? '#c53030' : '#dd6b20' }}>
+                            <span style={{ color: issue.severity === 'critical' ? '#FF453A' : '#FF9F0A' }}>
                               [{issue.severity.toUpperCase()}] {issue.title}
                             </span>
                             {issue.status === 'accepted' ? (
-                              <span style={{ backgroundColor: '#c6f6d5', color: '#22543d', padding: '2px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 700 }}>
+                              <span style={{ backgroundColor: 'rgba(52, 199, 89, 0.12)', color: '#34C759', padding: '2px 6px', borderRadius: '6px', fontSize: '10px', fontWeight: 700 }}>
                                 ACEPTADO
                               </span>
                             ) : issue.status === 'rejected' ? (
-                              <span style={{ backgroundColor: '#edf2f7', color: '#718096', padding: '2px 6px', borderRadius: '4px', fontSize: '10px' }}>
+                              <span style={{ backgroundColor: '#F5F5F7', color: '#6E6E73', padding: '2px 6px', borderRadius: '6px', fontSize: '10px' }}>
                                 RECHAZADO
                               </span>
                             ) : null}
                           </div>
-                          <p style={{ margin: 0, color: '#4a5568' }}>{issue.explanation}</p>
-                          <div style={{ backgroundColor: '#f7fafc', padding: '6px 8px', borderRadius: '6px', border: '1px solid #e2e8f0', fontFamily: 'monospace', fontSize: '11px' }}>
-                            {issue.currentText && <p style={{ color: '#e53e3e', textDecoration: 'line-through', margin: 0 }}>- {issue.currentText}</p>}
-                            {issue.suggestedText && <p style={{ color: '#276749', margin: 0 }}>+ {issue.suggestedText}</p>}
+                          <p style={{ margin: 0, color: '#6E6E73' }}>{issue.explanation}</p>
+                          <div style={{ backgroundColor: '#F5F5F7', padding: '6px 8px', borderRadius: '8px', border: '1px solid rgba(0, 0, 0, 0.06)', fontFamily: 'monospace', fontSize: '11px' }}>
+                            {issue.currentText && <p style={{ color: '#FF453A', textDecoration: 'line-through', margin: 0 }}>- {issue.currentText}</p>}
+                            {issue.suggestedText && <p style={{ color: '#34C759', margin: 0 }}>+ {issue.suggestedText}</p>}
                           </div>
                           {issue.status === 'pending' && (
                             <div style={{ display: 'flex', gap: '6px', paddingTop: '4px' }}>
                               <button
                                 onClick={() => handleApplyIssue(idx, issue.id)}
-                                style={{ backgroundColor: '#2f855a', color: '#ffffff', border: 'none', borderRadius: '6px', padding: '4px 10px', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}
+                                style={{ backgroundColor: '#34C759', color: '#FFFFFF', border: 'none', borderRadius: '8px', padding: '4px 10px', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}
                               >
                                 Aceptar cambio
                               </button>
                               <button
                                 onClick={() => handleRejectIssue(idx, issue.id)}
-                                style={{ backgroundColor: '#e2e8f0', color: '#4a5568', border: 'none', borderRadius: '6px', padding: '4px 8px', fontSize: '11px', cursor: 'pointer' }}
+                                style={{ backgroundColor: '#F5F5F7', color: '#6E6E73', border: 'none', borderRadius: '8px', padding: '4px 8px', fontSize: '11px', cursor: 'pointer' }}
                               >
                                 Rechazar
                               </button>
@@ -700,12 +724,12 @@ export default function FloatingLegalChat() {
 
                   {/* Citations */}
                   {msg.citations && msg.citations.length > 0 && (
-                    <div style={{ marginTop: '10px', paddingTop: '8px', borderTop: '1px solid #e2e8f0', fontSize: '12px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                      <p style={{ fontWeight: 700, color: '#4a5568', margin: 0 }}>Fuentes Oficiales Verificadas:</p>
+                    <div style={{ marginTop: '10px', paddingTop: '8px', borderTop: '1px solid rgba(0, 0, 0, 0.06)', fontSize: '12px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                      <p style={{ fontWeight: 700, color: '#6E6E73', margin: 0 }}>Fuentes Oficiales Verificadas:</p>
                       {msg.citations.map((cit, i) => (
-                        <div key={i} style={{ color: '#2b6cb0', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <div key={i} style={{ color: '#007AFF', display: 'flex', alignItems: 'center', gap: '4px' }}>
                           <span>📜 {normalizeLegalDisplayText(cit.title)}</span>
-                          <span style={{ color: '#718096' }}>({normalizeLegalDisplayText(cit.fuente)})</span>
+                          <span style={{ color: '#6E6E73' }}>({normalizeLegalDisplayText(cit.fuente)})</span>
                         </div>
                       ))}
                     </div>
@@ -715,8 +739,8 @@ export default function FloatingLegalChat() {
             ))}
 
             {loading && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: '#1c385c', fontSize: '13px', padding: '12px 16px', backgroundColor: '#ebf8ff', border: '1px solid #bee3f8', borderRadius: '14px' }}>
-                <span style={{ width: '10px', height: '10px', borderRadius: '9999px', backgroundColor: '#1c385c' }} />
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: '#007AFF', fontSize: '13px', padding: '12px 16px', backgroundColor: 'rgba(0, 122, 255, 0.08)', border: '1px solid rgba(0, 122, 255, 0.16)', borderRadius: '14px' }}>
+                <span style={{ width: '8px', height: '8px', borderRadius: '9999px', backgroundColor: '#007AFF' }} />
                 <span style={{ fontWeight: 600 }}>{loadingText}</span>
               </div>
             )}
@@ -728,10 +752,10 @@ export default function FloatingLegalChat() {
             <form
               onSubmit={handleSend}
               style={{
-                backgroundColor: '#e2e8f0',
-                border: '1px solid #cbd5e1',
-                borderRadius: '16px',
-                padding: '12px',
+                backgroundColor: '#F5F5F7',
+                border: '1px solid rgba(0, 0, 0, 0.08)',
+                borderRadius: '18px',
+                padding: '10px 12px',
                 display: 'flex',
                 flexDirection: 'column',
                 gap: '8px',
@@ -747,12 +771,12 @@ export default function FloatingLegalChat() {
                   rows={2}
                   style={{
                     flex: 1,
-                    backgroundColor: '#ffffff',
-                    border: '1px solid #cbd5e1',
-                    borderRadius: '12px',
+                    backgroundColor: '#FFFFFF',
+                    border: '1px solid rgba(0, 0, 0, 0.08)',
+                    borderRadius: '14px',
                     padding: '10px 12px',
                     fontSize: '14px',
-                    color: '#1a202c',
+                    color: '#1D1D1F',
                     outline: 'none',
                     resize: 'none',
                     minHeight: '48px',
@@ -763,18 +787,18 @@ export default function FloatingLegalChat() {
                   type="submit"
                   disabled={loading || !input.trim()}
                   style={{
-                    backgroundColor: '#3b5e7e',
-                    color: '#ffffff',
+                    backgroundColor: '#007AFF',
+                    color: '#FFFFFF',
                     border: 'none',
-                    borderRadius: '12px',
+                    borderRadius: '14px',
                     width: '46px',
                     height: '46px',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     cursor: 'pointer',
-                    opacity: loading || !input.trim() ? 0.6 : 1,
-                    transition: 'background-color 0.15s',
+                    opacity: loading || !input.trim() ? 0.45 : 1,
+                    transition: 'background-color 0.15s, opacity 0.15s',
                   }}
                   aria-label="Enviar consulta"
                 >
@@ -785,7 +809,7 @@ export default function FloatingLegalChat() {
                 </button>
               </div>
 
-              <span style={{ fontSize: '12px', color: '#4a5568', paddingLeft: '2px', fontWeight: 500 }}>
+              <span style={{ fontSize: '11px', color: '#6E6E73', paddingLeft: '2px', fontWeight: 500 }}>
                 Enter para enviar, Shift + Enter para línea nueva
               </span>
             </form>
