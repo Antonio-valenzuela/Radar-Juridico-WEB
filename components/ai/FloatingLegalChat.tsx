@@ -729,7 +729,7 @@ export default function FloatingLegalChat() {
                       {msg.citations.map((cit, i) => (
                         <div key={i} style={{ color: '#007AFF', display: 'flex', alignItems: 'center', gap: '4px' }}>
                           <span>📜 {normalizeLegalDisplayText(cit.title)}</span>
-                          <span style={{ color: '#6E6E73' }}>({normalizeLegalDisplayText(cit.materia)})</span>
+                          <span style={{ color: '#6E6E73' }}>({normalizeLegalDisplayText(cit.fuente)} • {normalizeLegalDisplayText(cit.materia)})</span>
                         </div>
                       ))}
                     </div>
