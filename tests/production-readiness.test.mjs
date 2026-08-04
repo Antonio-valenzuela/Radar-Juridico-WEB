@@ -9,8 +9,8 @@ test("production runtime is pinned and Next is patched", () => {
   assert.equal(pkg.dependencies.next, "16.2.12");
   assert.equal(pkg.devDependencies["eslint-config-next"], "16.2.12");
   assert.equal(pkg.overrides.sharp, "0.35.3");
-  assert.equal(pkg.overrides.postcss, "8.5.22");
-  assert.equal(pkg.overrides["brace-expansion"], "5.0.8");
+  assert.equal(pkg.overrides.postcss, "8.5.25");
+  assert.equal(pkg.overrides["brace-expansion"], "5.0.9");
   assert.equal(pkg.devDependencies["patch-package"], "8.0.1");
   assert.equal(pkg.scripts.postinstall, "patch-package --error-on-fail && prisma generate");
   assert.equal(pkg.dependencies.tsx, "^4.21.0");
