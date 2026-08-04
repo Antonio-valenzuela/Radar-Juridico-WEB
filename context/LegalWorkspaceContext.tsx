@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useState } from "react";
+import React, { createContext, useContext, useEffect, useState, useCallback, useMemo } from "react";
 import { usePathname } from "next/navigation";
 
 export type ContextMode = "current_document" | "current_case" | "current_bulletin" | "none";
@@ -81,16 +81,27 @@ export function LegalWorkspaceProvider({ children }: { children: React.ReactNode
 
   const [contextMode, setContextModeState] = useState<ContextMode>('none');
 
-  // Setter for context mode, updates state and can be used by components
-  const setContextMode = (mode: ContextMode) => {
+  const setContextMode = useCallback((mode: ContextMode) => {
     setContextModeState(mode);
-  };
+  }, []);
 
-  const setActiveDocument = (doc: LegalWorkspaceDocumentContext | null) => {
-    setActiveDocumentState(doc);
-    if (doc) setContextMode('current_document');
+  const setActiveDocument = useCallback((doc: LegalWorkspaceDocumentContext | null) => {
+    setActiveDocumentState((prev) => {
+      if (
+        prev === doc ||
+        (prev &&
+          doc &&
+          prev.templateId === doc.templateId &&
+          prev.previewText === doc.previewText &&
+          JSON.stringify(prev.fields) === JSON.stringify(doc.fields))
+      ) {
+        return prev;
+      }
+      return doc;
+    });
+
     if (doc) {
-      // setContextModeState("current_document"); // removed redundant state update
+      setContextModeState("current_document");
       try {
         sessionStorage.setItem("juridico_active_draft", JSON.stringify(doc));
       } catch {}
@@ -99,9 +110,9 @@ export function LegalWorkspaceProvider({ children }: { children: React.ReactNode
         sessionStorage.removeItem("juridico_active_draft");
       } catch {}
     }
-  };
+  }, []);
 
-  const updateDocumentFields = (
+  const updateDocumentFields = useCallback((
     fields: Record<string, any>,
     previewText?: string,
     pendingMarkers?: string[]
@@ -120,43 +131,56 @@ export function LegalWorkspaceProvider({ children }: { children: React.ReactNode
       } catch {}
       return updated;
     });
-  };
+  }, []);
 
-  const clearActiveDocument = () => {
+  const clearActiveDocument = useCallback(() => {
     setActiveDocumentState(null);
-    setContextMode('none');
+    setContextModeState('none');
     try {
       sessionStorage.removeItem("juridico_active_draft");
     } catch {}
-  };
+  }, []);
 
-  const setActiveCase = (caseCtx: LegalWorkspaceCaseContext | null) => {
+  const setActiveCase = useCallback((caseCtx: LegalWorkspaceCaseContext | null) => {
     setActiveCaseState(caseCtx);
-    if (caseCtx) setContextMode('current_case');
-  };
+    if (caseCtx) setContextModeState('current_case');
+  }, []);
 
-  const setActiveBulletin = (bulletinCtx: LegalWorkspaceBulletinContext | null) => {
+  const setActiveBulletin = useCallback((bulletinCtx: LegalWorkspaceBulletinContext | null) => {
     setActiveBulletinState(bulletinCtx);
-    if (bulletinCtx) setContextMode('current_bulletin');
-  };
+    if (bulletinCtx) setContextModeState('current_bulletin');
+  }, []);
+
+  const contextValue = useMemo(() => ({
+    route: pathname,
+    module: currentModule,
+    contextMode,
+    activeDocument,
+    activeCase,
+    activeBulletin,
+    setContextMode,
+    setActiveDocument,
+    updateDocumentFields,
+    clearActiveDocument,
+    setActiveCase,
+    setActiveBulletin,
+  }), [
+    pathname,
+    currentModule,
+    contextMode,
+    activeDocument,
+    activeCase,
+    activeBulletin,
+    setContextMode,
+    setActiveDocument,
+    updateDocumentFields,
+    clearActiveDocument,
+    setActiveCase,
+    setActiveBulletin,
+  ]);
 
   return (
-    <LegalWorkspaceContext.Provider
-      value={{
-        route: pathname,
-        module: currentModule,
-        contextMode,
-        activeDocument,
-        activeCase,
-        activeBulletin,
-        setContextMode,
-        setActiveDocument,
-        updateDocumentFields,
-        clearActiveDocument,
-        setActiveCase,
-        setActiveBulletin,
-      }}
-    >
+    <LegalWorkspaceContext.Provider value={contextValue}>
       {children}
     </LegalWorkspaceContext.Provider>
   );
