@@ -45,7 +45,10 @@ export function requireAdmin(request: Request) {
     path.startsWith("/api/rag/chat") ||
     path.startsWith("/api/rag/query") ||
     path.startsWith("/api/legal/radar") ||
-    path.startsWith("/api/legal/search");
+    path.startsWith("/api/legal/search") ||
+    path.startsWith("/api/templates/ai-fill") ||
+    path.startsWith("/api/templates/ai-assist") ||
+    path.startsWith("/api/templates/analyze-upload");
 
   // Endpoints de solo lectura (GET)
   const isReadOnlyAiPath =

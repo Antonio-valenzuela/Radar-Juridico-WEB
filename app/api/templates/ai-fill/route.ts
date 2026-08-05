@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { requireAdmin } from "@/lib/security/adminAuth";
 import { extractPdfTextServer } from "@/lib/pdf/pdfExtractor";
 import { runFastMode } from "@/lib/ai/orchestrator";
 
@@ -22,6 +23,10 @@ interface StructuredOutput {
 }
 
 export async function POST(req: Request) {
+  // Auth: público cuando ENABLE_PUBLIC_AI=true (demo), protegido con token en producción cerrada
+  const auth = requireAdmin(req);
+  if (!auth.ok) return auth.response;
+
   try {
     const contentType = req.headers.get("content-type") || "";
     let body: any = {};
