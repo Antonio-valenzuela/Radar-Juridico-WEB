@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect } from 'react';
 import Link from 'next/link';
-import { adminFetch, getAdminToken, setAdminToken } from '@/lib/client/adminToken';
+import { adminFetch } from '@/lib/client/adminToken';
 import { templates } from '@/lib/templates/templateDefinitions';
 import type {
   AIAssistResult,
@@ -20,21 +20,45 @@ import { AiFillModal } from '@/components/machotes/AiFillModal';
 import { getSampleValuesForTemplate } from '@/lib/templates/templateSampleData';
 import { getCustomTemplates, deleteCustomTemplate } from '@/lib/templates/customTemplateStore';
 import { SaveCustomTemplateModal } from '@/components/machotes/SaveCustomTemplateModal';
+import { EditCustomTemplateModal } from '@/components/machotes/EditCustomTemplateModal';
 
 export default function MachotesPage() {
-  const { setActiveDocument } = useLegalWorkspaceContext();
+  const { activeDocument, setActiveDocument, setContextMode } = useLegalWorkspaceContext();
   const [customTemplates, setCustomTemplates] = useState<ProfessionalTemplate[]>([]);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>(templates[0].id);
   const [isAiFillOpen, setIsAiFillOpen] = useState(false);
   const [isSaveCustomOpen, setIsSaveCustomOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<'generator' | 'my-templates'>('generator');
+  const [editingTemplate, setEditingTemplate] = useState<ProfessionalTemplate | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState<string>('all');
 
   useEffect(() => {
-    setCustomTemplates(getCustomTemplates());
+    const loadTemplates = async () => {
+      const templates = await getCustomTemplates();
+      setCustomTemplates(templates);
+    };
+    loadTemplates();
   }, []);
 
   const allTemplates = useMemo(() => {
     return [...customTemplates, ...templates];
   }, [customTemplates]);
+
+  const filteredCustomTemplates = useMemo(() => {
+    return customTemplates.filter((t) => {
+      const matchesCat = categoryFilter === 'all' || t.category === categoryFilter;
+      const q = searchQuery.toLowerCase().trim();
+      const matchesSearch = !q || (
+        t.title.toLowerCase().includes(q) ||
+        t.category.toLowerCase().includes(q) ||
+        (t.legalBasis && t.legalBasis.toLowerCase().includes(q)) ||
+        (t.description && t.description.toLowerCase().includes(q)) ||
+        (t.originalText && t.originalText.toLowerCase().includes(q))
+      );
+      return matchesCat && matchesSearch;
+    });
+  }, [customTemplates, categoryFilter, searchQuery]);
 
   const selectedTemplate = useMemo(() => {
     return allTemplates.find(t => t.id === selectedTemplateId) || allTemplates[0];
@@ -49,6 +73,19 @@ export default function MachotesPage() {
   const [feedback, setFeedback] = useState<{
     tone: 'success' | 'error' | 'warning';
     message: string;
+  } | null>(null);
+  const [reviewLoading, setReviewLoading] = useState<'fast' | 'deep' | null>(null);
+  const [fastReview, setFastReview] = useState<{
+    estado: string;
+    camposFaltantes: string[];
+    erroresFormato: string[];
+    recomendaciones: string[];
+  } | null>(null);
+  const [deepReview, setDeepReview] = useState<{
+    revisionLegal: string;
+    revisionRedaccion: string;
+    revisionProcesal: string;
+    riesgos: string[];
   } | null>(null);
 
   // Group templates by category including custom ones
@@ -69,6 +106,18 @@ export default function MachotesPage() {
     setAiResult(null);
     setFeedback(null);
   }, [selectedTemplateId]);
+
+  useEffect(() => {
+    if (activeDocument?.templateId === selectedTemplate.id && activeDocument.fields) {
+      setValues((prevValues) => {
+        const newValues = { ...activeDocument.fields };
+        if (JSON.stringify(prevValues) !== JSON.stringify(newValues)) {
+          return newValues;
+        }
+        return prevValues;
+      });
+    }
+  }, [activeDocument?.templateId, activeDocument?.fields, selectedTemplate.id]);
 
   useEffect(() => {
     const previewText = renderToText(selectedTemplate, values);
@@ -227,13 +276,6 @@ export default function MachotesPage() {
     setAiLoading(sectionId);
     setFeedback(null);
     try {
-      let token = getAdminToken();
-      if (!token) {
-        const entered = window.prompt('Ingresa el token administrativo para usar la asistencia IA:');
-        if (entered === null) throw new Error('ADMIN_TOKEN_REQUIRED');
-        token = setAdminToken(entered);
-      }
-      if (!token) throw new Error('ADMIN_TOKEN_REQUIRED');
       const res = await adminFetch('/api/templates/ai-assist', {
         method: 'POST',
         body: JSON.stringify({
@@ -284,9 +326,28 @@ export default function MachotesPage() {
     'puntos_petitorios',
   ]);
 
+  const currentStructureJson = useMemo(() => {
+    if (selectedTemplate.structureJson) return selectedTemplate.structureJson;
+    return {
+      nombre: selectedTemplate.title,
+      tipo_documento: selectedTemplate.documentType || 'documento_juridico',
+      campos: selectedTemplate.sections.map((section) => ({
+        id: section.id,
+        etiqueta: section.title,
+        tipo: section.type,
+        obligatorio: section.required,
+        placeholder: section.placeholder,
+        helpText: section.helpText,
+        options: section.options,
+        repeatLabel: section.repeatLabel,
+      })),
+    };
+  }, [selectedTemplate]);
+
   const handleLoadSample = () => {
     const sampleData = getSampleValuesForTemplate(selectedTemplate.id);
     setValues(sampleData);
+    setContextMode('current_document');
     setFeedback({
       tone: 'success',
       message: `Se cargó la plantilla con información jurídica de ejemplo realista para ${selectedTemplate.title}.`,
@@ -299,16 +360,62 @@ export default function MachotesPage() {
     return () => window.removeEventListener('fill-sample-data', handleEvent);
   }, [selectedTemplate.id]);
 
-  const triggerQuickReview = () => {
-    window.dispatchEvent(new CustomEvent('open-legal-chat', {
-      detail: { executionMode: 'fast', query: 'revisa el machote que acabo de crear' }
-    }));
+  const handleFastReview = async () => {
+    setReviewLoading('fast');
+    setFastReview(null);
+    setDeepReview(null);
+    setFeedback(null);
+
+    try {
+      const response = await fetch('/api/templates/review-fast', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          templateId: selectedTemplate.id,
+          values,
+          structureJson: currentStructureJson,
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Error al ejecutar la revisión rápida.');
+      }
+      setFastReview(data);
+      setFeedback({ tone: 'success', message: 'Revisión rápida completada.' });
+    } catch (error: any) {
+      setFeedback({ tone: 'error', message: error.message || 'No se pudo ejecutar la revisión rápida.' });
+    } finally {
+      setReviewLoading(null);
+    }
   };
 
-  const triggerDeepReview = () => {
-    window.dispatchEvent(new CustomEvent('open-legal-chat', {
-      detail: { executionMode: 'deep', query: 'revisión profunda del machote actual' }
-    }));
+  const handleDeepReview = async () => {
+    setReviewLoading('deep');
+    setDeepReview(null);
+    setFastReview(null);
+    setFeedback(null);
+
+    try {
+      const response = await fetch('/api/templates/review-deep', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          templateId: selectedTemplate.id,
+          values,
+          structureJson: currentStructureJson,
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Error al ejecutar la revisión profunda.');
+      }
+      setDeepReview(data);
+      setFeedback({ tone: 'success', message: 'Revisión profunda completada.' });
+    } catch (error: any) {
+      setFeedback({ tone: 'error', message: error.message || 'No se pudo ejecutar la revisión profunda.' });
+    } finally {
+      setReviewLoading(null);
+    }
   };
 
   return (
@@ -349,19 +456,41 @@ export default function MachotesPage() {
               </button>
               <button
                 type="button"
-                onClick={triggerQuickReview}
+                onClick={handleFastReview}
+                disabled={reviewLoading === 'fast'}
                 className="machote-btn-secondary"
               >
-                ⚡ Revisión Rápida
+                {reviewLoading === 'fast' ? 'Revisando...' : '⚡ Revisión Rápida'}
               </button>
               <button
                 type="button"
-                onClick={triggerDeepReview}
+                onClick={handleDeepReview}
+                disabled={reviewLoading === 'deep'}
                 className="machote-btn-secondary"
               >
-                🧠 Revisión Profunda (3 IA)
+                {reviewLoading === 'deep' ? 'Revisando...' : '🧠 Revisión Profunda (3 IA)'}
               </button>
             </div>
+          </div>
+
+          {/* Navigation Tabs */}
+          <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1.25rem', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '0.5rem' }}>
+            <button
+              type="button"
+              onClick={() => setActiveTab('generator')}
+              className={activeTab === 'generator' ? 'machote-btn-primary' : 'machote-btn-secondary'}
+              style={{ fontSize: '0.9rem', padding: '0.4rem 1rem' }}
+            >
+              📄 Generador de Escritos
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('my-templates')}
+              className={activeTab === 'my-templates' ? 'machote-btn-primary' : 'machote-btn-secondary'}
+              style={{ fontSize: '0.9rem', padding: '0.4rem 1rem' }}
+            >
+              📂 Mis Plantillas ({customTemplates.length})
+            </button>
           </div>
         </header>
 
@@ -369,9 +498,24 @@ export default function MachotesPage() {
           isOpen={isSaveCustomOpen}
           onClose={() => setIsSaveCustomOpen(false)}
           onTemplateCreated={(newTemplate) => {
-            setCustomTemplates(getCustomTemplates());
+            setCustomTemplates((prev) => [newTemplate, ...prev.filter(t => t.id !== newTemplate.id)]);
             setSelectedTemplateId(newTemplate.id);
             setFeedback({ tone: 'success', message: `Tu machote "${newTemplate.title}" se guardó y está listo para usarse.` });
+          }}
+        />
+
+        <EditCustomTemplateModal
+          template={editingTemplate}
+          isOpen={!!editingTemplate}
+          onClose={() => setEditingTemplate(null)}
+          onTemplateUpdated={(updated) => {
+            setCustomTemplates((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
+            if (selectedTemplateId === updated.id) {
+              // Trigger re-render of current active template if selected
+              setSelectedTemplateId('');
+              setTimeout(() => setSelectedTemplateId(updated.id), 10);
+            }
+            setFeedback({ tone: 'success', message: `Plantilla "${updated.title}" actualizada correctamente.` });
           }}
         />
 
@@ -387,7 +531,9 @@ export default function MachotesPage() {
           }}
         />
 
-        <div className="machote-template-toolbar">
+        {activeTab === 'generator' && (
+          <>
+            <div className="machote-template-toolbar">
           <div className="machote-template-select">
             <label htmlFor="template-selector">Seleccionar plantilla</label>
             <select
@@ -416,12 +562,17 @@ export default function MachotesPage() {
             {selectedTemplate.id.startsWith('custom-') && (
               <button
                 type="button"
-                onClick={() => {
-                  if (window.confirm(`¿Seguro que deseas eliminar tu machote "${selectedTemplate.title}"?`)) {
-                    const updated = deleteCustomTemplate(selectedTemplate.id);
+                onClick={async () => {
+                  if (!window.confirm(`¿Seguro que deseas eliminar tu machote "${selectedTemplate.title}"?`)) {
+                    return;
+                  }
+                  try {
+                    const updated = await deleteCustomTemplate(selectedTemplate.id);
                     setCustomTemplates(updated);
                     setSelectedTemplateId(templates[0].id);
                     setFeedback({ tone: 'success', message: 'Se eliminó tu machote personalizado.' });
+                  } catch {
+                    setFeedback({ tone: 'error', message: 'No fue posible eliminar el machote personalizado.' });
                   }
                 }}
                 className="text-xs text-red-600 hover:text-red-800 font-semibold underline"
@@ -454,6 +605,50 @@ export default function MachotesPage() {
             style={{ marginBottom: '1rem', padding: '0.875rem 1rem' }}
           >
             {feedback.message}
+          </div>
+        )}
+        {fastReview && (
+          <div className="glass-card" style={{ marginBottom: '1rem', padding: '1rem' }}>
+            <h3>Resultado Revisión Rápida</h3>
+            <p>Estado: <strong>{fastReview.estado}</strong></p>
+            {fastReview.camposFaltantes.length > 0 && (
+              <p>Campos faltantes: {fastReview.camposFaltantes.join(', ')}</p>
+            )}
+            {fastReview.erroresFormato.length > 0 && (
+              <div>
+                <p>Errores de formato:</p>
+                <ul>{fastReview.erroresFormato.map((err, idx) => <li key={idx}>{err}</li>)}</ul>
+              </div>
+            )}
+            {fastReview.recomendaciones.length > 0 && (
+              <div>
+                <p>Recomendaciones:</p>
+                <ul>{fastReview.recomendaciones.map((rec, idx) => <li key={idx}>{rec}</li>)}</ul>
+              </div>
+            )}
+          </div>
+        )}
+        {deepReview && (
+          <div className="glass-card" style={{ marginBottom: '1rem', padding: '1rem' }}>
+            <h3>Resultado Revisión Profunda</h3>
+            <div>
+              <p><strong>Revisión legal</strong></p>
+              <p style={{ whiteSpace: 'pre-wrap' }}>{deepReview.revisionLegal}</p>
+            </div>
+            <div>
+              <p><strong>Revisión de redacción</strong></p>
+              <p style={{ whiteSpace: 'pre-wrap' }}>{deepReview.revisionRedaccion}</p>
+            </div>
+            <div>
+              <p><strong>Revisión procesal</strong></p>
+              <p style={{ whiteSpace: 'pre-wrap' }}>{deepReview.revisionProcesal}</p>
+            </div>
+            {deepReview.riesgos.length > 0 && (
+              <div>
+                <p>Riesgos identificados:</p>
+                <ul>{deepReview.riesgos.map((risk, idx) => <li key={idx}>{risk}</li>)}</ul>
+              </div>
+            )}
           </div>
         )}
 
@@ -650,6 +845,111 @@ export default function MachotesPage() {
             </div>
           </div>
         </div>
+          </>
+        )}
+
+        {/* My Templates Tab View */}
+        {activeTab === 'my-templates' && (
+          <div className="my-templates-container" style={{ marginTop: '1.5rem' }}>
+            <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="🔍 Buscar por nombre, categoría, fundamento o contenido..."
+                className="machote-input-control"
+                style={{ flex: 1, minWidth: '250px' }}
+              />
+              <select
+                value={categoryFilter}
+                onChange={(e) => setCategoryFilter(e.target.value)}
+                className="machote-input-control"
+                style={{ width: '220px' }}
+              >
+                <option value="all">Todas las materias</option>
+                <option value="Amparo">Amparo</option>
+                <option value="Civil">Civil</option>
+                <option value="Familiar">Familiar</option>
+                <option value="Mercantil">Mercantil</option>
+                <option value="Administrativo/Fiscal">Administrativo/Fiscal</option>
+                <option value="General">General</option>
+              </select>
+            </div>
+
+            {filteredCustomTemplates.length === 0 ? (
+              <div className="glass-card" style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
+                <p style={{ fontSize: '1.1rem', marginBottom: '1rem' }}>
+                  {customTemplates.length === 0
+                    ? 'Aún no tienes plantillas personalizadas guardadas.'
+                    : 'No se encontraron plantillas con los filtros seleccionados.'}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setIsSaveCustomOpen(true)}
+                  className="machote-btn-primary"
+                >
+                  📥 Subir Mi Primera Plantilla
+                </button>
+              </div>
+            ) : (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '1.25rem' }}>
+                {filteredCustomTemplates.map((t) => (
+                  <div key={t.id} className="glass-card" style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', border: '1px solid rgba(255,255,255,0.08)' }}>
+                    <div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.5rem' }}>
+                        <span className="machote-status-pill" style={{ fontSize: '0.75rem' }}>{t.category}</span>
+                        <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                          {t.updatedAt ? new Date(t.updatedAt).toLocaleDateString('es-MX') : ''}
+                        </span>
+                      </div>
+                      <h3 style={{ fontSize: '1.1rem', fontWeight: 600, marginBottom: '0.5rem' }}>{t.title}</h3>
+                      {t.description && <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>{t.description}</p>}
+                      {t.legalBasis && <p style={{ fontSize: '0.8rem', color: '#93c5fd', marginBottom: '0.5rem' }}>⚖️ {t.legalBasis}</p>}
+                    </div>
+                    <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem', paddingTop: '0.75rem', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedTemplateId(t.id);
+                          setActiveTab('generator');
+                        }}
+                        className="machote-btn-primary"
+                        style={{ flex: 1, fontSize: '0.85rem', padding: '0.35rem 0.5rem' }}
+                      >
+                        🚀 Usar
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setEditingTemplate(t)}
+                        className="machote-btn-secondary"
+                        style={{ fontSize: '0.85rem', padding: '0.35rem 0.65rem' }}
+                      >
+                        ✏️ Editar
+                      </button>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          if (!window.confirm(`¿Seguro que deseas eliminar la plantilla "${t.title}"?`)) return;
+                          try {
+                            const updated = await deleteCustomTemplate(t.id);
+                            setCustomTemplates(updated);
+                            setFeedback({ tone: 'success', message: 'Plantilla eliminada.' });
+                          } catch {
+                            setFeedback({ tone: 'error', message: 'No fue posible eliminar la plantilla.' });
+                          }
+                        }}
+                        className="machote-btn-secondary"
+                        style={{ fontSize: '0.85rem', padding: '0.35rem 0.65rem', color: '#f87171' }}
+                      >
+                        🗑️
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </main>
     </>
   );

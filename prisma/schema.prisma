@@ -430,7 +430,7 @@ model Embedding {
   chunkId   String
   chunk     DocumentChunk                @relation(fields: [chunkId], references: [id], onDelete: Cascade)
   model     String
-  embedding Unsupported("vector(1536)")?
+  embedding Unsupported("vector(1024)")?
   createdAt DateTime                     @default(now())
 
   @@unique([chunkId, model])
@@ -1203,6 +1203,7 @@ model LegalDraft {
   organizationId String
   userId         String
   templateId     String?
+  template       LegalTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
   title          String
   documentType   String   @default("machote")
   matter         String?
@@ -1217,4 +1218,50 @@ model LegalDraft {
   @@index([organizationId, status])
   @@index([userId, status])
   @@index([organizationId, updatedAt])
+}
+
+enum TemplateVisibility {
+  PRIVATE
+  ORG
+  PUBLIC
+}
+
+model LegalTemplate {
+  id             String             @id @default(cuid())
+  slug           String?
+  title          String
+  category       String             @default("General")
+  jurisdiction   String             @default("federal")
+  practiceArea   String?
+  documentType   String             @default("machote")
+  description    String?
+  content        String?            @db.Text
+  originalText   String?            @db.Text
+  legalBasis     String?
+  variables      Json?
+  structureJson  Json?
+  applicableLaws Json?
+  warnings       Json?
+  disclaimer     String?
+  exportFormats  Json?
+  aiInstructions String?            @db.Text
+  systemPrompt   String?            @db.Text
+  contentHash    String?
+  version        Int                @default(1)
+  visibility     TemplateVisibility @default(ORG)
+  organizationId String
+  createdBy      String?
+  sourceFileName String?
+  indexed        Boolean            @default(false)
+  indexedAt      DateTime?
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+
+  drafts         LegalDraft[]
+
+  @@unique([organizationId, slug])
+  @@index([organizationId, updatedAt])
+  @@index([createdBy])
+  @@index([category])
+  @@index([contentHash])
 }

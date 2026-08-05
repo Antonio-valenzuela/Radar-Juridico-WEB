@@ -87,7 +87,16 @@ export default function FloatingLegalChat() {
 
     const handleOpenChat = (e: Event & { detail?: any }) => {
       setIsOpen(true);
-      if (e.detail?.executionMode) setExecutionMode(e.detail.executionMode);
+      const executionModeFromEvent = e.detail?.executionMode as 'fast' | 'deep' | undefined;
+      const contextModeFromEvent = e.detail?.contextMode as 'current_document' | 'current_case' | 'current_bulletin' | 'none' | undefined;
+      if (executionModeFromEvent) setExecutionMode(executionModeFromEvent);
+      if (contextModeFromEvent) setContextMode(contextModeFromEvent);
+      if (e.detail?.query) {
+        // Allow the panel to render first and then submit the review query automatically.
+        setTimeout(() => {
+          handleSend(undefined, e.detail.query, executionModeFromEvent, contextModeFromEvent);
+        }, 50);
+      }
     };
 
     window.addEventListener('open-legal-chat', handleOpenChat as any);
@@ -111,12 +120,20 @@ export default function FloatingLegalChat() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen]);
 
-  const handleSend = async (e?: React.FormEvent, customInput?: string) => {
+  const handleSend = async (
+    e?: React.FormEvent,
+    customInput?: string,
+    forcedExecutionMode?: 'fast' | 'deep',
+    forcedContextMode?: 'current_document' | 'current_case' | 'current_bulletin' | 'none'
+  ) => {
     if (e) e.preventDefault();
     const textToSend = customInput || input;
     if (!textToSend.trim() || loading) return;
 
-    const userMsg: Message = { role: 'user', content: textToSend.trim(), executionMode };
+    const effectiveExecutionMode = forcedExecutionMode || executionMode;
+    const effectiveContextMode = forcedContextMode || contextMode;
+
+    const userMsg: Message = { role: 'user', content: textToSend.trim(), executionMode: effectiveExecutionMode };
     const newMessages = [...messages, userMsg];
     setMessages(newMessages);
     setInput('');

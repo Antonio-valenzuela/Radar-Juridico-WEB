@@ -1,8 +1,8 @@
 "use client";
 
 import React, { useState } from 'react';
-import { TemplateCategory, ProfessionalTemplate } from '@/lib/templates/templateTypes';
-import { createTemplateFromText, saveCustomTemplate } from '@/lib/templates/customTemplateStore';
+import { TemplateCategory, ProfessionalTemplate, TemplateStructure } from '@/lib/templates/templateTypes';
+import { buildTemplateFromStructure, createTemplateFromText, saveCustomTemplate } from '@/lib/templates/customTemplateStore';
 
 interface SaveCustomTemplateModalProps {
   isOpen: boolean;
@@ -21,31 +21,71 @@ export function SaveCustomTemplateModal({
   const [documentContent, setDocumentContent] = useState('');
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
+  const [analysis, setAnalysis] = useState<{
+    es_juridico: boolean;
+    tipo_documento: string;
+    confianza: number;
+    razon: string;
+    secciones_detectadas: string[];
+    extractedText?: string;
+    structureJson?: TemplateStructure;
+    needsOcr?: boolean;
+  } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   if (!isOpen) return null;
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const selected = e.target.files?.[0];
     if (!selected) return;
     setFile(selected);
+    setAnalysis(null);
+    setError(null);
 
-    // Read text files directly
-    if (selected.type.includes('text') || selected.name.endsWith('.txt')) {
+    if (!title) {
+      setTitle(selected.name.replace(/\.[^/.]+$/, ''));
+    }
+
+    if (selected.type.includes('text') || selected.name.toLowerCase().endsWith('.txt')) {
       const reader = new FileReader();
-      reader.onload = (event) => {
-        setDocumentContent(event.target?.result as string || '');
+      reader.onload = async (event) => {
+        const text = (event.target?.result as string) || '';
+        setDocumentContent(text);
       };
       reader.readAsText(selected);
-    } else {
-      // For DOCX / PDF, prompt user to review extracted text or use title
-      if (!title) {
-        setTitle(selected.name.replace(/\.[^/.]+$/, ""));
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', selected);
+      const response = await fetch('/api/templates/analyze-upload', {
+        method: 'POST',
+        body: formData,
+      });
+      const payload = await response.json();
+      if (!response.ok || payload.ok === false) {
+        throw new Error(payload.error || 'No fue posible analizar el archivo.');
       }
+      setAnalysis({
+        ...payload.classification,
+        extractedText: payload.extractedText,
+        structureJson: payload.structureJson,
+        needsOcr: payload.needsOcr,
+      });
+      setDocumentContent(payload.extractedText || '');
+      if (payload.needsOcr) {
+        setError('El archivo PDF parece escaneado y puede requerir OCR. Se intentó extraer el texto directamente.');
+      }
+    } catch (err: any) {
+      setError(err.message || 'Error al analizar el archivo.');
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!title.trim()) {
       setError('Por favor ingresa un nombre para el machote.');
       return;
@@ -54,16 +94,23 @@ export function SaveCustomTemplateModal({
       setError('Por favor escribe o pega el contenido de tu escrito o selecciona un archivo.');
       return;
     }
+    if (analysis && !analysis.es_juridico) {
+      setError('El documento no parece un machote jurídico.');
+      return;
+    }
 
     setLoading(true);
     try {
       const contentToUse = documentContent.trim() || `[MACHOTE PERSONALIZADO: ${title}]\n\nContenido base subido desde archivo: ${file?.name || 'Formato del litigante'}`;
-      const newTemplate = createTemplateFromText(title.trim(), category, legalBasis.trim(), contentToUse);
-      saveCustomTemplate(newTemplate);
-      onTemplateCreated(newTemplate);
+      const newTemplate = analysis?.structureJson && analysis.es_juridico
+        ? buildTemplateFromStructure(title.trim(), category, legalBasis.trim(), analysis.structureJson, contentToUse, file?.name)
+        : createTemplateFromText(title.trim(), category, legalBasis.trim(), contentToUse);
+
+      const savedTemplate = await saveCustomTemplate(newTemplate);
+      onTemplateCreated(savedTemplate);
       onClose();
-    } catch {
-      setError('Ocurrió un error al guardar la plantilla personalizada.');
+    } catch (err: any) {
+      setError(err?.message || 'Ocurrió un error al guardar la plantilla personalizada.');
     } finally {
       setLoading(false);
     }
@@ -143,6 +190,26 @@ export function SaveCustomTemplateModal({
               onChange={handleFileUpload}
               style={{ marginBottom: '0.5rem', display: 'block', fontSize: '0.85rem' }}
             />
+
+            {analysis ? (
+              <div className="legal-info-box" style={{ marginBottom: '0.75rem', padding: '0.75rem', borderRadius: '0.5rem', backgroundColor: '#f8fafc', border: '1px solid #d1d5db' }}>
+                <p className="font-semibold">Resultado del análisis</p>
+                <p>¿Es jurídico?: <strong>{analysis.es_juridico ? 'Sí' : 'No'}</strong></p>
+                <p>Tipo: {analysis.tipo_documento || 'No determinado'}</p>
+                <p>Confianza: {analysis.confianza}%</p>
+                <p>Razón: {analysis.razon}</p>
+                {analysis.secciones_detectadas.length > 0 && (
+                  <p>Secciones detectadas: {analysis.secciones_detectadas.join(', ')}</p>
+                )}
+                {analysis.structureJson?.campos?.length ? (
+                  <p>Campos inferidos: {analysis.structureJson.campos.map((campo) => campo.etiqueta).join(', ')}</p>
+                ) : null}
+                {analysis.needsOcr && (
+                  <p style={{ color: '#b45309' }}>Este archivo parece necesitar OCR para extraer el texto completo.</p>
+                )}
+              </div>
+            ) : null}
+
             <textarea
               value={documentContent}
               onChange={(e) => setDocumentContent(e.target.value)}

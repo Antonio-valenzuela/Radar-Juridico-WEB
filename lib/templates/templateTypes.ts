@@ -1,6 +1,33 @@
 export type TemplateCategory = 'Amparo' | 'Civil' | 'Familiar' | 'Mercantil' | 'Administrativo/Fiscal' | 'General';
 
-export type TemplateFieldType = 'text' | 'textarea' | 'select' | 'repeatable' | 'date' | 'number';
+export type TemplateFieldType = 'text' | 'textarea' | 'select' | 'repeatable' | 'list' | 'date' | 'number';
+
+export interface TemplateFieldDefinition {
+  id: string;
+  label: string;
+  type: TemplateFieldType;
+  required: boolean;
+  placeholder?: string;
+  helpText?: string;
+  options?: string[];
+  repeatLabel?: string;
+  legalBasis?: string;
+}
+
+export interface TemplateStructure {
+  nombre: string;
+  tipo_documento: string;
+  campos: Array<{
+    id: string;
+    etiqueta: string;
+    tipo: TemplateFieldType;
+    obligatorio: boolean;
+    placeholder?: string;
+    helpText?: string;
+    options?: string[];
+    repeatLabel?: string;
+  }>;
+}
 
 export interface TemplateSection {
   id: string;
@@ -20,11 +47,17 @@ export interface ProfessionalTemplate {
   title: string;
   description: string;
   legalBasis: string;
+  documentType?: string;
   applicableLaws: string[];
-  sections: TemplateSection[];
   warnings: string[];
   disclaimer: string;
   exportFormats: string[];
+  structureJson?: TemplateStructure;
+  sections: TemplateSection[];
+  originalText?: string;
+  sourceFileName?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface AIAssistResult {
