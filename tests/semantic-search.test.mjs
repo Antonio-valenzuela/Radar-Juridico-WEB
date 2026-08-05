@@ -36,9 +36,9 @@ test("semantic search genera embeddings deterministicos y local provider", () =>
     test();
   `);
 
-  assert.equal(result.e1, 1536);
-  assert.equal(result.e2, 1536);
-  assert.equal(result.model, "local-hash-embedding");
+  assert.equal(result.e1, 1024);
+  assert.equal(result.e2, 1024);
+  assert.equal(result.model, "local-sha256-1024d");
   assert.equal(result.identical, true);
   assert.equal(result.different, true);
 });

@@ -110,7 +110,8 @@ export function rankSearchResults(
     if (sourceItemId) {
       const item = semanticItemMap.get(sourceItemId);
       if (item) {
-        const semanticScore = chunk.similarity;
+        const rawSim = chunk?.similarity;
+        const semanticScore = typeof rawSim === 'number' && !isNaN(rawSim) ? rawSim : 0;
         if (combinedMap.has(item.id)) {
           const existing = combinedMap.get(item.id)!;
           existing.score = Number((existing.score + semanticScore).toFixed(4));

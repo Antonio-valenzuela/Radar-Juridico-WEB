@@ -11,6 +11,7 @@ function runTs(code) {
   if (result.status !== 0) {
     throw new Error(result.stderr || result.stdout || result.error?.message || "tsx execution failed");
   }
+  if (result.stderr) console.error("STDERR IN TEST:", result.stderr);
   return JSON.parse(result.stdout.trim());
 }
 
