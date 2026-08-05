@@ -1,11 +1,11 @@
 export type AiMode = "empty_search_assistant" | "rag" | "classification" | "summary" | "general";
 
 export const providerCapabilities: Record<AiMode, string[]> = {
-  empty_search_assistant: ["groq", "openrouter", "gemini", "local"],
-  rag: ["gemini", "openrouter", "groq", "local"],
-  classification: ["groq", "gemini", "openrouter", "local"],
-  summary: ["gemini", "openrouter", "groq", "local"],
-  general: ["groq", "openrouter", "gemini", "local"],
+  empty_search_assistant: ["nvidia", "gemini", "groq", "openrouter", "local"],
+  rag: ["nvidia", "gemini", "openrouter", "groq", "local"],
+  classification: ["nvidia", "groq", "gemini", "openrouter", "local"],
+  summary: ["nvidia", "gemini", "openrouter", "groq", "local"],
+  general: ["nvidia", "gemini", "groq", "openrouter", "local"],
 };
 
 export function getAllowedProvidersForMode(mode: string): string[] {
