@@ -1,24 +1,32 @@
 import { GeminiProvider } from "./providers/gemini";
 import { GroqProvider } from "./providers/groq";
 import { LocalProvider } from "./providers/local";
+import { NVIDIAProvider } from "./providers/nvidia";
 import { OpenRouterProvider } from "./providers/openrouter";
 import type { AIHealthResult, AIProviderResult, AIRequest } from "./providers/types";
 import { deepReviewSchema, type DeepReviewOutput } from "./schemas/deepReviewSchema";
 
+const nvidia = new NVIDIAProvider();
 const gemini = new GeminiProvider();
 const groq = new GroqProvider();
 const openrouter = new OpenRouterProvider();
 const local = new LocalProvider();
 
 export async function runFastMode(request: AIRequest): Promise<AIProviderResult> {
-  const chain = (process.env.AI_PROVIDER_CHAIN || "gemini,groq,openrouter,local")
+  const chain = (process.env.AI_PROVIDER_CHAIN || "nvidia,gemini,groq,openrouter,local")
     .split(",")
     .map((s) => s.trim().toLowerCase());
 
   let fallbackCount = 0;
 
   for (const providerId of chain) {
-    if (providerId === "gemini" && (await gemini.isAvailable())) {
+    if (providerId === "nvidia" && (await nvidia.isAvailable())) {
+      const res = await nvidia.generate(request);
+      if (res.success && res.content) {
+        return { ...res, warnings: [...(res.warnings || [])] };
+      }
+      fallbackCount++;
+    } else if (providerId === "gemini" && (await gemini.isAvailable())) {
       const res = await gemini.generate(request);
       if (res.success && res.content) {
         return { ...res, warnings: [...(res.warnings || [])] };

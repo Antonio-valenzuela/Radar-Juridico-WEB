@@ -11,6 +11,7 @@ export async function selectLeastUsedProvider(
   // 2. Filter by actual API Key configuration
   const configured = allowed.filter((prov) => {
     const p = prov.toLowerCase().trim();
+    if (p === "nvidia") return !!process.env.NVIDIA_API_KEY?.trim();
     if (p === "gemini") return !!process.env.GEMINI_API_KEY?.trim();
     if (p === "groq") return !!process.env.GROQ_API_KEY?.trim();
     if (p === "openrouter") return !!process.env.OPENROUTER_API_KEY?.trim();
@@ -21,7 +22,7 @@ export async function selectLeastUsedProvider(
   const nonLocalConfigured = configured.filter((p) => p.toLowerCase().trim() !== "local");
 
   if (nonLocalConfigured.length === 0) {
-    console.warn("[AI Router] Fallback a 'local': ninguna API key configurada (GEMINI_API_KEY/GROQ_API_KEY/OPENROUTER_API_KEY)");
+    console.warn("[AI Router] Fallback a 'local': ninguna API key configurada (NVIDIA_API_KEY/GEMINI_API_KEY/GROQ_API_KEY/OPENROUTER_API_KEY)");
     return { provider: "local", strategy: "least-used", usedFallbackNoKeys: true };
   }
 

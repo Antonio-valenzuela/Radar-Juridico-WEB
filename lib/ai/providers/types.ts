@@ -1,4 +1,4 @@
-export type AIProviderId = "gemini" | "groq" | "openrouter" | "local";
+export type AIProviderId = "nvidia" | "gemini" | "groq" | "openrouter" | "local";
 
 export interface AIRequest {
   systemPrompt?: string;
