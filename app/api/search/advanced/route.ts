@@ -163,15 +163,9 @@ export async function POST(req: Request) {
     let semanticChunks: any[] = [];
     if ((mode === 'hybrid' || mode === 'semantic') && semanticQuery) {
       try {
-        semanticChunks = await semanticSearch(semanticQuery, dbLimit, { suppressErrors: false });
+        semanticChunks = await semanticSearch(semanticQuery, dbLimit, { suppressErrors: true });
       } catch (semanticError) {
         console.error('[advancedSearch] Semantic search failed:', errorMessage(semanticError));
-        if (process.env.NODE_ENV !== 'test') {
-          return searchErrorResponse(
-            isDatabaseUnavailable(semanticError) ? 'database_unavailable' : 'semantic_search_failed',
-            503,
-          );
-        }
         semanticChunks = [];
       }
     }
