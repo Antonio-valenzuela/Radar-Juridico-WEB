@@ -26,6 +26,8 @@ export async function POST(req: NextRequest) {
       message = "",
       taskType = "document_review",
       activeDocument,
+      activeCase,
+      activeBulletin,
       retrievedSources = [],
     } = payload;
 
@@ -36,11 +38,18 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const legalContext = {
+      ...(activeDocument || {}),
+      ...(activeCase ? { activeCase } : {}),
+      ...(activeBulletin ? { activeBulletin } : {}),
+      ...(payload.pageContext ? { pageContext: payload.pageContext } : {}),
+    };
+
     const deepResult = await runDeepReviewMode({
       userMessage: message,
       mode: "deep",
       taskType,
-      legalContext: activeDocument || {},
+      legalContext,
       retrievedSources,
     });
 

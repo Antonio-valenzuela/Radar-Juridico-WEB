@@ -3,10 +3,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import BulletinWatchPanel from '@/app/components/BulletinWatchPanel';
+import { useLegalWorkspaceContext } from '@/context/LegalWorkspaceContext';
 import { deadlineStatus, proceduralDateLabel, MEXICO_CITY_TIMEZONE } from '@/lib/cases/deadlineDates';
 import { adminFetch, getAdminToken, setAdminToken } from '@/lib/client/adminToken';
 import { AdminTokenGate } from '@/components/shared/AdminTokenGate';
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog';
+import { useLegalWorkspaceContext } from '@/context/LegalWorkspaceContext';
 
 interface Party {
   id: string;
@@ -127,6 +129,8 @@ export default function ExpedientesPage() {
     notes: '',
   });
 
+  const { setActiveCase, clearActiveCase, setContextMode, setPageTitle } = useLegalWorkspaceContext();
+
   const authorizedFetch = async (input: RequestInfo | URL, init: RequestInit = {}) => {
     const token = getAdminToken();
     if (!token) throw new Error('ADMIN_TOKEN_REQUIRED');
@@ -202,6 +206,34 @@ export default function ExpedientesPage() {
       localStorage.removeItem(DRAFT_KEY);
     }
   }, [view, formValues.id]);
+
+  useEffect(() => {
+    setPageTitle(view === 'detail' && selectedCase ? `Expediente ${selectedCase.caseNumber || selectedCase.title}` : 'Gestión de Expedientes');
+  }, [view, selectedCase, setPageTitle]);
+
+  useEffect(() => {
+    if (view === 'detail' && selectedCase) {
+      setActiveCase({
+        caseId: selectedCase.id,
+        expedienteNumber: selectedCase.caseNumber || '',
+        court: selectedCase.court || '',
+        actor:
+          selectedCase.parties?.find((party) => /actor|actora|parte actora/i.test(party.role))?.name ||
+          selectedCase.parties?.[0]?.name ||
+          '',
+        demandado:
+          selectedCase.parties?.find((party) => /demandado|parte demandada/i.test(party.role))?.name ||
+          selectedCase.parties?.[1]?.name ||
+          '',
+        matter: selectedCase.matter || '',
+      });
+      setContextMode('current_case');
+      return;
+    }
+
+    clearActiveCase();
+    setContextMode('none');
+  }, [view, selectedCase, setActiveCase, clearActiveCase, setContextMode]);
 
   useEffect(() => {
     if (view === 'form' && !formValues.id) {

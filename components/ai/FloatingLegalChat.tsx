@@ -66,9 +66,13 @@ export default function FloatingLegalChat() {
 
   const {
     module: activeModule,
+    route,
+    pageContext,
     contextMode,
     setContextMode,
     activeDocument,
+    activeCase,
+    activeBulletin,
     updateDocumentFields,
   } = useLegalWorkspaceContext();
 
@@ -120,6 +124,8 @@ export default function FloatingLegalChat() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen]);
 
+  const [showDebug, setShowDebug] = useState(false);
+
   const handleSend = async (
     e?: React.FormEvent,
     customInput?: string,
@@ -155,18 +161,11 @@ export default function FloatingLegalChat() {
     const controller = new AbortController();
     abortControllerRef.current = controller;
 
-    const pageContext = {
-      route: typeof window !== 'undefined' ? window.location.pathname : '',
+    const effectivePageContext = {
+      route,
       module: activeModule,
-      pageTitle: typeof document !== 'undefined' ? document.title : '',
-      activeDocument: (contextMode === 'current_document' && activeDocument) ? {
-        templateId: activeDocument.templateId,
-        templateName: activeDocument.templateName,
-        matter: activeDocument.matter,
-        jurisdiction: activeDocument.jurisdiction,
-        fields: activeDocument.fields,
-        pendingMarkers: activeDocument.pendingMarkers,
-      } : null,
+      pageTitle: pageContext?.pageTitle || (typeof document !== 'undefined' ? document.title : ''),
+      pageLabel: pageContext?.pageLabel || 'Pantalla legal',
     };
 
     try {
@@ -180,8 +179,10 @@ export default function FloatingLegalChat() {
           mode: executionMode,
           contextMode,
           activeDocument: contextMode === 'current_document' ? activeDocument : null,
+          activeCase: contextMode === 'current_case' ? activeCase : null,
+          activeBulletin: contextMode === 'current_bulletin' ? activeBulletin : null,
           module: activeModule,
-          pageContext,
+          pageContext: effectivePageContext,
         }),
       });
 
@@ -437,25 +438,47 @@ export default function FloatingLegalChat() {
               <span style={{ fontSize: '13px', color: '#6E6E73', fontWeight: 500 }}>
                 Consulta y revisión asistida por IA
               </span>
-              <button
-                onClick={handleClearHistory}
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '4px',
-                  backgroundColor: '#F5F5F7',
-                  border: '1px solid rgba(0, 0, 0, 0.08)',
-                  borderRadius: '10px',
-                  padding: '4px 10px',
-                  fontSize: '12px',
-                  color: '#6E6E73',
-                  cursor: 'pointer',
-                  fontWeight: 500,
-                }}
-              >
-                <span>🗑️</span>
-                <span>Limpiar</span>
-              </button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <button
+                  onClick={handleClearHistory}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    backgroundColor: '#F5F5F7',
+                    border: '1px solid rgba(0, 0, 0, 0.08)',
+                    borderRadius: '10px',
+                    padding: '4px 10px',
+                    fontSize: '12px',
+                    color: '#6E6E73',
+                    cursor: 'pointer',
+                    fontWeight: 500,
+                  }}
+                >
+                  <span>🗑️</span>
+                  <span>Limpiar</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowDebug((prev) => !prev)}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    backgroundColor: '#EEF2FF',
+                    border: '1px solid rgba(59, 130, 246, 0.3)',
+                    borderRadius: '10px',
+                    padding: '4px 10px',
+                    fontSize: '12px',
+                    color: '#2563EB',
+                    cursor: 'pointer',
+                    fontWeight: 500,
+                  }}
+                >
+                  <span>🧾</span>
+                  <span>{showDebug ? 'Ocultar contexto' : 'Ver contexto IA'}</span>
+                </button>
+              </div>
             </div>
 
             {/* Modo de Análisis */}
@@ -534,10 +557,36 @@ export default function FloatingLegalChat() {
                 📄 Borrador activo: <span style={{ fontWeight: 700, color: '#1c385c' }}>{activeDocument.templateName || 'Machote'}</span>
               </p>
             )}
+            {activeCase && contextMode === 'current_case' && (
+              <p style={{ margin: 0, fontSize: '12px', color: '#4a5568', fontWeight: 500 }}>
+                🧾 Expediente activo: <span style={{ fontWeight: 700, color: '#1c385c' }}>{activeCase.expedienteNumber || activeCase.caseId || 'Expediente'}</span>
+              </p>
+            )}
+            {activeBulletin && contextMode === 'current_bulletin' && (
+              <p style={{ margin: 0, fontSize: '12px', color: '#4a5568', fontWeight: 500 }}>
+                📡 Boletín activo: <span style={{ fontWeight: 700, color: '#1c385c' }}>{activeBulletin.sourceName || activeBulletin.subscriptionId || 'Boletín'}</span>
+              </p>
+            )}
           </div>
 
           {/* Messages Scroll Area */}
           <div style={{ flex: 1, overflowY: 'auto', padding: '0 20px 16px 20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            {showDebug && (
+              <div style={{ backgroundColor: '#f8fafc', border: '1px solid rgba(59,130,246,0.15)', borderRadius: '16px', padding: '14px', fontSize: '12px', color: '#0f172a', lineHeight: 1.5 }}>
+                <div style={{ marginBottom: '10px', fontWeight: 700 }}>Contexto IA actual</div>
+                <pre style={{ margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-word', maxHeight: '220px', overflow: 'auto' }}>
+{JSON.stringify({
+  route,
+  module: activeModule,
+  pageContext,
+  contextMode,
+  activeDocument: activeDocument ? { templateId: activeDocument.templateId, documentType: activeDocument.documentType, templateName: activeDocument.templateName, matter: activeDocument.matter, jurisdiction: activeDocument.jurisdiction, pendingMarkers: activeDocument.pendingMarkers } : null,
+  activeCase,
+  activeBulletin,
+}, null, 2)}
+                </pre>
+              </div>
+            )}
             {messages.length === 0 && (
               <div style={{ padding: '12px 0', display: 'flex', flexDirection: 'column', gap: '12px' }}>
                 {/* Mini Badges */}

@@ -16,17 +16,11 @@ interface AdminTokenGateProps {
  * No abre ningún modal ni window.prompt.
  */
 export function AdminTokenGate({ onTokenSaved, context = "para ejecutar esta acción" }: AdminTokenGateProps) {
-  const [input, setInput] = useState("");
-  const [hasToken, setHasToken] = useState(false);
+  const [input, setInput] = useState(() => getAdminToken() ?? "");
+  const [hasToken, setHasToken] = useState(() => Boolean(getAdminToken()));
   const [showField, setShowToken] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [message, setMessage] = useState("");
-
-  useEffect(() => {
-    const token = getAdminToken();
-    setHasToken(Boolean(token));
-    setInput(token ?? "");
-  }, []);
 
   const persist = () => {
     const saved = setAdminToken(input);

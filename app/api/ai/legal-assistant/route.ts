@@ -38,6 +38,7 @@ export async function POST(req: NextRequest) {
       activeDocument,
       activeCase,
       activeBulletin,
+      pageContext,
       selectedSection,
     } = payload;
 
@@ -57,6 +58,16 @@ export async function POST(req: NextRequest) {
     let missingFields: string[] = [];
     let citations: any[] = [];
     let warnings: string[] = [];
+
+    if (contextMode === 'current_case' && activeCase) {
+      contextLabel = `Expediente activo (${activeCase.expedienteNumber || activeCase.caseId || 'Sin número'})`;
+      missingFields = [];
+    }
+
+    if (contextMode === 'current_bulletin' && activeBulletin) {
+      contextLabel = `Boletín activo (${activeBulletin.sourceName || activeBulletin.subscriptionId || 'Sin fuente'})`;
+      missingFields = [];
+    }
 
     // Analyze Active Document Context
     if ((contextMode === 'current_document' || isMachoteQuery) && activeDocument) {
@@ -109,6 +120,10 @@ export async function POST(req: NextRequest) {
     }
 
     // Perform targeted RAG search filtering out SENADO_WEB and quarantined items
+    if (pageContext) {
+      warnings.push(`Contexto de página: ${pageContext.pageLabel || pageContext.route || 'sin etiqueta de página'}`);
+    }
+
     if (cleanMessage.length > 5) {
       try {
         const words = cleanMessage.split(/\s+/).filter((w: string) => w.length > 3).slice(0, 4);
