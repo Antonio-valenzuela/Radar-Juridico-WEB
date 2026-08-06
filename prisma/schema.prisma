@@ -1068,7 +1068,9 @@ model JudicialBulletinEntry {
   heading            String?
   extract            String?        @db.Text
   parties            Json?
-  sourceUrl          String
+  sourceUrl          String?
+  status             SourceQueryStatus @default(UNKNOWN)
+  lastSyncedAt       DateTime?
   contentHash        String
   dedupeKey          String         @unique
   evidenceKind       String         @default("legacy_unclassified")
@@ -1088,6 +1090,7 @@ model JudicialBulletinEntry {
   actuation   CaseActuation?
   matterLinks MatterBulletinEntry[]
 
+  @@unique([sourceId, expedienteNumber, court])
   @@index([sourceId, expedienteNumber])
   @@index([matterId, publicationDate])
   @@index([court, expedienteNumber, publicationDate])
@@ -1218,6 +1221,16 @@ model LegalDraft {
   @@index([organizationId, status])
   @@index([userId, status])
   @@index([organizationId, updatedAt])
+}
+
+enum SourceQueryStatus {
+  FOUND
+  NOT_FOUND
+  SOURCE_OFFLINE
+  CAPTCHA_REQUIRED
+  LOGIN_REQUIRED
+  RATE_LIMIT
+  UNKNOWN
 }
 
 enum TemplateVisibility {
