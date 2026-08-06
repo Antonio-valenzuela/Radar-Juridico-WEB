@@ -281,7 +281,7 @@ export default function BulletinTrackingPage() {
           </div>
           <h1 style={{ fontSize: "2rem", marginBottom: "0.5rem" }}>📡 Seguimiento Automatizado de Boletines Judiciales</h1>
           <p className="text-muted">
-            Configura parámetros de búsqueda permanente por expediente, actor, demandado, juzgado y palabras clave. Nuestro motor consulta periódicamente las fuentes oficiales y notifica nuevas coincidencias.
+            Configura parámetros de búsqueda permanente por expediente, actor, demandado, juzgado y palabras clave. Puedes probar el flujo con datos de ejemplo y revisar el resultado sin depender de una publicación externa inmediata.
           </p>
         </header>
 
@@ -296,6 +296,13 @@ export default function BulletinTrackingPage() {
             ✅ {successMsg}
           </div>
         )}
+
+        <section className="glass-card" style={{ marginBottom: "1rem", padding: "1rem 1.25rem", border: "1px solid rgba(96, 165, 250, 0.35)" }}>
+          <strong style={{ display: "block", marginBottom: "0.35rem" }}>Prueba rápida</strong>
+          <p className="text-muted" style={{ margin: 0, fontSize: "0.95rem" }}>
+            Puedes usar datos de ejemplo como expediente <strong>1234/2026</strong>, actor <strong>Juan Pérez</strong>, demandado <strong>Acme S.A.</strong> y juzgado <strong>Juzgado Segundo Civil</strong> para probar el flujo completo.
+          </p>
+        </section>
 
         {/* Formulario de Creación / Edición */}
         <section className="glass-card" style={{ marginBottom: "2.5rem", padding: "1.5rem" }}>

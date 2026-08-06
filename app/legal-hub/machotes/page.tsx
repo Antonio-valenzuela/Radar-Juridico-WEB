@@ -21,6 +21,7 @@ import { getSampleValuesForTemplate } from '@/lib/templates/templateSampleData';
 import { getCustomTemplates, deleteCustomTemplate } from '@/lib/templates/customTemplateStore';
 import { SaveCustomTemplateModal } from '@/components/machotes/SaveCustomTemplateModal';
 import { EditCustomTemplateModal } from '@/components/machotes/EditCustomTemplateModal';
+import { ConfirmDialog } from '@/components/shared/ConfirmDialog';
 
 export default function MachotesPage() {
   const { activeDocument, setActiveDocument, setContextMode } = useLegalWorkspaceContext();
@@ -32,6 +33,13 @@ export default function MachotesPage() {
   const [editingTemplate, setEditingTemplate] = useState<ProfessionalTemplate | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
+  const [confirmDialog, setConfirmDialog] = useState<{
+    title: string;
+    message: string;
+    confirmLabel?: string;
+    isDanger?: boolean;
+    onConfirm: () => void;
+  } | null>(null);
 
   useEffect(() => {
     const loadTemplates = async () => {
@@ -177,7 +185,33 @@ export default function MachotesPage() {
       });
       return;
     }
-    if (hasPendingMarkers(renderToText(selectedTemplate, values)) && !window.confirm(`${DRAFT_WARNING}. ¿Confirmas que revisarás el documento antes de usarlo?`)) return;
+    if (hasPendingMarkers(renderToText(selectedTemplate, values))) {
+      setConfirmDialog({
+        title: 'Borrador con marcadores pendientes',
+        message: `${DRAFT_WARNING}. ¿Confirmas que revisarás el documento antes de usarlo?`,
+        confirmLabel: 'Confirmar y exportar',
+        onConfirm: () => { setConfirmDialog(null); void (async () => {
+          try {
+            const doc = renderToDocument(selectedTemplate, values);
+            const { exportToDocx } = await import('@/lib/templates/exportDocx');
+            const buffer = await exportToDocx(doc);
+            const blob = new Blob([Uint8Array.from(buffer)], {
+              type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            });
+            const url = URL.createObjectURL(blob);
+            const anchor = document.createElement('a');
+            anchor.href = url;
+            anchor.download = `${selectedTemplate.id}-${new Date().toISOString().slice(0,10)}.docx`;
+            anchor.click();
+            URL.revokeObjectURL(url);
+            setFeedback({ tone: 'success', message: 'El archivo DOCX se generó correctamente.' });
+          } catch {
+            setFeedback({ tone: 'error', message: 'No fue posible generar el archivo DOCX.' });
+          }
+        })(); },
+      });
+      return;
+    }
     try {
       const doc = renderToDocument(selectedTemplate, values);
       const { exportToDocx } = await import('@/lib/templates/exportDocx');
@@ -206,7 +240,15 @@ export default function MachotesPage() {
       });
       return;
     }
-    if (hasPendingMarkers(renderToText(selectedTemplate, values)) && !window.confirm(`${DRAFT_WARNING}. ¿Confirmas que revisarás el documento antes de usarlo?`)) return;
+    if (hasPendingMarkers(renderToText(selectedTemplate, values))) {
+      setConfirmDialog({
+        title: 'Borrador con marcadores pendientes',
+        message: `${DRAFT_WARNING}. ¿Confirmas que revisarás el documento antes de usarlo?`,
+        confirmLabel: 'Confirmar e imprimir',
+        onConfirm: () => { setConfirmDialog(null); const doc2 = renderToDocument(selectedTemplate, values); const html2 = generatePrintHtml(doc2); const win2 = window.open('', '_blank'); if (win2) { win2.document.write(html2); win2.document.close(); setFeedback({ tone: 'success', message: 'Se abrió la vista controlada de impresión.' }); } else { setFeedback({ tone: 'error', message: 'El navegador bloqueó la vista de impresión. Permite ventanas emergentes e intenta de nuevo.' }); } },
+      });
+      return;
+    }
     const doc = renderToDocument(selectedTemplate, values);
     const html = generatePrintHtml(doc);
     const win = window.open('', '_blank');
@@ -231,7 +273,15 @@ export default function MachotesPage() {
       });
       return;
     }
-    if (hasPendingMarkers(renderToText(selectedTemplate, values)) && !window.confirm(`${DRAFT_WARNING}. ¿Confirmas que revisarás el documento antes de usarlo?`)) return;
+    if (hasPendingMarkers(renderToText(selectedTemplate, values))) {
+      setConfirmDialog({
+        title: 'Borrador con marcadores pendientes',
+        message: `${DRAFT_WARNING}. ¿Confirmas que revisarás el documento antes de usarlo?`,
+        confirmLabel: 'Confirmar y exportar TXT',
+        onConfirm: () => { setConfirmDialog(null); const txt = renderToText(selectedTemplate, values); const blobTxt = new Blob([txt], { type: 'text/plain;charset=utf-8' }); const urlTxt = URL.createObjectURL(blobTxt); const aTxt = document.createElement('a'); aTxt.href = urlTxt; aTxt.download = `${selectedTemplate.id}-${new Date().toISOString().slice(0,10)}.txt`; aTxt.click(); URL.revokeObjectURL(urlTxt); setFeedback({ tone: 'success', message: 'El archivo de texto se generó correctamente.' }); },
+      });
+      return;
+    }
     const text = renderToText(selectedTemplate, values);
     const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
     const url = URL.createObjectURL(blob);
@@ -252,7 +302,15 @@ export default function MachotesPage() {
       });
       return;
     }
-    if (hasPendingMarkers(renderToText(selectedTemplate, values)) && !window.confirm(`${DRAFT_WARNING}. ¿Confirmas que revisarás el texto antes de usarlo?`)) return;
+    if (hasPendingMarkers(renderToText(selectedTemplate, values))) {
+      setConfirmDialog({
+        title: 'Borrador con marcadores pendientes',
+        message: `${DRAFT_WARNING}. ¿Confirmas que revisarás el texto antes de usarlo?`,
+        confirmLabel: 'Confirmar y copiar',
+        onConfirm: () => { setConfirmDialog(null); const copyText = renderToText(selectedTemplate, values); navigator.clipboard.writeText(copyText).then(() => setFeedback({ tone: 'success', message: 'Texto copiado al portapapeles.' })).catch(() => setFeedback({ tone: 'error', message: 'No fue posible copiar el texto.' })); },
+      });
+      return;
+    }
     const text = renderToText(selectedTemplate, values);
     try {
       await navigator.clipboard.writeText(text);
@@ -350,7 +408,7 @@ export default function MachotesPage() {
     setContextMode('current_document');
     setFeedback({
       tone: 'success',
-      message: `Se cargó la plantilla con información jurídica de ejemplo realista para ${selectedTemplate.title}.`,
+      message: `Se cargó la plantilla con información jurídica de ejemplo realista para ${selectedTemplate.title}. Ya puedes revisar, copiar o exportar el documento.`,
     });
   };
 
@@ -430,7 +488,7 @@ export default function MachotesPage() {
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div>
               <h1>Generador de Machotes y Plantillas</h1>
-              <p className="subtitle">Crea documentos legales estructurados con asistencia de IA. Revisa siempre el documento final.</p>
+              <p className="subtitle">Crea documentos legales estructurados con asistencia de IA. Revisa siempre el documento final. Puedes probar cualquier plantilla con un ejemplo listo para cargar y exportar.</p>
             </div>
             <div className="machote-actions-bar">
               <button
@@ -562,18 +620,24 @@ export default function MachotesPage() {
             {selectedTemplate.id.startsWith('custom-') && (
               <button
                 type="button"
-                onClick={async () => {
-                  if (!window.confirm(`¿Seguro que deseas eliminar tu machote "${selectedTemplate.title}"?`)) {
-                    return;
-                  }
-                  try {
-                    const updated = await deleteCustomTemplate(selectedTemplate.id);
-                    setCustomTemplates(updated);
-                    setSelectedTemplateId(templates[0].id);
-                    setFeedback({ tone: 'success', message: 'Se eliminó tu machote personalizado.' });
-                  } catch {
-                    setFeedback({ tone: 'error', message: 'No fue posible eliminar el machote personalizado.' });
-                  }
+                onClick={() => {
+                  setConfirmDialog({
+                    title: 'Eliminar machote',
+                    message: `¿Seguro que deseas eliminar tu machote "${selectedTemplate.title}"? Esta acción no se puede deshacer.`,
+                    confirmLabel: 'Eliminar',
+                    isDanger: true,
+                    onConfirm: async () => {
+                      setConfirmDialog(null);
+                      try {
+                        const updated = await deleteCustomTemplate(selectedTemplate.id);
+                        setCustomTemplates(updated);
+                        setSelectedTemplateId(templates[0].id);
+                        setFeedback({ tone: 'success', message: 'Se eliminó tu machote personalizado.' });
+                      } catch {
+                        setFeedback({ tone: 'error', message: 'No fue posible eliminar el machote personalizado.' });
+                      }
+                    },
+                  });
                 }}
                 className="text-xs text-red-600 hover:text-red-800 font-semibold underline"
               >
@@ -928,15 +992,23 @@ export default function MachotesPage() {
                       </button>
                       <button
                         type="button"
-                        onClick={async () => {
-                          if (!window.confirm(`¿Seguro que deseas eliminar la plantilla "${t.title}"?`)) return;
-                          try {
-                            const updated = await deleteCustomTemplate(t.id);
-                            setCustomTemplates(updated);
-                            setFeedback({ tone: 'success', message: 'Plantilla eliminada.' });
-                          } catch {
-                            setFeedback({ tone: 'error', message: 'No fue posible eliminar la plantilla.' });
-                          }
+                        onClick={() => {
+                          setConfirmDialog({
+                            title: 'Eliminar plantilla',
+                            message: `¿Seguro que deseas eliminar la plantilla "${t.title}"? Esta acción no se puede deshacer.`,
+                            confirmLabel: 'Eliminar',
+                            isDanger: true,
+                            onConfirm: async () => {
+                              setConfirmDialog(null);
+                              try {
+                                const updated = await deleteCustomTemplate(t.id);
+                                setCustomTemplates(updated);
+                                setFeedback({ tone: 'success', message: 'Plantilla eliminada.' });
+                              } catch {
+                                setFeedback({ tone: 'error', message: 'No fue posible eliminar la plantilla.' });
+                              }
+                            },
+                          });
                         }}
                         className="machote-btn-secondary"
                         style={{ fontSize: '0.85rem', padding: '0.35rem 0.65rem', color: '#f87171' }}
@@ -951,6 +1023,17 @@ export default function MachotesPage() {
           </div>
         )}
       </main>
+      {confirmDialog && (
+        <ConfirmDialog
+          isOpen
+          title={confirmDialog.title}
+          message={confirmDialog.message}
+          confirmLabel={confirmDialog.confirmLabel}
+          isDanger={confirmDialog.isDanger}
+          onConfirm={confirmDialog.onConfirm}
+          onCancel={() => setConfirmDialog(null)}
+        />
+      )}
     </>
   );
 }

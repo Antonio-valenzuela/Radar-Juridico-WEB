@@ -213,6 +213,8 @@ export default function BulletinWatchPanel({ matterId, caseNumber, matter, court
   const [importUrl, setImportUrl] = useState('');
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importPreview, setImportPreview] = useState<ImportPreview | null>(null);
+  const [noteEntryId, setNoteEntryId] = useState<string | null>(null);
+  const [noteText, setNoteText] = useState('');
 
   const [entriesPage, setEntriesPage] = useState(1);
   const [historyPage, setHistoryPage] = useState(1);
@@ -269,21 +271,44 @@ export default function BulletinWatchPanel({ matterId, caseNumber, matter, court
   };
 
   const updateEntry = async (entryId: string, action: 'review' | 'actuation' | 'notes') => {
-    const notes = action === 'notes' ? window.prompt('Notas de revisión (opcional):') : undefined;
-    if (action === 'notes' && notes === null) return;
+    if (action === 'notes') {
+      setNoteEntryId(entryId);
+      setNoteText('');
+      return;
+    }
     setBusy(true);
     try {
       const response = await adminFetch(`/api/legal/cases/${matterId}/bulletin/entry`, {
-        method: 'POST', body: JSON.stringify({ entryId, action, ...(notes !== undefined ? { notes } : {}) }),
+        method: 'POST', body: JSON.stringify({ entryId, action }),
       });
       const next = await response.json() as { message?: string };
       if (!response.ok) throw new Error(next.message || 'No fue posible actualizar la publicación.');
-      setMessage(action === 'review' ? 'Publicación marcada como revisada.' : action === 'actuation' ? 'Actuación agregada al expediente.' : 'Notas guardadas.');
+      setMessage(action === 'review' ? 'Publicación marcada como revisada.' : 'Actuación agregada al expediente.');
       await load();
     } catch (error) {
       setMessage(error instanceof Error && error.message === 'ADMIN_TOKEN_REQUIRED'
         ? 'Ingresa el token administrativo para ejecutar esta acción.'
         : 'No fue posible actualizar la publicación.');
+    } finally { setBusy(false); }
+  };
+
+  const submitNote = async () => {
+    if (!noteEntryId) return;
+    setBusy(true);
+    try {
+      const response = await adminFetch(`/api/legal/cases/${matterId}/bulletin/entry`, {
+        method: 'POST', body: JSON.stringify({ entryId: noteEntryId, action: 'notes', notes: noteText }),
+      });
+      const next = await response.json() as { message?: string };
+      if (!response.ok) throw new Error(next.message || 'No fue posible guardar las notas.');
+      setNoteEntryId(null);
+      setNoteText('');
+      setMessage('Notas guardadas.');
+      await load();
+    } catch (error) {
+      setMessage(error instanceof Error && error.message === 'ADMIN_TOKEN_REQUIRED'
+        ? 'Ingresa el token administrativo para ejecutar esta acción.'
+        : 'No fue posible guardar las notas.');
     } finally { setBusy(false); }
   };
 
@@ -476,6 +501,21 @@ export default function BulletinWatchPanel({ matterId, caseNumber, matter, court
           <button type="button" className="btn-doc-secondary" onClick={() => void updateEntry(entry.id, 'actuation')} disabled={busy || Boolean(entry.actuation)}>Agregar como actuación</button>
           <button type="button" className="btn-doc-secondary" onClick={() => void updateEntry(entry.id, 'notes')} disabled={busy}>Guardar notas</button>
         </div>
+        {noteEntryId === entry.id && (
+          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', marginTop: '0.5rem' }}>
+            <input
+              type="text"
+              value={noteText}
+              onChange={(e) => setNoteText(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') void submitNote(); if (e.key === 'Escape') setNoteEntryId(null); }}
+              placeholder="Escribe la nota de revisión..."
+              style={{ flex: 1 }}
+              autoFocus
+            />
+            <button type="button" className="btn-doc-secondary" onClick={() => void submitNote()} disabled={busy}>Guardar</button>
+            <button type="button" className="btn-doc-secondary" onClick={() => setNoteEntryId(null)}>Cancelar</button>
+          </div>
+        )}
       </article>)}
 
       {totalEntriesPages > 1 && (

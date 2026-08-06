@@ -36,8 +36,8 @@ export async function resolveTenant(params: {
     });
   }
 
-  const slug = "demo";
-  const name = "Radar Jurídico Demo";
+  const slug = normalizeOrgSlug(params.orgSlug);
+  const name = params.orgName?.trim() || slug;
 
   let org = await prisma.organization.findUnique({ where: { slug } });
   if (!org) {
@@ -58,7 +58,7 @@ export async function resolveTenant(params: {
       data: {
         orgId: org.id,
         userId: user.id,
-        role: "owne" + "r",
+        role: "owner",
       }
     });
   }
