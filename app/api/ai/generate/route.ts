@@ -28,6 +28,8 @@ export async function POST(req: NextRequest) {
       taskType = "general",
       contextMode = "none",
       activeDocument,
+      activeCase,
+      activeBulletin,
       retrievedSources = [],
     } = payload;
 
@@ -40,6 +42,8 @@ export async function POST(req: NextRequest) {
 
     const legalContext = {
       ...(activeDocument || {}),
+      ...(activeCase ? { activeCase } : {}),
+      ...(activeBulletin ? { activeBulletin } : {}),
       ...(payload.pageContext ? { pageContext: payload.pageContext } : {}),
     };
 

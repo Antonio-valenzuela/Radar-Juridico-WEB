@@ -1,45 +1,45 @@
 :root {
-  /* ── Colores de marca Apple HIG ── */
-  --primary:        #007AFF;
-  --primary-hover:  #0062CC;
-  --primary-active: #004999;
-  --accent:         #34C759;
-  --accent-hover:   #28A745;
+  /* Paleta formal: azul marino, grises neutros, acentos sobrios */
+  --primary:        #0B2545; /* azul marino */
+  --primary-hover:  #081d39;
+  --primary-active: #06142a;
+  --accent:         #7A2B2B; /* burdeos suave para acentos */
+  --accent-hover:   #5f2222;
 
-  /* ── Superficies Luminosas Apple ── */
-  --background:      #F5F5F7;
+  /* Superficies neutras */
+  --background:      #F3F4F6; /* gris muy claro */
   --surface:         #FFFFFF;
-  --surface-muted:   #FAFAFC;
+  --surface-muted:   #F8FAFC;
   --surface-elevated:#FFFFFF;
-  --surface-overlay: rgba(0, 0, 0, 0.04);
+  --surface-overlay: rgba(11, 37, 69, 0.04);
 
-  /* ── Tipografía Apple HIG Alto Contraste ── */
-  --text-primary:   #111827;
-  --text-secondary: #374151;
-  --text-muted:     #4B5563;
-  --text-main:      #111827;
+  /* Tipografía: mayor contraste y legibilidad */
+  --text-primary:   #0B1220; /* casi negro, menos puro para menor brillo */
+  --text-secondary: #1F2937;
+  --text-muted:     #475569;
+  --text-main:      #0B1220;
   --text-on-primary:#FFFFFF;
 
-  /* ── Bordes Sutiles Apple ── */
-  --border:        rgba(0, 0, 0, 0.08);
-  --border-strong: rgba(0, 0, 0, 0.14);
-  --border-focus:  #007AFF;
+  /* Bordes y focos */
+  --border:        rgba(11, 37, 69, 0.08);
+  --border-strong: rgba(11, 37, 69, 0.14);
+  --border-focus:  #0B2545;
   --card-bg:       #FFFFFF;
-  --card-border:   rgba(0, 0, 0, 0.08);
+  --card-border:   rgba(11, 37, 69, 0.08);
 
-  /* ── Estado Apple ── */
-  --success:     #34C759;
-  --success-bg:  rgba(52, 199, 89, 0.12);
-  --warning:     #FF9F0A;
-  --warning-bg:  rgba(255, 159, 10, 0.12);
-  --danger:      #FF453A;
-  --danger-bg:   rgba(255, 69, 58, 0.12);
-  --error:       #FF453A;
-  --error-bg:    rgba(255, 69, 58, 0.12);
-  --info:        #007AFF;
-  --info-bg:     rgba(0, 122, 255, 0.10);
-  --disabled:    rgba(0, 0, 0, 0.20);
-  --focus:       #007AFF;
+  /* Estados */
+  --success:     #0F5132; /* verde sobrio */
+  --success-bg:  rgba(15, 81, 50, 0.12);
+  --warning:     #B45309;
+  --warning-bg:  rgba(180, 83, 9, 0.12);
+  --danger:      #991B1B;
+  --danger-bg:   rgba(153, 27, 27, 0.12);
+  --error:       #991B1B;
+  --error-bg:    rgba(153, 27, 27, 0.12);
+  --info:        #0B2545;
+  --info-bg:     rgba(11, 37, 69, 0.10);
+  --disabled:    rgba(11, 37, 69, 0.20);
+  --focus:       #0B2545;
 
   /* ── Espaciado (grid 8px) ── */
   --space-1:  4px;

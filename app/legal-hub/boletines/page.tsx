@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { useLegalWorkspaceContext } from '@/context/LegalWorkspaceContext';
 
 type OfficialSource = {
   id: string;
@@ -68,6 +69,8 @@ export default function BulletinTrackingPage() {
   const [keywords, setKeywords] = useState("");
   const [frequency, setFrequency] = useState<"diario" | "cada_6_horas" | "cada_12_horas" | "semanal">("diario");
   const [submitting, setSubmitting] = useState(false);
+
+  const { setActiveBulletin, clearActiveBulletin, setContextMode, setPageTitle } = useLegalWorkspaceContext();
 
   // Execution & Matches Modal State
   const [runningId, setRunningId] = useState<string | null>(null);
@@ -236,6 +239,13 @@ export default function BulletinTrackingPage() {
 
   async function handleViewMatches(sub: BulletinSubscription) {
     setSelectedSubForMatches(sub);
+    setActiveBulletin({
+      subscriptionId: sub.id,
+      expediente: sub.expediente || '',
+      sourceId: sub.sourceId,
+      sourceName: sub.source?.name || '',
+    });
+    setContextMode('current_bulletin');
     setMatchesLoading(true);
     try {
       const res = await fetch(`/api/bulletins/subscriptions/${sub.id}/results`);
@@ -249,6 +259,21 @@ export default function BulletinTrackingPage() {
       setMatchesLoading(false);
     }
   }
+
+  // Cerrar modal con Escape
+  useEffect(() => {
+    setPageTitle('Boletines Judiciales');
+  }, [setPageTitle]);
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setSelectedSubForMatches(null);
+    }
+    if (selectedSubForMatches) {
+      window.addEventListener("keydown", onKey);
+      return () => window.removeEventListener("keydown", onKey);
+    }
+  }, [selectedSubForMatches]);
 
   async function handleMarkAllReviewed() {
     if (!selectedSubForMatches) return;
@@ -527,8 +552,21 @@ export default function BulletinTrackingPage() {
 
         {/* Modal / Panel de Coincidencias */}
         {selectedSubForMatches && (
-          <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.75)", zIndex: 1000, display: "flex", justifyContent: "center", alignItems: "center", padding: "1rem" }}>
-            <div className="glass-card" style={{ width: "100%", maxWidth: "800px", maxHeight: "85vh", overflowY: "auto", padding: "1.5rem" }}>
+          <div
+            onClick={() => {
+              setSelectedSubForMatches(null);
+              clearActiveBulletin();
+              setContextMode('none');
+            }}
+            style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.75)", zIndex: 1000, display: "flex", justifyContent: "center", alignItems: "center", padding: "1rem" }}
+          >
+            <div
+              className="glass-card"
+              onClick={(e) => e.stopPropagation()}
+              role="dialog"
+              aria-modal="true"
+              style={{ width: "100%", maxWidth: "800px", maxHeight: "85vh", overflowY: "auto", padding: "1.5rem", position: "relative" }}
+            >
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem", borderBottom: "1px solid var(--card-border)", paddingBottom: "0.75rem" }}>
                 <div>
                   <h2 style={{ margin: 0 }}>📊 Coincidencias de Boletín</h2>
@@ -538,8 +576,23 @@ export default function BulletinTrackingPage() {
                 </div>
                 <button
                   type="button"
-                  onClick={() => setSelectedSubForMatches(null)}
-                  style={{ background: "transparent", border: "none", color: "white", fontSize: "1.5rem", cursor: "pointer" }}
+                  onClick={() => {
+                    setSelectedSubForMatches(null);
+                    clearActiveBulletin();
+                    setContextMode('none');
+                  }}
+                  aria-label="Cerrar coincidencias"
+                  title="Cerrar"
+                  style={{
+                    background: "transparent",
+                    border: "none",
+                    color: "var(--text-primary)",
+                    fontSize: "1.25rem",
+                    cursor: "pointer",
+                    padding: "0.25rem",
+                    borderRadius: "6px",
+                    transition: "background-color 0.12s",
+                  }}
                 >
                   ✕
                 </button>

@@ -5,6 +5,13 @@ import { usePathname } from "next/navigation";
 
 export type ContextMode = "current_document" | "current_case" | "current_bulletin" | "none";
 
+export interface LegalWorkspacePageContext {
+  route: string;
+  module: string;
+  pageTitle?: string;
+  pageLabel: string;
+}
+
 export interface LegalWorkspaceDocumentContext {
   draftId?: string;
   templateId?: string;
@@ -39,6 +46,7 @@ export interface LegalWorkspaceBulletinContext {
 interface LegalWorkspaceContextType {
   route: string;
   module: string;
+  pageContext: LegalWorkspacePageContext;
   contextMode: ContextMode;
   activeDocument: LegalWorkspaceDocumentContext | null;
   activeCase: LegalWorkspaceCaseContext | null;
@@ -48,7 +56,10 @@ interface LegalWorkspaceContextType {
   updateDocumentFields: (fields: Record<string, any>, previewText?: string, pendingMarkers?: string[]) => void;
   clearActiveDocument: () => void;
   setActiveCase: (caseCtx: LegalWorkspaceCaseContext | null) => void;
+  clearActiveCase: () => void;
   setActiveBulletin: (bulletinCtx: LegalWorkspaceBulletinContext | null) => void;
+  clearActiveBulletin: () => void;
+  setPageTitle: (title: string) => void;
 }
 
 const LegalWorkspaceContext = createContext<LegalWorkspaceContextType | undefined>(undefined);
@@ -64,9 +75,38 @@ function detectModuleFromPath(pathname: string): string {
   return "general";
 }
 
+function detectPageLabel(pathname: string): string {
+  if (pathname === "/" || pathname === "" || pathname === "/index") return "Dashboard";
+  if (pathname.includes("/legal-hub/machotes")) return "Generador de Machotes";
+  if (pathname.includes("/legal-hub/boletines")) return "Boletines Judiciales";
+  if (pathname.includes("/legal-hub/expedientes")) return "Gestión de Expedientes";
+  if (pathname.includes("/search")) return "Búsqueda Legal";
+  if (pathname.includes("/jurisprudencia")) return "Jurisprudencia";
+  if (pathname.includes("/leyes")) return "Leyes";
+  if (pathname.includes("/documents") || pathname.includes("/items")) return "Documentos";
+  return "Pantalla legal";
+}
+
 export function LegalWorkspaceProvider({ children }: { children: React.ReactNode }) {
   const pathname = usePathname() || "";
   const currentModule = detectModuleFromPath(pathname);
+
+  const [pageTitle, setPageTitleState] = useState('');
+  const [pageContext, setPageContext] = useState<LegalWorkspacePageContext>(() => ({
+    route: pathname,
+    module: currentModule,
+    pageTitle: '',
+    pageLabel: detectPageLabel(pathname),
+  }));
+
+  useEffect(() => {
+    setPageContext({
+      route: pathname,
+      module: currentModule,
+      pageTitle: typeof document !== 'undefined' ? document.title : pageTitle,
+      pageLabel: detectPageLabel(pathname),
+    });
+  }, [pathname, currentModule, pageTitle]);
 
   const [activeDocument, setActiveDocumentState] = useState<LegalWorkspaceDocumentContext | null>(() => {
     try {
@@ -101,7 +141,7 @@ export function LegalWorkspaceProvider({ children }: { children: React.ReactNode
     });
 
     if (doc) {
-      setContextModeState("current_document");
+      setContextModeState('current_document');
       try {
         sessionStorage.setItem("juridico_active_draft", JSON.stringify(doc));
       } catch {}
@@ -146,38 +186,64 @@ export function LegalWorkspaceProvider({ children }: { children: React.ReactNode
     if (caseCtx) setContextModeState('current_case');
   }, []);
 
+  const clearActiveCase = useCallback(() => {
+    setActiveCaseState(null);
+    setContextModeState('none');
+  }, []);
+
   const setActiveBulletin = useCallback((bulletinCtx: LegalWorkspaceBulletinContext | null) => {
     setActiveBulletinState(bulletinCtx);
     if (bulletinCtx) setContextModeState('current_bulletin');
   }, []);
 
-  const contextValue = useMemo(() => ({
-    route: pathname,
-    module: currentModule,
-    contextMode,
-    activeDocument,
-    activeCase,
-    activeBulletin,
-    setContextMode,
-    setActiveDocument,
-    updateDocumentFields,
-    clearActiveDocument,
-    setActiveCase,
-    setActiveBulletin,
-  }), [
-    pathname,
-    currentModule,
-    contextMode,
-    activeDocument,
-    activeCase,
-    activeBulletin,
-    setContextMode,
-    setActiveDocument,
-    updateDocumentFields,
-    clearActiveDocument,
-    setActiveCase,
-    setActiveBulletin,
-  ]);
+  const clearActiveBulletin = useCallback(() => {
+    setActiveBulletinState(null);
+    setContextModeState('none');
+  }, []);
+
+  const setPageTitle = useCallback((title: string) => {
+    setPageTitleState(title);
+    setPageContext((prev) => ({ ...prev, pageTitle: title }));
+  }, []);
+
+  const contextValue = useMemo(
+    () => ({
+      route: pathname,
+      module: currentModule,
+      pageContext,
+      contextMode,
+      activeDocument,
+      activeCase,
+      activeBulletin,
+      setContextMode,
+      setActiveDocument,
+      updateDocumentFields,
+      clearActiveDocument,
+      setActiveCase,
+      clearActiveCase,
+      setActiveBulletin,
+      clearActiveBulletin,
+      setPageTitle,
+    }),
+    [
+      pathname,
+      currentModule,
+      pageContext,
+      contextMode,
+      activeDocument,
+      activeCase,
+      activeBulletin,
+      setContextMode,
+      setActiveDocument,
+      updateDocumentFields,
+      clearActiveDocument,
+      setActiveCase,
+      clearActiveCase,
+      setActiveBulletin,
+      clearActiveBulletin,
+      setPageTitle,
+    ]
+  );
 
   return (
     <LegalWorkspaceContext.Provider value={contextValue}>
@@ -192,6 +258,7 @@ export function useLegalWorkspaceContext() {
     return {
       route: "",
       module: "general",
+      pageContext: { route: "", module: "general", pageLabel: "general" },
       contextMode: "none" as ContextMode,
       activeDocument: null,
       activeCase: null,
@@ -201,7 +268,10 @@ export function useLegalWorkspaceContext() {
       updateDocumentFields: () => {},
       clearActiveDocument: () => {},
       setActiveCase: () => {},
+      clearActiveCase: () => {},
       setActiveBulletin: () => {},
+      clearActiveBulletin: () => {},
+      setPageTitle: () => {},
     };
   }
   return context;

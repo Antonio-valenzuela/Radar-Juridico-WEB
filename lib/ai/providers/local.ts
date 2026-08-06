@@ -24,8 +24,21 @@ export class LocalProvider implements AIProvider {
       message.includes("sección");
 
     let content = "Análisis legal preliminar generado localmente por Jurídico Radar.\n\n";
+    const activeCase = request.legalContext?.activeCase || null;
+    const activeBulletin = request.legalContext?.activeBulletin || null;
 
-    if (isPageQuery) {
+    if (activeCase && message.includes('expediente')) {
+      content =
+        `📌 Estás sobre un expediente activo: ${activeCase.expedienteNumber || activeCase.caseId || 'Sin número'}.\n` +
+        `Materia: ${activeCase.matter || 'No definida'}.\n` +
+        `Órgano: ${activeCase.court || 'No especificado'}.\n` +
+        `Puedo ayudarte a revisar plazos, partes y argumentos según ese expediente.`;
+    } else if (activeBulletin && message.includes('boletín')) {
+      content =
+        `📌 Estás trabajando con un boletín judicial activo (${activeBulletin.sourceName || activeBulletin.subscriptionId}).\n` +
+        `Expediente: ${activeBulletin.expediente || 'No definido'}.\n` +
+        `Puedo ayudarte a contextualizar búsquedas y resultados en ese boletín.`;
+    } else if (isPageQuery) {
       if (route === "/" || route === "" || route === "/index") {
         content =
           "📌 **Resumen de la pantalla actual (Dashboard / Inteligencia Regulatoria)**:\n\n" +
