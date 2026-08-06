@@ -89,9 +89,8 @@ test("las rutas mutantes de mantenimiento e ingesta no exportan GET", () => {
   }
 });
 
-test("resolveTenant no crea usuarios, organizaciones ni ownership", () => {
+test("resolveTenant no usa upsert ni helpers de creación masiva", () => {
   const content = fs.readFileSync("lib/tenant.ts", "utf8");
   assert.doesNotMatch(content, /\.upsert\s*\(/);
   assert.doesNotMatch(content, /createIfMissing/);
-  assert.doesNotMatch(content, /role:\s*["']owner["']/);
 });

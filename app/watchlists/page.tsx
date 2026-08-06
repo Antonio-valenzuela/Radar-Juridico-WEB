@@ -1,7 +1,8 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
-import { adminFetch, getAdminToken, setAdminToken } from "@/lib/client/adminToken";
+import { adminFetch, clearAdminToken, getAdminToken, setAdminToken } from "@/lib/client/adminToken";
+import { AdminTokenGate } from "@/components/shared/AdminTokenGate";
 
 type AlertRuleItem = {
   id: string;
@@ -30,7 +31,7 @@ const TYPE_LABELS: Record<string, string> = {
 
 export default function WatchlistsPage() {
   const [email, setEmail] = useState("");
-  const [orgSlug, setOrgSlug] = useState("demo");
+  const [orgSlug, setOrgSlug] = useState("");
   const [type, setType] = useState("keyword");
   const [value, setValue] = useState("");
   const [onlyHighImpact, setOnlyHighImpact] = useState(false);
@@ -80,12 +81,10 @@ export default function WatchlistsPage() {
     try {
       let token = getAdminToken();
       if (!token) {
-        const entered = window.prompt("Ingresa el token administrativo para gestionar alertas:");
-        if (entered === null) { setMessage("Ingresa el token administrativo para gestionar alertas."); return null; }
-        token = setAdminToken(entered);
-        setHasAdminToken(Boolean(token));
+        setHasAdminToken(false);
+        setMessage("Ingresa el token administrativo para gestionar alertas.");
+        return null;
       }
-      if (!token) { setMessage("Ingresa el token administrativo para gestionar alertas."); return null; }
       const res = await adminFetch("/api/watchlist", {
         method: "POST",
         body: JSON.stringify({ email, orgSlug, ...body }),
@@ -156,7 +155,7 @@ export default function WatchlistsPage() {
             <div className="alerts-account-grid">
               <label>
                 Organización
-                <input value={orgSlug} onChange={(event) => setOrgSlug(event.target.value)} placeholder="demo" />
+                <input value={orgSlug} onChange={(event) => setOrgSlug(event.target.value)} placeholder="tu-despacho" />
               </label>
               <label>
                 Correo
@@ -171,6 +170,10 @@ export default function WatchlistsPage() {
               {tenantLabel ? <span className="alerts-tenant">{tenantLabel}</span> : null}
               {!hasAdminToken ? <span className="document-muted">Se solicitará el token administrativo al consultar.</span> : null}
             </div>
+            
+            {!hasAdminToken && (
+              <AdminTokenGate context="para gestionar alertas" onTokenSaved={() => void loadList()} />
+            )}
 
             <label className="alerts-check">
               <input

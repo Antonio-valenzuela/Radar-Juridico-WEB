@@ -5,6 +5,8 @@ import Link from 'next/link';
 import BulletinWatchPanel from '@/app/components/BulletinWatchPanel';
 import { deadlineStatus, proceduralDateLabel, MEXICO_CITY_TIMEZONE } from '@/lib/cases/deadlineDates';
 import { adminFetch, getAdminToken, setAdminToken } from '@/lib/client/adminToken';
+import { AdminTokenGate } from '@/components/shared/AdminTokenGate';
+import { ConfirmDialog } from '@/components/shared/ConfirmDialog';
 
 interface Party {
   id: string;
@@ -97,6 +99,7 @@ export default function ExpedientesPage() {
   const [saving, setSaving] = useState(false);
   const [view, setView] = useState<'list' | 'form' | 'detail'>('list');
   const [selectedCase, setSelectedCase] = useState<CaseData | null>(null);
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [formValues, setFormValues] = useState<CaseForm>(emptyCase);
   const [activeTab, setActiveTab] = useState('general');
   const [searchTerm, setSearchTerm] = useState('');
@@ -125,12 +128,7 @@ export default function ExpedientesPage() {
   });
 
   const authorizedFetch = async (input: RequestInfo | URL, init: RequestInit = {}) => {
-    let token = getAdminToken();
-    if (!token) {
-      const entered = window.prompt('Ingresa el token administrativo para gestionar expedientes:');
-      if (entered === null) throw new Error('ADMIN_TOKEN_REQUIRED');
-      token = setAdminToken(entered);
-    }
+    const token = getAdminToken();
     if (!token) throw new Error('ADMIN_TOKEN_REQUIRED');
     return adminFetch(input, init);
   };
@@ -240,7 +238,12 @@ export default function ExpedientesPage() {
 
   const handleDeleteCase = async () => {
     if (!selectedCase?.id) return;
-    if (!window.confirm('¿Eliminar este expediente y todos sus registros asociados?')) return;
+    setConfirmDeleteOpen(true);
+  };
+
+  const doDeleteCase = async () => {
+    setConfirmDeleteOpen(false);
+    if (!selectedCase?.id) return;
     try {
       const response = await authorizedFetch(`/api/cases/${selectedCase.id}`, {
         method: 'DELETE',
@@ -394,6 +397,20 @@ export default function ExpedientesPage() {
             {message.text}
           </div>
         )}
+        {message && message.text.includes('token administrativo') && (
+          <AdminTokenGate context="para gestionar expedientes" onTokenSaved={() => void fetchCases()} />
+        )}
+        
+        <ConfirmDialog
+          isOpen={confirmDeleteOpen}
+          title="Eliminar expediente"
+          message="¿Eliminar este expediente y todos sus registros asociados? Esta acción no se puede deshacer."
+          confirmLabel="Eliminar"
+          cancelLabel="Cancelar"
+          isDanger
+          onConfirm={() => void doDeleteCase()}
+          onCancel={() => setConfirmDeleteOpen(false)}
+        />
 
         {view === 'list' && (
           <>

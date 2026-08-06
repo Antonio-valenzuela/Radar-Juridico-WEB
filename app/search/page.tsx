@@ -102,6 +102,7 @@ export default function SearchPage() {
   const [tasks, setTasks] = useState<TaskDef[]>([]);
   const [expandedQuery, setExpandedQuery] = useState<{ originalQuery: string; expandedTerms: string[]; relatedMaterias: string[] } | null>(null);
   const [searchMeta, setSearchMeta] = useState<{ timedOut: boolean; partial: boolean; failed: boolean }>({ timedOut: false, partial: false, failed: false });
+  const [enrichFeedback, setEnrichFeedback] = useState<{ tone: 'success' | 'error'; message: string } | null>(null);
 
   // Async RAG Report states
   const [reportJobId, setReportJobId] = useState<string | null>(null);
@@ -403,11 +404,10 @@ export default function SearchPage() {
   };
 
   const handleEnrich = async (itemId: string) => {
-    let token = getAdminToken();
-    const newToken = prompt('Ingresa el token de administrador:', token);
-    if (newToken === null) return;
-    if (newToken) {
-      token = setAdminToken(newToken);
+    const token = getAdminToken();
+    if (!token) {
+      setEnrichFeedback({ tone: 'error', message: 'Ingresa el token administrativo para enriquecer documentos.' });
+      return;
     }
 
     try {
@@ -422,7 +422,7 @@ export default function SearchPage() {
         throw new Error(data.error || 'Error al enriquecer');
       }
 
-      alert('¡Documento enriquecido con éxito!');
+      setEnrichFeedback({ tone: 'success', message: '¡Documento enriquecido con éxito!' });
       setResults(prev => prev.map(r => r.id === itemId && data.enrichment ? {
         ...r,
         aiMatter: data.enrichment.matter,
@@ -434,7 +434,7 @@ export default function SearchPage() {
         relatedTopics: data.enrichment.relatedTopics,
       } : r));
     } catch (err: any) {
-      alert(`Error: ${err.message}`);
+      setEnrichFeedback({ tone: 'error', message: `Error: ${err.message}` });
     }
   };
 
@@ -693,18 +693,15 @@ export default function SearchPage() {
                 try {
                   let token = getAdminToken();
                   if (!token) {
-                    const entered = window.prompt('Ingresa el token de administrador para crear alertas:');
-                    if (entered === null) throw new Error('ADMIN_TOKEN_REQUIRED');
-                    token = setAdminToken(entered);
+                    setAlertMessage('Ingresa el token administrativo para crear alertas.');
+                    return;
                   }
-                  if (!token) throw new Error('ADMIN_TOKEN_REQUIRED');
                   const type = query ? 'keyword' : 'tema';
                   const value = query || matter || 'general';
                   const res = await adminFetch('/api/watchlist', {
                     method: 'POST',
                     body: JSON.stringify({
                       email: alertEmail,
-                      orgSlug: 'demo',
                       action: 'add',
                       type,
                       value

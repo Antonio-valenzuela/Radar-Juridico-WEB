@@ -18,6 +18,7 @@ interface Item {
 
 export default function DocumentsCatalog({ initialItems }: { initialItems: Item[] }) {
   const [items] = useState<Item[]>(initialItems);
+  const [copiedUrl, setCopiedUrl] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [matterFilter, setMatterFilter] = useState('');
   const [sourceFilter, setSourceFilter] = useState('');
@@ -45,8 +46,10 @@ export default function DocumentsCatalog({ initialItems }: { initialItems: Item[
 
   const handleCopyUrl = (url: string) => {
     if (!url) return;
-    navigator.clipboard.writeText(url);
-    alert('Enlace oficial copiado al portapapeles.');
+    navigator.clipboard.writeText(url).then(() => {
+      setCopiedUrl(url);
+      setTimeout(() => setCopiedUrl(null), 2000);
+    }).catch(() => {});
   };
 
   const selectStyle = {
@@ -184,7 +187,7 @@ export default function DocumentsCatalog({ initialItems }: { initialItems: Item[
 
                   {item.url && (
                     <button type="button" onClick={() => handleCopyUrl(item.url!)} style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem', background: 'transparent', border: '1px solid var(--card-border)', color: '#cbd5e1', cursor: 'pointer', borderRadius: '8px' }}>
-                      Copiar URL
+                      {copiedUrl === item.url ? '¡Copiado!' : 'Copiar URL'}
                     </button>
                   )}
                 </div>
