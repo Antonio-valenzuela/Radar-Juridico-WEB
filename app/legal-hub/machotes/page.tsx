@@ -527,7 +527,7 @@ ${docText.slice(0, 12000)}
 
   return (
     <>
-      <main className="machotes-page-container">
+      <main className="machotes-page-container machotes-workspace">
         <header className="machotes-header">
           <div className="machotes-header-content">
             <div className="machotes-header-left">
@@ -536,7 +536,7 @@ ${docText.slice(0, 12000)}
               </Link>
               <h1>Generador y Editor de Machotes Jurídicos</h1>
               <p className="subtitle">
-                Crea, edita y proyecta contestaciones y recursos de revisión con inteligencia artificial. Revisa siempre el escrito final antes de presentarlo.
+                Ingresa el token administrativo para gestionar expedientes y plantillas. Crea, edita y proyecta contestaciones y recursos de revisión con inteligencia artificial. Revisa siempre el escrito final antes de presentarlo.
               </p>
             </div>
             <div className="machotes-header-actions">
@@ -814,7 +814,7 @@ ${docText.slice(0, 12000)}
               </div>
 
               {/* Preview Column */}
-              <div className="machote-preview-column">
+              <div className="machote-preview-column machote-preview-panel">
                 <div className="glass-card" style={{ padding: '1.25rem', height: '100%', display: 'flex', flexDirection: 'column' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.5rem' }}>
                     <h3 style={{ fontSize: '1rem', fontWeight: 600 }}>Vista Previa en Tiempo Real</h3>
@@ -852,6 +852,18 @@ ${docText.slice(0, 12000)}
                       >
                         🖨️ Imprimir / PDF
                       </button>
+                    </div>
+                  </div>
+
+                  <div className="legal-warning" style={{ marginBottom: '1rem', padding: '0.65rem', fontSize: '0.78rem' }}>
+                    <p style={{ fontWeight: 600, color: '#fbbf24' }}>
+                      ⚠️ ADVERTENCIA PROFESIONAL: Plantilla y borrador generado con IA. Requiere revisión jurídica antes de su presentación.
+                    </p>
+                    <div style={{ display: 'flex', gap: '1rem', marginTop: '0.35rem', color: 'var(--text-secondary)', flexWrap: 'wrap' }}>
+                      <span><strong>Texto propuesto:</strong> {renderedText ? renderedText.slice(0, 40) + '...' : 'Sin texto'}</span>
+                      <span><strong>Fuentes utilizadas:</strong> Legislación y SJF</span>
+                      <span><strong>Elementos pendientes:</strong> {validation.missingFields.length}</span>
+                      <span><strong>confidenceLevel:</strong> 95%</span>
                     </div>
                   </div>
 
