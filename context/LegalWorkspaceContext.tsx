@@ -92,21 +92,12 @@ export function LegalWorkspaceProvider({ children }: { children: React.ReactNode
   const currentModule = detectModuleFromPath(pathname);
 
   const [pageTitle, setPageTitleState] = useState('');
-  const [pageContext, setPageContext] = useState<LegalWorkspacePageContext>(() => ({
+  const pageContext = useMemo<LegalWorkspacePageContext>(() => ({
     route: pathname,
     module: currentModule,
-    pageTitle: '',
+    pageTitle: typeof document !== 'undefined' ? document.title : pageTitle,
     pageLabel: detectPageLabel(pathname),
-  }));
-
-  useEffect(() => {
-    setPageContext({
-      route: pathname,
-      module: currentModule,
-      pageTitle: typeof document !== 'undefined' ? document.title : pageTitle,
-      pageLabel: detectPageLabel(pathname),
-    });
-  }, [pathname, currentModule, pageTitle]);
+  }), [pathname, currentModule, pageTitle]);
 
   const [activeDocument, setActiveDocumentState] = useState<LegalWorkspaceDocumentContext | null>(() => {
     try {
@@ -203,7 +194,6 @@ export function LegalWorkspaceProvider({ children }: { children: React.ReactNode
 
   const setPageTitle = useCallback((title: string) => {
     setPageTitleState(title);
-    setPageContext((prev) => ({ ...prev, pageTitle: title }));
   }, []);
 
   const contextValue = useMemo(
