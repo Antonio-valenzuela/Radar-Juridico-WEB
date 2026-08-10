@@ -32,7 +32,6 @@ describe('Custom Templates API & Utilities', () => {
 
     it('rejects files larger than 15MB with status 413', async () => {
       const formData = new FormData();
-      // Create a Uint8Array buffer larger than 15MB (15MB + 100 bytes)
       const bigBuffer = new Uint8Array(15 * 1024 * 1024 + 100);
       const largeFile = new File([bigBuffer], 'giant.pdf', { type: 'application/pdf' });
       formData.append('file', largeFile);
@@ -89,6 +88,27 @@ POR TANTO, A USTED C. JUEZ RESUELVE CONFORME A DERECHO.`;
       expect(json.ok).toBe(true);
       expect(json.extractedText).toContain('DEMANDA DE AMPARO INDIRECTO');
       expect(json.classification.es_juridico).toBe(true);
+    });
+
+    it('accepts scanned PDFs with needsOcr=true and es_juridico=true', async () => {
+      const formData = new FormData();
+      // Dummy minimal PDF header that pdf-parse cannot extract > 50 chars from
+      const pdfHeader = '%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj 2 0 obj<</Type/Pages/Count 1/Kids[3 0 R]>>endobj 3 0 obj<</Type/Page/MediaBox[0 0 595 842]>>endobj\nxref\n0 4\n0000000000 65535 f\n0000000009 00000 n\n0000000052 00000 n\n0000000102 00000 n\ntrailer<</Size 4/Root 1 0 R>>\nstartxref\n149\n%%EOF';
+      const pdfFile = new File([pdfHeader], 'escaneado.pdf', { type: 'application/pdf' });
+      formData.append('file', pdfFile);
+
+      const req = new NextRequest('http://localhost/api/templates/analyze-upload', {
+        method: 'POST',
+        body: formData,
+      });
+
+      const res = await POST_analyzeUpload(req);
+      expect(res.status).toBe(200);
+      const json = await res.json();
+      expect(json.ok).toBe(true);
+      expect(json.needsOcr).toBe(true);
+      expect(json.classification.es_juridico).toBe(true);
+      expect(json.classification.tipo_documento).toContain('PDF escaneado');
     });
   });
 

@@ -75,9 +75,6 @@ export function SaveCustomTemplateModal({
         needsOcr: payload.needsOcr,
       });
       setDocumentContent(payload.extractedText || '');
-      if (payload.needsOcr) {
-        setError('El archivo PDF parece escaneado y puede requerir OCR. Se intentó extraer el texto directamente.');
-      }
     } catch (err: any) {
       setError(err.message || 'Error al analizar el archivo.');
     } finally {
@@ -94,14 +91,17 @@ export function SaveCustomTemplateModal({
       setError('Por favor escribe o pega el contenido de tu escrito o selecciona un archivo.');
       return;
     }
-    if (analysis && !analysis.es_juridico) {
+    if (analysis && !analysis.es_juridico && !analysis.needsOcr) {
       setError('El documento no parece un machote jurídico.');
       return;
     }
 
     setLoading(true);
     try {
-      const contentToUse = documentContent.trim() || `[MACHOTE PERSONALIZADO: ${title}]\n\nContenido base subido desde archivo: ${file?.name || 'Formato del litigante'}`;
+      const contentToUse = documentContent.trim() || (file?.name
+        ? `[MACHOTE DESDE DOCUMENTO ADJUNTO: ${title}]\n\nArchivo cargado: ${file.name}\n\nNota: Este machote fue registrado desde el archivo (${file.name}). Puedes editar este texto para agregar las cláusulas o apartados cuando lo requieras.`
+        : `[MACHOTE PERSONALIZADO: ${title}]`);
+
       const newTemplate = analysis?.structureJson && analysis.es_juridico
         ? buildTemplateFromStructure(title.trim(), category, legalBasis.trim(), analysis.structureJson, contentToUse, file?.name)
         : createTemplateFromText(title.trim(), category, legalBasis.trim(), contentToUse);
@@ -205,7 +205,9 @@ export function SaveCustomTemplateModal({
                   <p>Campos inferidos: {analysis.structureJson.campos.map((campo) => campo.etiqueta).join(', ')}</p>
                 ) : null}
                 {analysis.needsOcr && (
-                  <p style={{ color: '#b45309' }}>Este archivo parece necesitar OCR para extraer el texto completo.</p>
+                  <p style={{ color: '#047857', fontWeight: 500, marginTop: '0.25rem' }}>
+                    ✔ Archivo escaneado aceptado correctamente como machote. Puedes guardarlo directamente o pegar texto adicional si deseas edición.
+                  </p>
                 )}
               </div>
             ) : null}
