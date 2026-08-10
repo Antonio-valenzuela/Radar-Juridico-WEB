@@ -41,7 +41,12 @@ export default function MachotesPage() {
     onConfirm: () => void;
   } | null>(null);
 
-  // States for Contestations Tab
+  // States for Contestations & Resources Tab
+  const [resourceType, setResourceType] = useState('Amparo Directo en Revisión (SCJN)');
+  const [expedienteOrigen, setExpedienteOrigen] = useState('');
+  const [tribunalEmisor, setTribunalEmisor] = useState('');
+  const [fechaResolucion, setFechaResolucion] = useState('');
+  const [magistradoPonente, setMagistradoPonente] = useState('');
   const [contestationDocumentText, setContestationDocumentText] = useState('');
   const [contestationPrompt, setContestationPrompt] = useState('A mi archivo dame una contestación / recurso de revisión extraordinaria ante la sentencia de un amparo directo');
   const [contestationLoading, setContestationLoading] = useState(false);
@@ -50,6 +55,7 @@ export default function MachotesPage() {
     text: string;
     summary?: string;
   } | null>(null);
+  const [extractionWarning, setExtractionWarning] = useState<string | null>(null);
 
   useEffect(() => {
     const loadTemplates = async () => {
@@ -406,7 +412,7 @@ export default function MachotesPage() {
     }
   };
 
-  // Contestations Handlers
+  // Contestations & Resources Handlers
   const handleGenerateContestation = async () => {
     const docText = contestationDocumentText.trim() || renderedText;
     if (!docText) {
@@ -421,15 +427,30 @@ export default function MachotesPage() {
     setContestationLoading(true);
     setFeedback(null);
     try {
+      const fullPrompt = `
+TIPO DE RECURSO / CONTESTACIÓN: ${resourceType}
+DATOS DE ORIGEN DE TU EXPEDIENTE:
+- Expediente de origen: ${expedienteOrigen || 'Verificar en autos'}
+- Tribunal / Autoridad emisora: ${tribunalEmisor || 'Verificar en autos'}
+- Fecha de resolución: ${fechaResolucion || 'Verificar fecha'}
+- Magistrado ponente / Autoridad: ${magistradoPonente || 'Verificar ponente'}
+
+INSTRUCCIÓN ESPECÍFICA:
+${contestationPrompt.trim()}
+
+DOCUMENTO BASE DE LA SENTENCIA O DEMANDA:
+${docText.slice(0, 12000)}
+`;
+
       const response = await fetch('/api/ai/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          message: `${contestationPrompt.trim()}\n\nDOCUMENTO BASE ADJUNTO:\n${docText.slice(0, 12000)}`,
+          message: fullPrompt,
           mode: 'deep',
           taskType: 'document_review',
           activeDocument: {
-            templateName: selectedTemplate.title,
+            templateName: `${resourceType} - ${expedienteOrigen || 'Origen'}`,
             content: docText.slice(0, 10000),
           },
         }),
@@ -448,18 +469,21 @@ export default function MachotesPage() {
         generatedText += payload.data.suggestedText + '\n\n';
       }
       if (payload.data?.issues?.length) {
-        generatedText += '--- PUNTOS Y RECOMENDACIONES CLAVE ---\n' + payload.data.issues.map((i: any) => `• ${i.title}: ${i.suggestedText || i.explanation}`).join('\n') + '\n\n';
+        const issuesText = payload.data.issues.map((i: any) => `• ${i.title}: ${i.suggestedText || i.explanation}`).join('\n');
+        if (!generatedText.includes(issuesText)) {
+          generatedText += '--- OBSERVACIONES Y AGRAVIOS CLAVE ---\n' + issuesText + '\n\n';
+        }
       }
       if (!generatedText) {
         generatedText = typeof payload.data === 'string' ? payload.data : JSON.stringify(payload.data, null, 2);
       }
 
       setContestationResult({
-        title: `Contestación / Estrategia - ${selectedTemplate.title || 'Documento Personalizado'}`,
+        title: `${resourceType} - ${expedienteOrigen || 'Expediente'}`,
         text: generatedText.trim(),
-        summary: payload.data?.summary || 'Contestación y análisis generado exitosamente.',
+        summary: payload.data?.summary || 'Recurso / Contestación generado exitosamente.',
       });
-      setFeedback({ tone: 'success', message: '¡Contestación / Estrategia legal generada con éxito por la IA!' });
+      setFeedback({ tone: 'success', message: '¡Recurso / Contestación legal proyectado con éxito por la IA!' });
     } catch (err: any) {
       setFeedback({ tone: 'error', message: err.message || 'Ocurrió un error al procesar con IA.' });
     } finally {
@@ -470,13 +494,13 @@ export default function MachotesPage() {
   const handleSaveContestationAsTemplate = async () => {
     if (!contestationResult?.text) return;
     try {
-      const title = `Contestación - ${selectedTemplate.title || 'Escrito'} (${new Date().toLocaleDateString('es-MX')})`;
-      const newTemplate = createTemplateFromText(title, selectedTemplate.category || 'General', 'Ley de Amparo / Código Procesal', contestationResult.text);
+      const title = `${resourceType} - ${expedienteOrigen || 'Expediente'} (${new Date().toLocaleDateString('es-MX')})`;
+      const newTemplate = createTemplateFromText(title, 'Amparo', 'Ley de Amparo / CPH', contestationResult.text);
       const saved = await saveCustomTemplate(newTemplate);
       setCustomTemplates((prev) => [saved, ...prev]);
-      setFeedback({ tone: 'success', message: `Contestación guardada como plantilla en "Mis Plantillas".` });
+      setFeedback({ tone: 'success', message: `Guardado como plantilla reutilizable en "Mis Plantillas".` });
     } catch (err: any) {
-      setFeedback({ tone: 'error', message: 'No se pudo guardar la contestación como plantilla.' });
+      setFeedback({ tone: 'error', message: 'No se pudo guardar la plantilla.' });
     }
   };
 
@@ -485,6 +509,7 @@ export default function MachotesPage() {
     try {
       const { exportToDocx } = await import('@/lib/templates/exportDocx');
       const doc = renderToDocument(selectedTemplate, values);
+      doc.title = contestationResult.title;
       doc.body = contestationResult.text;
       const buffer = await exportToDocx(doc);
       const blob = new Blob([buffer as any], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
@@ -494,7 +519,7 @@ export default function MachotesPage() {
       a.download = `${contestationResult.title.replace(/[^a-zA-Z0-9_-]/g, '_')}.docx`;
       a.click();
       URL.revokeObjectURL(url);
-      setFeedback({ tone: 'success', message: 'DOCX descargado correctamente.' });
+      setFeedback({ tone: 'success', message: 'Archivo Word (.docx) descargado.' });
     } catch {
       setFeedback({ tone: 'error', message: 'Error al exportar DOCX.' });
     }
@@ -511,7 +536,7 @@ export default function MachotesPage() {
               </Link>
               <h1>Generador y Editor de Machotes Jurídicos</h1>
               <p className="subtitle">
-                Crea, edita y genera contestaciones con inteligencia artificial. Revisa siempre el escrito final antes de presentarlo.
+                Crea, edita y proyecta contestaciones y recursos de revisión con inteligencia artificial. Revisa siempre el escrito final antes de presentarlo.
               </p>
             </div>
             <div className="machotes-header-actions">
@@ -556,7 +581,7 @@ export default function MachotesPage() {
               className={activeTab === 'generator' ? 'machote-btn-primary' : 'machote-btn-secondary'}
               style={{ fontSize: '0.9rem', padding: '0.4rem 1rem' }}
             >
-              📄 Generador de Escritos
+              📄 Generador de Escritos Iniciales
             </button>
             <button
               type="button"
@@ -564,7 +589,7 @@ export default function MachotesPage() {
               className={activeTab === 'contestations' ? 'machote-btn-primary' : 'machote-btn-secondary'}
               style={{ fontSize: '0.9rem', padding: '0.4rem 1rem', background: activeTab === 'contestations' ? 'linear-gradient(135deg, #2563eb, #7c3aed)' : undefined, border: 'none' }}
             >
-              ⚖️ Contestaciones y Estrategia con IA
+              ⚖️ Contestaciones, Recursos y Agravios con IA
             </button>
             <button
               type="button"
@@ -873,31 +898,110 @@ export default function MachotesPage() {
           </>
         )}
 
-        {/* Contestations & Strategy Tab View */}
+        {/* Contestations & Resources Tab View */}
         {activeTab === 'contestations' && (
           <div className="contestations-container" style={{ marginTop: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
             <div className="glass-card" style={{ padding: '1.5rem', border: '1px solid rgba(255,255,255,0.1)' }}>
               <h2 style={{ fontSize: '1.3rem', fontWeight: 600, marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                ⚖️ Generador de Contestaciones y Recursos con IA
+                ⚖️ Módulo Especializado de Contestaciones, Recursos y Agravios
               </h2>
               <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', marginBottom: '1.25rem' }}>
-                Carga o pega la sentencia, demanda o acuerdo de tu expediente y escribe la indicación. La IA generará la contestación completa con agravios, preceptos legales y puntos petitorios.
+                Diseñado para recursos contra sentencias o contestación de demandas. Ingresa los datos del expediente de origen y adjunta la sentencia como fuente de verdad.
               </p>
 
+              {/* Step 1: Select Resource Type & Origin Case Fields */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '1rem', marginBottom: '1.25rem' }}>
+                <div style={{ gridColumn: 'span 2' }}>
+                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.35rem' }}>
+                    Tipo de Recurso / Contestación *
+                  </label>
+                  <select
+                    value={resourceType}
+                    onChange={(e) => setResourceType(e.target.value)}
+                    className="machote-input-control"
+                    style={{ fontSize: '0.85rem' }}
+                  >
+                    <option value="Amparo Directo en Revisión (SCJN)">🏛️ Amparo Directo en Revisión (SCJN)</option>
+                    <option value="Recurso de Queja (Ley de Amparo)">⚖️ Recurso de Queja (Ley de Amparo)</option>
+                    <option value="Recurso de Reclamación">📜 Recurso de Reclamación</option>
+                    <option value="Contestación a Demanda Laboral Burocrática">💼 Contestación a Demanda Laboral Burocrática</option>
+                    <option value="Contestación a Demanda Civil / Mercantil">🏛️ Contestación a Demanda Civil / Mercantil</option>
+                    <option value="Incidente Procesal / Excepciones">🛡️ Incidente Procesal / Excepciones</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.35rem' }}>
+                    Expediente de Origen
+                  </label>
+                  <input
+                    type="text"
+                    value={expedienteOrigen}
+                    onChange={(e) => setExpedienteOrigen(e.target.value)}
+                    placeholder="Ej. 800/2024"
+                    className="machote-input-control"
+                    style={{ fontSize: '0.85rem' }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.35rem' }}>
+                    Fecha de Resolución
+                  </label>
+                  <input
+                    type="text"
+                    value={fechaResolucion}
+                    onChange={(e) => setFechaResolucion(e.target.value)}
+                    placeholder="Ej. 15 de abril de 2026"
+                    className="machote-input-control"
+                    style={{ fontSize: '0.85rem' }}
+                  />
+                </div>
+
+                <div style={{ gridColumn: 'span 2' }}>
+                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.35rem' }}>
+                    Tribunal o Autoridad Emisora
+                  </label>
+                  <input
+                    type="text"
+                    value={tribunalEmisor}
+                    onChange={(e) => setTribunalEmisor(e.target.value)}
+                    placeholder="Ej. 2do Tribunal Colegiado en Materia de Trabajo del 3er Circuito"
+                    className="machote-input-control"
+                    style={{ fontSize: '0.85rem' }}
+                  />
+                </div>
+
+                <div style={{ gridColumn: 'span 2' }}>
+                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.35rem' }}>
+                    Magistrado Ponente / Juez
+                  </label>
+                  <input
+                    type="text"
+                    value={magistradoPonente}
+                    onChange={(e) => setMagistradoPonente(e.target.value)}
+                    placeholder="Ej. Luis Ávalos García"
+                    className="machote-input-control"
+                    style={{ fontSize: '0.85rem' }}
+                  />
+                </div>
+              </div>
+
+              {/* Step 2: Source Document & Instruction */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem', marginBottom: '1.25rem' }}>
                 <div>
                   <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.35rem' }}>
-                    1. Texto o Documento Base de tu Expediente
+                    Sentencia o Demanda Impugnada (Fuente de Verdad)
                   </label>
                   <textarea
                     value={contestationDocumentText}
                     onChange={(e) => setContestationDocumentText(e.target.value)}
                     rows={8}
-                    placeholder="Pega aquí la sentencia, demanda, laudo o texto de tu archivo (ej. Amparo Directo 800/2024)... Si lo dejas en blanco, usará el machote o borrador activo."
+                    placeholder="Pega aquí el texto completo o extracto de la sentencia/demanda (ej. Amparo Directo 800/2024)... El sistema usará este archivo real sin recurrir a datos ficticios."
                     className="machote-input-control"
                     style={{ fontSize: '0.85rem' }}
                   />
-                  <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
+                  <div style={{ marginTop: '0.5rem' }}>
                     <input
                       type="file"
                       accept=".pdf,.docx,.txt"
@@ -905,6 +1009,7 @@ export default function MachotesPage() {
                         const file = e.target.files?.[0];
                         if (!file) return;
                         setContestationLoading(true);
+                        setExtractionWarning(null);
                         try {
                           const formData = new FormData();
                           formData.append('file', file);
@@ -912,9 +1017,13 @@ export default function MachotesPage() {
                           const data = await res.json();
                           if (data.extractedText) {
                             setContestationDocumentText(data.extractedText);
-                            setFeedback({ tone: 'success', message: `Texto de ${file.name} extraído correctamente.` });
+                            if (data.needsOcr) {
+                              setExtractionWarning(`⚠️ Extracción de texto de ${file.name} marcada como PDF escaneado. Se conservó el texto recuperado sin reemplazar con datos ficticios.`);
+                            } else {
+                              setFeedback({ tone: 'success', message: `Texto de ${file.name} cargado correctamente como fuente de verdad.` });
+                            }
                           } else {
-                            setFeedback({ tone: 'warning', message: `Archivo ${file.name} cargado.` });
+                            setExtractionWarning(`⚠️ El archivo ${file.name} requiere revisión de extracción. Puedes pegar el texto manualmente en el campo.`);
                           }
                         } catch {
                           setFeedback({ tone: 'error', message: 'No se pudo leer el archivo.' });
@@ -924,41 +1033,36 @@ export default function MachotesPage() {
                       }}
                       style={{ fontSize: '0.8rem' }}
                     />
+                    {extractionWarning && (
+                      <p style={{ color: '#fbbf24', fontSize: '0.8rem', marginTop: '0.35rem' }}>{extractionWarning}</p>
+                    )}
                   </div>
                 </div>
 
                 <div>
                   <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.35rem' }}>
-                    2. Indicación o Instrucción para la IA *
+                    Indicación o Instrucción de Impugnación *
                   </label>
                   <textarea
                     value={contestationPrompt}
                     onChange={(e) => setContestationPrompt(e.target.value)}
                     rows={4}
-                    placeholder="Escribe la indicación exacta de lo que necesitas (ej. Generar contestación o recurso de revisión en amparo directo ante la SCJN)..."
+                    placeholder="Escribe la instrucción concreta para la IA (ej. Armar recurso de revisión ante SCJN por omisión de control difuso e inoperancia indebida de agravios)..."
                     className="machote-input-control"
                     style={{ fontSize: '0.85rem', marginBottom: '0.5rem' }}
                   />
 
                   <label style={{ display: 'block', fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '0.35rem' }}>
-                    💡 Indicaciones rápidas sugeridas:
+                    💡 Indicaciones rápidas recomendadas:
                   </label>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
                     <button
                       type="button"
-                      onClick={() => setContestationPrompt('A mi archivo dame una contestación / recurso de revisión extraordinaria ante la sentencia de un amparo directo')}
+                      onClick={() => setContestationPrompt('A mi archivo dame una contestación / recurso de revisión extraordinaria ante la sentencia de un amparo directo con agravios y petitorios')}
                       className="machote-btn-secondary"
                       style={{ fontSize: '0.75rem', padding: '0.25rem 0.5rem' }}
                     >
-                      🏛️ Recurso de Revisión Amparo Directo ante SCJN
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setContestationPrompt('Generar contestación de demanda civil / mercantil con excepciones y defensas')}
-                      className="machote-btn-secondary"
-                      style={{ fontSize: '0.75rem', padding: '0.25rem 0.5rem' }}
-                    >
-                      ⚖️ Contestación Demanda Civil / Mercantil
+                      🏛️ Recurso de Revisión SCJN (Agravios)
                     </button>
                     <button
                       type="button"
@@ -970,11 +1074,11 @@ export default function MachotesPage() {
                     </button>
                     <button
                       type="button"
-                      onClick={() => setContestationPrompt('Analizar excepciones, defectos procesales y puntos débiles de este documento')}
+                      onClick={() => setContestationPrompt('Analizar excepciones, indebida inoperancia de agravios y defectos procesales')}
                       className="machote-btn-secondary"
                       style={{ fontSize: '0.75rem', padding: '0.25rem 0.5rem' }}
                     >
-                      🛡️ Analizar Excepciones y Defectos
+                      🛡️ Combatir Inoperancia e Indefensión
                     </button>
                   </div>
                 </div>
@@ -987,7 +1091,7 @@ export default function MachotesPage() {
                 className="machote-btn-primary"
                 style={{ width: '100%', padding: '0.75rem', fontSize: '1rem', background: 'linear-gradient(135deg, #2563eb, #7c3aed)' }}
               >
-                {contestationLoading ? '⌛ Generando Contestación y Estrategia con IA...' : '🚀 Generar Contestación / Estrategia con IA'}
+                {contestationLoading ? '⌛ Generando Recurso / Agravios con IA...' : '🚀 Generar Recurso / Agravios con IA'}
               </button>
             </div>
 
@@ -1003,7 +1107,7 @@ export default function MachotesPage() {
                       type="button"
                       onClick={() => {
                         navigator.clipboard.writeText(contestationResult.text);
-                        setFeedback({ tone: 'success', message: 'Contestación copiada al portapapeles.' });
+                        setFeedback({ tone: 'success', message: 'Escrito copiado al portapapeles.' });
                       }}
                       className="machote-btn-secondary"
                       style={{ fontSize: '0.85rem', padding: '0.35rem 0.75rem' }}

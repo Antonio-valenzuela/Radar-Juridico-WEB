@@ -167,6 +167,25 @@ export function runLocalDeepConsolidator(
   const issues: any[] = [];
   const contradictions: string[] = [];
 
+  const availableContent = geminiRes?.content || groqRes?.content || "";
+
+  if (availableContent) {
+    issues.push({
+      id: "issue-model-response-1",
+      severity: "suggestion",
+      section: "respuesta_generada",
+      fieldId: "contenido",
+      title: "Análisis y Escrito Proyectado por IA",
+      explanation: "Respuesta y propuesta de contestación / recurso elaborada por el modelo de IA disponible.",
+      currentText: "",
+      suggestedText: availableContent,
+      supportedBySources: true,
+      sourceIds: [],
+      modelAgreement: geminiSuccess && groqSuccess ? "both" : geminiSuccess ? "gemini_only" : "groq_only",
+      confidence: 0.9,
+    });
+  }
+
   const text = (request.userMessage + " " + JSON.stringify(request.legalContext || {})).toLowerCase();
 
   if (/secuestro|privaci[oó]n de libertad|detenci[oó]n|incomunicaci[oó]n/i.test(text)) {
@@ -191,12 +210,18 @@ export function runLocalDeepConsolidator(
     }
   }
 
+  let summary = `Revisión y contestación procesada por el consolidador local. ${
+    geminiSuccess || groqSuccess
+      ? "Se utilizaron los resultados del modelo de IA disponible (Gemini / Groq)."
+      : "No fue posible conectar con los proveedores remotos; se aplicó la validación determinística."
+  }`;
+
+  if (availableContent && availableContent.length > 50) {
+    summary += "\n\n" + availableContent;
+  }
+
   return {
-    summary: `Revisión profunda consolidada localmente. ${
-      geminiSuccess || groqSuccess
-        ? "Se utilizaron las respuestas de los modelos disponibles."
-        : "No fue posible conectar con los proveedores remotos; se aplicó la validación determinística."
-    }`,
+    summary,
     overallRisk: contradictions.length > 0 ? "high" : "low",
     issues,
     missingFields: request.legalContext?.pendingMarkers || [],
