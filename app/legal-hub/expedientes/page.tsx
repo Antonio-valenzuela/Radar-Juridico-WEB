@@ -8,7 +8,6 @@ import { deadlineStatus, proceduralDateLabel, MEXICO_CITY_TIMEZONE } from '@/lib
 import { adminFetch, getAdminToken, setAdminToken } from '@/lib/client/adminToken';
 import { AdminTokenGate } from '@/components/shared/AdminTokenGate';
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog';
-import { useLegalWorkspaceContext } from '@/context/LegalWorkspaceContext';
 
 interface Party {
   id: string;

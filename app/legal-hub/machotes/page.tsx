@@ -5,7 +5,6 @@ import Link from 'next/link';
 import { adminFetch } from '@/lib/client/adminToken';
 import { templates } from '@/lib/templates/templateDefinitions';
 import type {
-  AIAssistResult,
   ProfessionalTemplate,
 } from '@/lib/templates/templateTypes';
 import {
@@ -18,10 +17,11 @@ import { DRAFT_WARNING, hasPendingMarkers } from '@/lib/templates/templateQualit
 import { useLegalWorkspaceContext } from '@/context/LegalWorkspaceContext';
 import { AiFillModal } from '@/components/machotes/AiFillModal';
 import { getSampleValuesForTemplate } from '@/lib/templates/templateSampleData';
-import { getCustomTemplates, deleteCustomTemplate } from '@/lib/templates/customTemplateStore';
+import { getCustomTemplates, deleteCustomTemplate, createTemplateFromText, saveCustomTemplate } from '@/lib/templates/customTemplateStore';
 import { SaveCustomTemplateModal } from '@/components/machotes/SaveCustomTemplateModal';
 import { EditCustomTemplateModal } from '@/components/machotes/EditCustomTemplateModal';
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog';
+import type { FastReviewResponse, DeepReviewResponse } from '@/lib/templates/templateReview';
 
 export default function MachotesPage() {
   const { activeDocument, setActiveDocument, setContextMode } = useLegalWorkspaceContext();
@@ -29,7 +29,7 @@ export default function MachotesPage() {
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>(templates[0].id);
   const [isAiFillOpen, setIsAiFillOpen] = useState(false);
   const [isSaveCustomOpen, setIsSaveCustomOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<'generator' | 'my-templates'>('generator');
+  const [activeTab, setActiveTab] = useState<'generator' | 'my-templates' | 'contestations'>('generator');
   const [editingTemplate, setEditingTemplate] = useState<ProfessionalTemplate | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
@@ -39,6 +39,16 @@ export default function MachotesPage() {
     confirmLabel?: string;
     isDanger?: boolean;
     onConfirm: () => void;
+  } | null>(null);
+
+  // States for Contestations Tab
+  const [contestationDocumentText, setContestationDocumentText] = useState('');
+  const [contestationPrompt, setContestationPrompt] = useState('A mi archivo dame una contestación / recurso de revisión extraordinaria ante la sentencia de un amparo directo');
+  const [contestationLoading, setContestationLoading] = useState(false);
+  const [contestationResult, setContestationResult] = useState<{
+    title: string;
+    text: string;
+    summary?: string;
   } | null>(null);
 
   useEffect(() => {
@@ -61,343 +71,59 @@ export default function MachotesPage() {
         t.title.toLowerCase().includes(q) ||
         t.category.toLowerCase().includes(q) ||
         (t.legalBasis && t.legalBasis.toLowerCase().includes(q)) ||
-        (t.description && t.description.toLowerCase().includes(q)) ||
-        (t.originalText && t.originalText.toLowerCase().includes(q))
+        (t.description && t.description.toLowerCase().includes(q))
       );
       return matchesCat && matchesSearch;
     });
   }, [customTemplates, categoryFilter, searchQuery]);
 
   const selectedTemplate = useMemo(() => {
-    return allTemplates.find(t => t.id === selectedTemplateId) || allTemplates[0];
+    return allTemplates.find((t) => t.id === selectedTemplateId) || allTemplates[0] || templates[0];
   }, [allTemplates, selectedTemplateId]);
 
-  const [values, setValues] = useState<Record<string, string | string[]>>({});
-  const [aiLoading, setAiLoading] = useState<string | null>(null);
-  const [aiResult, setAiResult] = useState<{
-    sectionId: string;
-    result: AIAssistResult;
-  } | null>(null);
-  const [feedback, setFeedback] = useState<{
-    tone: 'success' | 'error' | 'warning';
-    message: string;
-  } | null>(null);
+  const [values, setValues] = useState<Record<string, any>>({});
+  const [assistLoading, setAssistLoading] = useState<string | null>(null);
   const [reviewLoading, setReviewLoading] = useState<'fast' | 'deep' | null>(null);
-  const [fastReview, setFastReview] = useState<{
-    estado: string;
-    camposFaltantes: string[];
-    erroresFormato: string[];
-    recomendaciones: string[];
-  } | null>(null);
-  const [deepReview, setDeepReview] = useState<{
-    revisionLegal: string;
-    revisionRedaccion: string;
-    revisionProcesal: string;
-    riesgos: string[];
-  } | null>(null);
-
-  // Group templates by category including custom ones
-  const categories = useMemo(() => {
-    const cats: Record<string, ProfessionalTemplate[]> = {};
-    if (customTemplates.length > 0) {
-      cats['📂 Mis Machotes Guardados (Personalizados)'] = customTemplates;
-    }
-    templates.forEach(t => {
-      if (!cats[t.category]) cats[t.category] = [];
-      cats[t.category].push(t);
-    });
-    return cats;
-  }, [customTemplates]);
+  const [fastReview, setFastReview] = useState<FastReviewResponse | null>(null);
+  const [deepReview, setDeepReview] = useState<DeepReviewResponse | null>(null);
+  const [feedback, setFeedback] = useState<{ tone: 'success' | 'error' | 'warning'; message: string } | null>(null);
 
   useEffect(() => {
-    setValues({});
-    setAiResult(null);
-    setFeedback(null);
-  }, [selectedTemplateId]);
-
-  useEffect(() => {
-    if (activeDocument?.templateId === selectedTemplate.id && activeDocument.fields) {
-      setValues((prevValues) => {
-        const newValues = { ...activeDocument.fields };
-        if (JSON.stringify(prevValues) !== JSON.stringify(newValues)) {
-          return newValues;
-        }
-        return prevValues;
-      });
-    }
-  }, [activeDocument?.templateId, activeDocument?.fields, selectedTemplate.id]);
-
-  useEffect(() => {
-    const previewText = renderToText(selectedTemplate, values);
-    const validation = validateTemplateValues(selectedTemplate, values);
-    setActiveDocument({
-      templateId: selectedTemplate.id,
-      templateName: selectedTemplate.title,
-      documentType: 'machote',
-      matter: selectedTemplate.category,
-      jurisdiction: 'federal',
-      fields: values,
-      previewText,
-      pendingMarkers: validation.missingFields.map((f) => f.title),
-      updatedAt: new Date().toISOString(),
-    });
-  }, [selectedTemplate, values, setActiveDocument]);
-
-  const getSingleValue = (sectionId: string): string => {
-    const value = values[sectionId];
-    return Array.isArray(value) ? value.join('\n') : value || '';
-  };
-
-  const getRepeatableValue = (sectionId: string): string[] => {
-    const value = values[sectionId];
-    return Array.isArray(value) ? value : [''];
-  };
-
-  const handleValueChange = (sectionId: string, value: string | string[]) => {
-    setValues(prev => ({ ...prev, [sectionId]: value }));
-    setFeedback(null);
-  };
-
-  const handleRepeatableChange = (sectionId: string, index: number, value: string) => {
-    const current = Array.isArray(values[sectionId]) ? values[sectionId] : [''];
-    const newValues = [...current];
-    newValues[index] = value;
-    handleValueChange(sectionId, newValues);
-  };
-
-  const addRepeatable = (sectionId: string) => {
-    const current = Array.isArray(values[sectionId]) ? values[sectionId] : [''];
-    handleValueChange(sectionId, [...current, '']);
-  };
-
-  const removeRepeatable = (sectionId: string, index: number) => {
-    const current = Array.isArray(values[sectionId]) ? values[sectionId] : [''];
-    const newValues = current.filter((_, i) => i !== index);
-    handleValueChange(sectionId, newValues.length > 0 ? newValues : ['']);
-  };
-
-  const handleDocxExport = async () => {
-    const validation = validateTemplateValues(selectedTemplate, values);
-    if (!validation.valid) {
-      setFeedback({
-        tone: 'warning',
-        message: `Completa ${validation.missingFields.length} campo(s) obligatorio(s) antes de exportar.`,
-      });
-      return;
-    }
-    if (hasPendingMarkers(renderToText(selectedTemplate, values))) {
-      setConfirmDialog({
-        title: 'Borrador con marcadores pendientes',
-        message: `${DRAFT_WARNING}. ¿Confirmas que revisarás el documento antes de usarlo?`,
-        confirmLabel: 'Confirmar y exportar',
-        onConfirm: () => { setConfirmDialog(null); void (async () => {
-          try {
-            const doc = renderToDocument(selectedTemplate, values);
-            const { exportToDocx } = await import('@/lib/templates/exportDocx');
-            const buffer = await exportToDocx(doc);
-            const blob = new Blob([Uint8Array.from(buffer)], {
-              type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-            });
-            const url = URL.createObjectURL(blob);
-            const anchor = document.createElement('a');
-            anchor.href = url;
-            anchor.download = `${selectedTemplate.id}-${new Date().toISOString().slice(0,10)}.docx`;
-            anchor.click();
-            URL.revokeObjectURL(url);
-            setFeedback({ tone: 'success', message: 'El archivo DOCX se generó correctamente.' });
-          } catch {
-            setFeedback({ tone: 'error', message: 'No fue posible generar el archivo DOCX.' });
-          }
-        })(); },
-      });
-      return;
-    }
-    try {
-      const doc = renderToDocument(selectedTemplate, values);
-      const { exportToDocx } = await import('@/lib/templates/exportDocx');
-      const buffer = await exportToDocx(doc);
-      const blob = new Blob([Uint8Array.from(buffer)], {
-        type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      });
-      const url = URL.createObjectURL(blob);
-      const anchor = document.createElement('a');
-      anchor.href = url;
-      anchor.download = `${selectedTemplate.id}-${new Date().toISOString().slice(0,10)}.docx`;
-      anchor.click();
-      URL.revokeObjectURL(url);
-      setFeedback({ tone: 'success', message: 'El archivo DOCX se generó correctamente.' });
-    } catch {
-      setFeedback({ tone: 'error', message: 'No fue posible generar el archivo DOCX.' });
-    }
-  };
-
-  const handlePdfExport = () => {
-    const validation = validateTemplateValues(selectedTemplate, values);
-    if (!validation.valid) {
-      setFeedback({
-        tone: 'warning',
-        message: `Completa ${validation.missingFields.length} campo(s) obligatorio(s) antes de imprimir.`,
-      });
-      return;
-    }
-    if (hasPendingMarkers(renderToText(selectedTemplate, values))) {
-      setConfirmDialog({
-        title: 'Borrador con marcadores pendientes',
-        message: `${DRAFT_WARNING}. ¿Confirmas que revisarás el documento antes de usarlo?`,
-        confirmLabel: 'Confirmar e imprimir',
-        onConfirm: () => { setConfirmDialog(null); const doc2 = renderToDocument(selectedTemplate, values); const html2 = generatePrintHtml(doc2); const win2 = window.open('', '_blank'); if (win2) { win2.document.write(html2); win2.document.close(); setFeedback({ tone: 'success', message: 'Se abrió la vista controlada de impresión.' }); } else { setFeedback({ tone: 'error', message: 'El navegador bloqueó la vista de impresión. Permite ventanas emergentes e intenta de nuevo.' }); } },
-      });
-      return;
-    }
-    const doc = renderToDocument(selectedTemplate, values);
-    const html = generatePrintHtml(doc);
-    const win = window.open('', '_blank');
-    if (win) {
-      win.document.write(html);
-      win.document.close();
-      setFeedback({ tone: 'success', message: 'Se abrió la vista controlada de impresión.' });
-    } else {
-      setFeedback({
-        tone: 'error',
-        message: 'El navegador bloqueó la vista de impresión. Permite ventanas emergentes e intenta de nuevo.',
-      });
-    }
-  };
-
-  const handleTextExport = () => {
-    const validation = validateTemplateValues(selectedTemplate, values);
-    if (!validation.valid) {
-      setFeedback({
-        tone: 'warning',
-        message: `Completa ${validation.missingFields.length} campo(s) obligatorio(s) antes de exportar.`,
-      });
-      return;
-    }
-    if (hasPendingMarkers(renderToText(selectedTemplate, values))) {
-      setConfirmDialog({
-        title: 'Borrador con marcadores pendientes',
-        message: `${DRAFT_WARNING}. ¿Confirmas que revisarás el documento antes de usarlo?`,
-        confirmLabel: 'Confirmar y exportar TXT',
-        onConfirm: () => { setConfirmDialog(null); const txt = renderToText(selectedTemplate, values); const blobTxt = new Blob([txt], { type: 'text/plain;charset=utf-8' }); const urlTxt = URL.createObjectURL(blobTxt); const aTxt = document.createElement('a'); aTxt.href = urlTxt; aTxt.download = `${selectedTemplate.id}-${new Date().toISOString().slice(0,10)}.txt`; aTxt.click(); URL.revokeObjectURL(urlTxt); setFeedback({ tone: 'success', message: 'El archivo de texto se generó correctamente.' }); },
-      });
-      return;
-    }
-    const text = renderToText(selectedTemplate, values);
-    const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${selectedTemplate.id}-${new Date().toISOString().slice(0,10)}.txt`;
-    a.click();
-    URL.revokeObjectURL(url);
-    setFeedback({ tone: 'success', message: 'El archivo de texto se generó correctamente.' });
-  };
-
-  const handleCopyText = async () => {
-    const validation = validateTemplateValues(selectedTemplate, values);
-    if (!validation.valid) {
-      setFeedback({
-        tone: 'warning',
-        message: `Completa ${validation.missingFields.length} campo(s) obligatorio(s) antes de copiar.`,
-      });
-      return;
-    }
-    if (hasPendingMarkers(renderToText(selectedTemplate, values))) {
-      setConfirmDialog({
-        title: 'Borrador con marcadores pendientes',
-        message: `${DRAFT_WARNING}. ¿Confirmas que revisarás el texto antes de usarlo?`,
-        confirmLabel: 'Confirmar y copiar',
-        onConfirm: () => { setConfirmDialog(null); const copyText = renderToText(selectedTemplate, values); navigator.clipboard.writeText(copyText).then(() => setFeedback({ tone: 'success', message: 'Texto copiado al portapapeles.' })).catch(() => setFeedback({ tone: 'error', message: 'No fue posible copiar el texto.' })); },
-      });
-      return;
-    }
-    const text = renderToText(selectedTemplate, values);
-    try {
-      await navigator.clipboard.writeText(text);
-      setFeedback({ tone: 'success', message: 'Texto copiado al portapapeles.' });
-    } catch {
-      setFeedback({ tone: 'error', message: 'No fue posible copiar el texto.' });
-    }
-  };
-
-  const handleAIAssist = async (sectionId: string) => {
-    const instruction = Array.isArray(values[sectionId])
-      ? values[sectionId].join('\n').trim()
-      : (values[sectionId] || '').trim();
-    if (!instruction) {
-      setFeedback({
-        tone: 'warning',
-        message: 'Escribe primero hechos o instrucciones concretas para desarrollar esta sección.',
-      });
-      return;
-    }
-    setAiLoading(sectionId);
-    setFeedback(null);
-    try {
-      const res = await adminFetch('/api/templates/ai-assist', {
-        method: 'POST',
-        body: JSON.stringify({
-          templateId: selectedTemplate.id,
-          sectionId,
-          userInput: instruction,
-          caseContext: values
-        }),
-      });
-      const data = (await res.json()) as AIAssistResult | { error?: string };
-      if (!res.ok || !('proposedText' in data)) {
-        throw new Error('error' in data ? data.error : undefined);
+    const initialValues: Record<string, any> = {};
+    selectedTemplate.sections.forEach((section) => {
+      if (section.type === 'repeatable' || section.type === 'list') {
+        initialValues[section.id] = [];
+      } else {
+        initialValues[section.id] = '';
       }
-      setAiResult({ sectionId, result: data });
-    } catch (error) {
-      setFeedback({
-        tone: 'error',
-        message:
-          error instanceof Error && error.message === 'ADMIN_TOKEN_REQUIRED'
-            ? 'Ingresa el token administrativo para usar la asistencia IA.'
-            : error instanceof Error && error.message
-            ? error.message
-            : 'No fue posible generar la propuesta asistida.',
-      });
-    } finally {
-      setAiLoading(null);
-    }
-  };
+    });
+    setValues(initialValues);
+    setFastReview(null);
+    setDeepReview(null);
+    setFeedback(null);
+  }, [selectedTemplate]);
 
-  const applyAIResult = (sectionId: string, content: string) => {
-    const isRepeatable = selectedTemplate.sections.find(s => s.id === sectionId)?.type === 'repeatable';
-    if (isRepeatable) {
-      handleValueChange(sectionId, [content]);
-    } else {
-      handleValueChange(sectionId, content);
-    }
-    setAiResult(null);
-  };
+  const renderedText = useMemo(() => {
+    return renderToText(selectedTemplate, values);
+  }, [selectedTemplate, values]);
 
-  const renderedText = renderToText(selectedTemplate, values);
-  const hasDraftMarkers = hasPendingMarkers(renderedText);
-
-  const aiEnabledSections = new Set([
-    'hechos',
-    'conceptos_violacion',
-    'agravios',
-    'pruebas',
-    'puntos_petitorios',
-  ]);
+  const validation = useMemo(() => {
+    return validateTemplateValues(selectedTemplate, values);
+  }, [selectedTemplate, values]);
 
   const currentStructureJson = useMemo(() => {
-    if (selectedTemplate.structureJson) return selectedTemplate.structureJson;
     return {
       nombre: selectedTemplate.title,
-      tipo_documento: selectedTemplate.documentType || 'documento_juridico',
-      campos: selectedTemplate.sections.map((section) => ({
-        id: section.id,
-        etiqueta: section.title,
-        tipo: section.type,
-        obligatorio: section.required,
-        placeholder: section.placeholder,
-        helpText: section.helpText,
-        options: section.options,
-        repeatLabel: section.repeatLabel,
+      tipo_documento: selectedTemplate.documentType || 'machote',
+      campos: selectedTemplate.sections.map((sec) => ({
+        id: sec.id,
+        etiqueta: sec.title,
+        tipo: sec.type,
+        obligatorio: !!sec.required,
+        placeholder: sec.placeholder,
+        helpText: sec.helpText,
+        options: sec.options,
+        repeatLabel: sec.repeatLabel,
       })),
     };
   }, [selectedTemplate]);
@@ -467,8 +193,14 @@ export default function MachotesPage() {
       if (!response.ok) {
         throw new Error(data.error || 'Error al ejecutar la revisión profunda.');
       }
-      setDeepReview(data);
-      setFeedback({ tone: 'success', message: 'Revisión profunda completada.' });
+
+      setDeepReview({
+        revisionLegal: data.revisionLegal,
+        revisionRedaccion: data.revisionRedaccion,
+        revisionProcesal: data.revisionProcesal,
+        riesgos: data.riesgos,
+      });
+      setFeedback({ tone: 'success', message: 'Revisión profunda por 3 modelos completada.' });
     } catch (error: any) {
       setFeedback({ tone: 'error', message: error.message || 'No se pudo ejecutar la revisión profunda.' });
     } finally {
@@ -476,41 +208,326 @@ export default function MachotesPage() {
     }
   };
 
+  const handleAssistSection = async (fieldId: string, instruction: string) => {
+    setAssistLoading(fieldId);
+    setFeedback(null);
+    try {
+      const response = await adminFetch('/api/templates/ai-assist', {
+        method: 'POST',
+        body: JSON.stringify({
+          fieldId,
+          instruction,
+          currentValue: values[fieldId],
+          contextFields: values,
+          templateId: selectedTemplate.id,
+        }),
+      });
+
+      const data = await response.json();
+      if (!response.ok || !data.ok) {
+        throw new Error(data.error || 'No fue posible desarrollar con IA.');
+      }
+
+      const generated = (data.text || '').trim();
+      if (!generated) {
+        throw new Error('La IA devolvió una respuesta vacía.');
+      }
+
+      setValues((prev) => {
+        const currentVal = prev[fieldId];
+        if (Array.isArray(currentVal)) {
+          return {
+            ...prev,
+            [fieldId]: [...currentVal, generated],
+          };
+        }
+        return {
+          ...prev,
+          [fieldId]: currentVal ? `${currentVal}\n\n${generated}` : generated,
+        };
+      });
+
+      setFeedback({
+        tone: 'success',
+        message: `Se aplicó la sugerencia de IA para el apartado.`,
+      });
+    } catch (error: any) {
+      setFeedback({
+        tone: 'error',
+        message: error.message || 'Error al solicitar asistencia de IA.',
+      });
+    } finally {
+      setAssistLoading(null);
+    }
+  };
+
+  const handleInputChange = (fieldId: string, value: any) => {
+    setValues((prev) => ({
+      ...prev,
+      [fieldId]: value,
+    }));
+  };
+
+  const handleListAdd = (fieldId: string) => {
+    setValues((prev) => ({
+      ...prev,
+      [fieldId]: [...(prev[fieldId] || []), ''],
+    }));
+  };
+
+  const handleListChange = (fieldId: string, index: number, val: string) => {
+    setValues((prev) => {
+      const list = [...(prev[fieldId] || [])];
+      list[index] = val;
+      return {
+        ...prev,
+        [fieldId]: list,
+      };
+    });
+  };
+
+  const handleListRemove = (fieldId: string, index: number) => {
+    setValues((prev) => {
+      const list = [...(prev[fieldId] || [])];
+      list.splice(index, 1);
+      return {
+        ...prev,
+        [fieldId]: list,
+      };
+    });
+  };
+
+  const handleCopyText = () => {
+    if (!validation.valid) {
+      setConfirmDialog({
+        title: 'Documento incompleto',
+        message: `El documento contiene ${validation.missingFields.length} campo(s) obligatorio(s) pendiente(s). ¿Deseas copiar de todas formas?`,
+        confirmLabel: 'Confirmar y copiar',
+        onConfirm: () => {
+          setConfirmDialog(null);
+          navigator.clipboard.writeText(renderedText);
+          setFeedback({ tone: 'success', message: 'Copiado al portapapeles con advertencia de campos pendientes.' });
+        },
+      });
+      return;
+    }
+
+    navigator.clipboard.writeText(renderedText);
+    setFeedback({ tone: 'success', message: 'Documento copiado al portapapeles.' });
+  };
+
+  const handleExportDocx = async () => {
+    if (!validation.valid) {
+      setConfirmDialog({
+        title: 'Documento incompleto',
+        message: `Completa ${validation.missingFields.length} campo(s) obligatorio(s) antes de exportar.`,
+        confirmLabel: 'Confirmar y exportar',
+        onConfirm: async () => {
+          setConfirmDialog(null);
+          try {
+            const doc = renderToDocument(selectedTemplate, values);
+            const { exportToDocx } = await import('@/lib/templates/exportDocx');
+            const buffer = await exportToDocx(doc);
+            const blob = new Blob([buffer as any], {
+              type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${selectedTemplate.id}_${Date.now()}.docx`;
+            a.click();
+            URL.revokeObjectURL(url);
+            setFeedback({ tone: 'success', message: 'Documento DOCX exportado.' });
+          } catch {
+            setFeedback({ tone: 'error', message: 'Ocurrió un error al exportar el archivo DOCX.' });
+          }
+        },
+      });
+      return;
+    }
+
+    try {
+      const doc = renderToDocument(selectedTemplate, values);
+      const { exportToDocx } = await import('@/lib/templates/exportDocx');
+      const buffer = await exportToDocx(doc);
+      const blob = new Blob([buffer as any], {
+        type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${selectedTemplate.id}_${Date.now()}.docx`;
+      a.click();
+      URL.revokeObjectURL(url);
+      setFeedback({ tone: 'success', message: 'Documento DOCX exportado.' });
+    } catch {
+      setFeedback({ tone: 'error', message: 'Ocurrió un error al exportar el archivo DOCX.' });
+    }
+  };
+
+  const handleExportTxt = () => {
+    if (!validation.valid) {
+      setConfirmDialog({
+        title: 'Documento incompleto',
+        message: `Completa ${validation.missingFields.length} campo(s) obligatorio(s) antes de exportar TXT.`,
+        confirmLabel: 'Confirmar y exportar TXT',
+        onConfirm: () => {
+          setConfirmDialog(null);
+          const blob = new Blob([renderedText], { type: 'text/plain;charset=utf-8' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `${selectedTemplate.id}_${Date.now()}.txt`;
+          a.click();
+          URL.revokeObjectURL(url);
+          setFeedback({ tone: 'success', message: 'Documento TXT exportado.' });
+        },
+      });
+      return;
+    }
+
+    const blob = new Blob([renderedText], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${selectedTemplate.id}_${Date.now()}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+    setFeedback({ tone: 'success', message: 'Documento TXT exportado.' });
+  };
+
+  const handlePrint = () => {
+    const docData = renderToDocument(selectedTemplate, values);
+    const html = generatePrintHtml(docData);
+    const printWindow = window.open('', '_blank');
+    if (printWindow) {
+      printWindow.document.write(html);
+      printWindow.document.close();
+    }
+  };
+
+  // Contestations Handlers
+  const handleGenerateContestation = async () => {
+    const docText = contestationDocumentText.trim() || renderedText;
+    if (!docText) {
+      setFeedback({ tone: 'warning', message: 'Por favor pega el texto de tu documento o selecciona un machote como base.' });
+      return;
+    }
+    if (!contestationPrompt.trim()) {
+      setFeedback({ tone: 'warning', message: 'Escribe o selecciona una indicación para la IA.' });
+      return;
+    }
+
+    setContestationLoading(true);
+    setFeedback(null);
+    try {
+      const response = await fetch('/api/ai/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: `${contestationPrompt.trim()}\n\nDOCUMENTO BASE ADJUNTO:\n${docText.slice(0, 12000)}`,
+          mode: 'deep',
+          taskType: 'document_review',
+          activeDocument: {
+            templateName: selectedTemplate.title,
+            content: docText.slice(0, 10000),
+          },
+        }),
+      });
+
+      const payload = await response.json();
+      if (!response.ok || payload.ok === false) {
+        throw new Error(payload.error || 'Error al generar la contestación con IA.');
+      }
+
+      let generatedText = '';
+      if (payload.data?.summary) {
+        generatedText += payload.data.summary + '\n\n';
+      }
+      if (payload.data?.suggestedText) {
+        generatedText += payload.data.suggestedText + '\n\n';
+      }
+      if (payload.data?.issues?.length) {
+        generatedText += '--- PUNTOS Y RECOMENDACIONES CLAVE ---\n' + payload.data.issues.map((i: any) => `• ${i.title}: ${i.suggestedText || i.explanation}`).join('\n') + '\n\n';
+      }
+      if (!generatedText) {
+        generatedText = typeof payload.data === 'string' ? payload.data : JSON.stringify(payload.data, null, 2);
+      }
+
+      setContestationResult({
+        title: `Contestación / Estrategia - ${selectedTemplate.title || 'Documento Personalizado'}`,
+        text: generatedText.trim(),
+        summary: payload.data?.summary || 'Contestación y análisis generado exitosamente.',
+      });
+      setFeedback({ tone: 'success', message: '¡Contestación / Estrategia legal generada con éxito por la IA!' });
+    } catch (err: any) {
+      setFeedback({ tone: 'error', message: err.message || 'Ocurrió un error al procesar con IA.' });
+    } finally {
+      setContestationLoading(false);
+    }
+  };
+
+  const handleSaveContestationAsTemplate = async () => {
+    if (!contestationResult?.text) return;
+    try {
+      const title = `Contestación - ${selectedTemplate.title || 'Escrito'} (${new Date().toLocaleDateString('es-MX')})`;
+      const newTemplate = createTemplateFromText(title, selectedTemplate.category || 'General', 'Ley de Amparo / Código Procesal', contestationResult.text);
+      const saved = await saveCustomTemplate(newTemplate);
+      setCustomTemplates((prev) => [saved, ...prev]);
+      setFeedback({ tone: 'success', message: `Contestación guardada como plantilla en "Mis Plantillas".` });
+    } catch (err: any) {
+      setFeedback({ tone: 'error', message: 'No se pudo guardar la contestación como plantilla.' });
+    }
+  };
+
+  const handleExportContestationDocx = async () => {
+    if (!contestationResult?.text) return;
+    try {
+      const { exportToDocx } = await import('@/lib/templates/exportDocx');
+      const doc = renderToDocument(selectedTemplate, values);
+      doc.body = contestationResult.text;
+      const buffer = await exportToDocx(doc);
+      const blob = new Blob([buffer as any], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${contestationResult.title.replace(/[^a-zA-Z0-9_-]/g, '_')}.docx`;
+      a.click();
+      URL.revokeObjectURL(url);
+      setFeedback({ tone: 'success', message: 'DOCX descargado correctamente.' });
+    } catch {
+      setFeedback({ tone: 'error', message: 'Error al exportar DOCX.' });
+    }
+  };
+
   return (
     <>
-      <div className="bg-gradient"></div>
-      <main className="container legal-hub-shell">
-        <nav className="document-nav">
-          <Link href="/legal-hub">Volver al Centro Jurídico</Link>
-        </nav>
-
-        <header className="machotes-page-header">
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <div>
-              <h1>Generador de Machotes y Plantillas</h1>
-              <p className="subtitle">Crea documentos legales estructurados con asistencia de IA. Revisa siempre el documento final. Puedes probar cualquier plantilla con un ejemplo listo para cargar y exportar.</p>
+      <main className="machotes-page-container">
+        <header className="machotes-header">
+          <div className="machotes-header-content">
+            <div className="machotes-header-left">
+              <Link href="/legal-hub" className="machote-btn-back">
+                ← Volver a Legal Hub
+              </Link>
+              <h1>Generador y Editor de Machotes Jurídicos</h1>
+              <p className="subtitle">
+                Crea, edita y genera contestaciones con inteligencia artificial. Revisa siempre el escrito final antes de presentarlo.
+              </p>
             </div>
-            <div className="machote-actions-bar">
-              <button
-                type="button"
-                onClick={() => setIsAiFillOpen(true)}
-                className="machote-btn-primary"
-              >
-                ✨ Autollenar con IA (Texto / PDF)
-              </button>
+            <div className="machotes-header-actions">
               <button
                 type="button"
                 onClick={() => setIsSaveCustomOpen(true)}
-                className="machote-btn-secondary"
+                className="machote-btn-primary"
               >
-                📥 Subir Mi Machote
+                📥 Subir Mi Propio Machote
               </button>
               <button
                 type="button"
-                onClick={handleLoadSample}
+                onClick={() => setIsAiFillOpen(true)}
                 className="machote-btn-secondary"
               >
-                📋 Cargar Ejemplo
+                ✨ Llenar con IA
               </button>
               <button
                 type="button"
@@ -532,7 +549,7 @@ export default function MachotesPage() {
           </div>
 
           {/* Navigation Tabs */}
-          <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1.25rem', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '0.5rem' }}>
+          <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1.25rem', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '0.5rem', flexWrap: 'wrap' }}>
             <button
               type="button"
               onClick={() => setActiveTab('generator')}
@@ -540,6 +557,14 @@ export default function MachotesPage() {
               style={{ fontSize: '0.9rem', padding: '0.4rem 1rem' }}
             >
               📄 Generador de Escritos
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('contestations')}
+              className={activeTab === 'contestations' ? 'machote-btn-primary' : 'machote-btn-secondary'}
+              style={{ fontSize: '0.9rem', padding: '0.4rem 1rem', background: activeTab === 'contestations' ? 'linear-gradient(135deg, #2563eb, #7c3aed)' : undefined, border: 'none' }}
+            >
+              ⚖️ Contestaciones y Estrategia con IA
             </button>
             <button
               type="button"
@@ -569,7 +594,6 @@ export default function MachotesPage() {
           onTemplateUpdated={(updated) => {
             setCustomTemplates((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
             if (selectedTemplateId === updated.id) {
-              // Trigger re-render of current active template if selected
               setSelectedTemplateId('');
               setTimeout(() => setSelectedTemplateId(updated.id), 10);
             }
@@ -589,327 +613,455 @@ export default function MachotesPage() {
           }}
         />
 
-        {activeTab === 'generator' && (
-          <>
-            <div className="machote-template-toolbar">
-          <div className="machote-template-select">
-            <label htmlFor="template-selector">Seleccionar plantilla</label>
-            <select
-              id="template-selector"
-              value={selectedTemplateId}
-              onChange={(e) => setSelectedTemplateId(e.target.value)}
-            >
-              {Object.entries(categories).map(([category, temps]) => (
-                <optgroup key={category} label={category}>
-                  {temps.map(t => (
-                    <option key={t.id} value={t.id}>{t.title}</option>
-                  ))}
-                </optgroup>
-              ))}
-            </select>
-          </div>
-          <div className="machote-template-summary">
-            <strong>{selectedTemplate.title}</strong>
-            <span>{selectedTemplate.description}</span>
-            <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', fontWeight: 600 }}>Fundamento: {selectedTemplate.legalBasis}</span>
-          </div>
-          <div className="flex flex-col items-end gap-2">
-            <div className="machote-status-pill">
-              {selectedTemplate.id.startsWith('custom-') ? 'Personalizado' : 'En revisión'}
-            </div>
-            {selectedTemplate.id.startsWith('custom-') && (
-              <button
-                type="button"
-                onClick={() => {
-                  setConfirmDialog({
-                    title: 'Eliminar machote',
-                    message: `¿Seguro que deseas eliminar tu machote "${selectedTemplate.title}"? Esta acción no se puede deshacer.`,
-                    confirmLabel: 'Eliminar',
-                    isDanger: true,
-                    onConfirm: async () => {
-                      setConfirmDialog(null);
-                      try {
-                        const updated = await deleteCustomTemplate(selectedTemplate.id);
-                        setCustomTemplates(updated);
-                        setSelectedTemplateId(templates[0].id);
-                        setFeedback({ tone: 'success', message: 'Se eliminó tu machote personalizado.' });
-                      } catch {
-                        setFeedback({ tone: 'error', message: 'No fue posible eliminar el machote personalizado.' });
-                      }
-                    },
-                  });
-                }}
-                className="text-xs text-red-600 hover:text-red-800 font-semibold underline"
-              >
-                🗑️ Eliminar este machote
-              </button>
-            )}
-          </div>
-        </div>
-
-        <div className="legal-warning" style={{ marginBottom: '1.5rem' }}>
-          <strong>ADVERTENCIA PROFESIONAL:</strong> {selectedTemplate.disclaimer}
-          {selectedTemplate.warnings && selectedTemplate.warnings.length > 0 && (
-            <ul style={{ marginTop: '0.5rem', marginLeft: '1.5rem' }}>
-              {selectedTemplate.warnings.map((w, i) => <li key={i}>{w}</li>)}
-            </ul>
-          )}
-        </div>
-
-        {hasDraftMarkers && (
-          <div className="legal-warning" role="alert" style={{ marginBottom: '1.5rem' }}>
-            <strong>{DRAFT_WARNING}</strong>. El contenido contiene marcadores pendientes y no debe presentarse sin validación profesional.
-          </div>
-        )}
-
         {feedback && (
-          <div
-            role={feedback.tone === 'error' ? 'alert' : 'status'}
-            className="glass-card"
-            style={{ marginBottom: '1rem', padding: '0.875rem 1rem' }}
-          >
+          <div className={`legal-warning ${feedback.tone === 'success' ? 'legal-info-box' : ''}`} style={{ margin: '1rem 0' }}>
             {feedback.message}
           </div>
         )}
-        {fastReview && (
-          <div className="glass-card" style={{ marginBottom: '1rem', padding: '1rem' }}>
-            <h3>Resultado Revisión Rápida</h3>
-            <p>Estado: <strong>{fastReview.estado}</strong></p>
-            {fastReview.camposFaltantes.length > 0 && (
-              <p>Campos faltantes: {fastReview.camposFaltantes.join(', ')}</p>
-            )}
-            {fastReview.erroresFormato.length > 0 && (
-              <div>
-                <p>Errores de formato:</p>
-                <ul>{fastReview.erroresFormato.map((err, idx) => <li key={idx}>{err}</li>)}</ul>
-              </div>
-            )}
-            {fastReview.recomendaciones.length > 0 && (
-              <div>
-                <p>Recomendaciones:</p>
-                <ul>{fastReview.recomendaciones.map((rec, idx) => <li key={idx}>{rec}</li>)}</ul>
-              </div>
-            )}
-          </div>
-        )}
-        {deepReview && (
-          <div className="glass-card" style={{ marginBottom: '1rem', padding: '1rem' }}>
-            <h3>Resultado Revisión Profunda</h3>
-            <div>
-              <p><strong>Revisión legal</strong></p>
-              <p style={{ whiteSpace: 'pre-wrap' }}>{deepReview.revisionLegal}</p>
-            </div>
-            <div>
-              <p><strong>Revisión de redacción</strong></p>
-              <p style={{ whiteSpace: 'pre-wrap' }}>{deepReview.revisionRedaccion}</p>
-            </div>
-            <div>
-              <p><strong>Revisión procesal</strong></p>
-              <p style={{ whiteSpace: 'pre-wrap' }}>{deepReview.revisionProcesal}</p>
-            </div>
-            {deepReview.riesgos.length > 0 && (
-              <div>
-                <p>Riesgos identificados:</p>
-                <ul>{deepReview.riesgos.map((risk, idx) => <li key={idx}>{risk}</li>)}</ul>
-              </div>
-            )}
-          </div>
-        )}
 
-        <div className="machotes-workspace">
-          {/* Editor Form */}
-          <div className="machote-panel machote-form-panel">
-            <div className="machote-panel-heading">
-              <h2>Campos obligatorios y opcionales</h2>
-              <p>Llene los campos requeridos para generar el documento.</p>
+        {activeTab === 'generator' && (
+          <>
+            <div className="machote-template-toolbar">
+              <div className="machote-template-select">
+                <label htmlFor="template-selector">Seleccionar plantilla</label>
+                <select
+                  id="template-selector"
+                  value={selectedTemplateId}
+                  onChange={(e) => setSelectedTemplateId(e.target.value)}
+                  className="machote-input-control"
+                >
+                  {allTemplates.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.title} ({t.category})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-end', flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  onClick={handleLoadSample}
+                  className="machote-btn-secondary"
+                  style={{ fontSize: '0.85rem' }}
+                >
+                  📝 Cargar Ejemplo Realista
+                </button>
+
+                {selectedTemplate.originalText && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => setEditingTemplate(selectedTemplate)}
+                      className="machote-btn-secondary"
+                      style={{ fontSize: '0.85rem' }}
+                    >
+                      ✏️ Editar Plantilla
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setConfirmDialog({
+                          title: 'Eliminar plantilla personalizada',
+                          message: `¿Estás seguro de eliminar la plantilla "${selectedTemplate.title}"? Esta acción no se puede deshacer.`,
+                          confirmLabel: 'Eliminar',
+                          isDanger: true,
+                          onConfirm: async () => {
+                            setConfirmDialog(null);
+                            try {
+                              const updated = await deleteCustomTemplate(selectedTemplate.id);
+                              setCustomTemplates(updated);
+                              setSelectedTemplateId(templates[0].id);
+                              setFeedback({ tone: 'success', message: 'Plantilla personalizada eliminada.' });
+                            } catch {
+                              setFeedback({ tone: 'error', message: 'No se pudo eliminar la plantilla.' });
+                            }
+                          },
+                        });
+                      }}
+                      className="machote-btn-secondary"
+                      style={{ fontSize: '0.85rem', color: '#f87171' }}
+                    >
+                      🗑️ Eliminar Machote
+                    </button>
+                  </>
+                )}
+              </div>
             </div>
 
-            <div className="machote-fields">
-              {selectedTemplate.sections.map(section => {
-                const canUseAI = aiEnabledSections.has(section.id);
+            <div className="machote-workspace-grid">
+              {/* Form Column */}
+              <div className="machote-form-column">
+                <div className="glass-card" style={{ padding: '1.25rem' }}>
+                  <h2 style={{ fontSize: '1.1rem', fontWeight: 600, marginBottom: '0.5rem' }}>
+                    {selectedTemplate.title}
+                  </h2>
+                  <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '0.75rem' }}>
+                    {selectedTemplate.description}
+                  </p>
 
-                return (
-                  <div key={section.id} className="machote-field">
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                      <label htmlFor={`field-${section.id}`}>
-                        {section.title} {section.required && <span style={{ color: '#ef4444', marginLeft: '4px' }}>*</span>}
-                      </label>
-                      {canUseAI && (
+                  <div style={{ fontSize: '0.8rem', color: '#93c5fd', marginBottom: '1rem' }}>
+                    ⚖️ {selectedTemplate.legalBasis || 'Fundamento normativo definido por el litigante.'}
+                  </div>
+
+                  {validation.missingFields.length > 0 && (
+                    <div className="legal-warning" style={{ marginBottom: '1rem', padding: '0.75rem' }}>
+                      <p className="font-semibold" style={{ fontSize: '0.85rem' }}>Campos obligatorios pendientes ({validation.missingFields.length}):</p>
+                      <ul style={{ fontSize: '0.8rem', marginTop: '0.25rem', paddingLeft: '1.25rem' }}>
+                        {validation.missingFields.slice(0, 5).map((f) => (
+                          <li key={f.id}>{f.title}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {selectedTemplate.sections.map((section) => (
+                    <div key={section.id} className="machote-section-block" style={{ marginBottom: '1.25rem' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.25rem' }}>
+                        <label style={{ fontSize: '0.85rem', fontWeight: 500 }}>
+                          {section.title} {section.required && <span style={{ color: '#ef4444' }}>*</span>}
+                        </label>
+
                         <button
                           type="button"
-                          onClick={() => handleAIAssist(section.id)}
-                          disabled={aiLoading === section.id}
-                          className="btn-doc-secondary"
-                          style={{ marginLeft: 'auto', minHeight: '44px', padding: '0 0.75rem', fontSize: '0.75rem' }}
+                          onClick={() => handleAssistSection(section.id, `Desarrolla el apartado de ${section.title} para ${selectedTemplate.title}`)}
+                          disabled={assistLoading === section.id}
+                          className="machote-btn-secondary"
+                          style={{ fontSize: '0.75rem', padding: '0.15rem 0.5rem' }}
                         >
-                          {aiLoading === section.id ? 'Generando...' : 'Desarrollar con IA'}
+                          {assistLoading === section.id ? 'IA pensando...' : '✨ Desarrollar con IA'}
                         </button>
+                      </div>
+
+                      {section.type === 'textarea' ? (
+                        <textarea
+                          value={values[section.id] || ''}
+                          onChange={(e) => handleInputChange(section.id, e.target.value)}
+                          rows={4}
+                          placeholder={section.placeholder}
+                          className="machote-input-control"
+                          style={{ fontSize: '0.85rem' }}
+                        />
+                      ) : section.type === 'repeatable' || section.type === 'list' ? (
+                        <div>
+                          {(values[section.id] || []).map((item: string, idx: number) => (
+                            <div key={idx} style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.4rem' }}>
+                              <input
+                                type="text"
+                                value={item}
+                                onChange={(e) => handleListChange(section.id, idx, e.target.value)}
+                                className="machote-input-control"
+                                style={{ fontSize: '0.85rem', flex: 1 }}
+                              />
+                              <button
+                                type="button"
+                                onClick={() => handleListRemove(section.id, idx)}
+                                className="machote-btn-secondary"
+                                style={{ color: '#ef4444', padding: '0.2rem 0.5rem' }}
+                              >
+                                ✕
+                              </button>
+                            </div>
+                          ))}
+                          <button
+                            type="button"
+                            onClick={() => handleListAdd(section.id)}
+                            className="machote-btn-secondary"
+                            style={{ fontSize: '0.75rem', marginTop: '0.25rem' }}
+                          >
+                            + {section.repeatLabel || `Agregar ${section.title.toLowerCase()}`}
+                          </button>
+                        </div>
+                      ) : (
+                        <input
+                          type="text"
+                          value={values[section.id] || ''}
+                          onChange={(e) => handleInputChange(section.id, e.target.value)}
+                          placeholder={section.placeholder}
+                          className="machote-input-control"
+                          style={{ fontSize: '0.85rem' }}
+                        />
                       )}
                     </div>
+                  ))}
+                </div>
+              </div>
 
-                    {aiResult?.sectionId === section.id && (
-                      <div style={{ padding: '0.5rem', background: 'rgba(99, 102, 241, 0.2)', border: '1px solid #6366f1', borderRadius: '4px', marginBottom: '0.5rem' }}>
-                        <p style={{ fontSize: '0.8rem', marginBottom: '0.5rem' }}><strong>Texto propuesto:</strong></p>
-                        <p style={{ fontSize: '0.85rem', whiteSpace: 'pre-wrap', marginBottom: '0.5rem' }}>{aiResult.result.proposedText}</p>
-                        {aiResult.result.sourcesUsed.length > 0 && (
-                          <>
-                            <p style={{ fontSize: '0.8rem' }}><strong>Fuentes utilizadas:</strong></p>
-                            <ul style={{ fontSize: '0.75rem', marginBottom: '0.5rem' }}>
-                              {aiResult.result.sourcesUsed.map((source) => (
-                                <li key={source.sourceId}>
-                                  <a href={source.url} target="_blank" rel="noreferrer">
-                                    {source.title}
-                                  </a>
-                                </li>
-                              ))}
-                            </ul>
-                          </>
-                        )}
-                        {aiResult.result.pendingElements.length > 0 && (
-                          <>
-                            <p style={{ fontSize: '0.8rem' }}><strong>Elementos pendientes:</strong></p>
-                            <ul style={{ fontSize: '0.75rem', marginBottom: '0.5rem' }}>
-                              {aiResult.result.pendingElements.map((item, index) => (
-                                <li key={`${item}-${index}`}>{item}</li>
-                              ))}
-                            </ul>
-                          </>
-                        )}
-                        {aiResult.result.warnings.length > 0 && (
-                          <>
-                            <p style={{ fontSize: '0.8rem' }}><strong>Advertencias:</strong></p>
-                            <ul style={{ fontSize: '0.75rem', marginBottom: '0.5rem' }}>
-                              {aiResult.result.warnings.map((item, index) => (
-                                <li key={`${item}-${index}`}>{item}</li>
-                              ))}
-                            </ul>
-                          </>
-                        )}
-                        <p style={{ fontSize: '0.75rem', marginBottom: '0.5rem' }}>
-                          Nivel de confianza: <strong>{aiResult.result.confidenceLevel}</strong>
-                        </p>
-                        <div style={{ display: 'flex', gap: '0.5rem' }}>
-                          <button type="button" onClick={() => applyAIResult(section.id, aiResult.result.proposedText)} className="btn-doc-primary" style={{ minHeight: '44px', padding: '0 0.75rem', fontSize: '0.75rem' }}>Aplicar</button>
-                          <button type="button" onClick={() => setAiResult(null)} className="btn-doc-secondary" style={{ minHeight: '44px', padding: '0 0.75rem', fontSize: '0.75rem' }}>Descartar</button>
-                        </div>
-                      </div>
-                    )}
+              {/* Preview Column */}
+              <div className="machote-preview-column">
+                <div className="glass-card" style={{ padding: '1.25rem', height: '100%', display: 'flex', flexDirection: 'column' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+                    <h3 style={{ fontSize: '1rem', fontWeight: 600 }}>Vista Previa en Tiempo Real</h3>
 
-                    {section.type === 'text' && (
-                      <input
-                        id={`field-${section.id}`}
-                        type="text"
-                        placeholder={section.placeholder}
-                        value={getSingleValue(section.id)}
-                        onChange={(e) => handleValueChange(section.id, e.target.value)}
-                      />
-                    )}
-
-                    {section.type === 'textarea' && (
-                      <textarea
-                        id={`field-${section.id}`}
-                        placeholder={section.placeholder}
-                        value={getSingleValue(section.id)}
-                        onChange={(e) => handleValueChange(section.id, e.target.value)}
-                        rows={5}
-                        className="legal-preview-editor"
-                      />
-                    )}
-
-                    {section.type === 'date' && (
-                      <input
-                        id={`field-${section.id}`}
-                        type="date"
-                        value={getSingleValue(section.id)}
-                        onChange={(e) => handleValueChange(section.id, e.target.value)}
-                      />
-                    )}
-
-                    {section.type === 'number' && (
-                      <input
-                        id={`field-${section.id}`}
-                        type="number"
-                        placeholder={section.placeholder}
-                        value={getSingleValue(section.id)}
-                        onChange={(e) => handleValueChange(section.id, e.target.value)}
-                      />
-                    )}
-
-                    {section.type === 'select' && section.options && (
-                      <select
-                        id={`field-${section.id}`}
-                        value={getSingleValue(section.id)}
-                        onChange={(e) => handleValueChange(section.id, e.target.value)}
+                    <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+                      <button
+                        type="button"
+                        onClick={handleCopyText}
+                        className="machote-btn-secondary"
+                        style={{ fontSize: '0.8rem', padding: '0.3rem 0.6rem' }}
                       >
-                        <option value="">Seleccione una opción...</option>
-                        {section.options.map(opt => (
-                          <option key={opt} value={opt}>{opt}</option>
-                        ))}
-                      </select>
-                    )}
-
-                    {section.type === 'repeatable' && (
-                      <div style={{ display: 'grid', gap: '0.5rem' }}>
-                        {getRepeatableValue(section.id).map((val: string, idx: number) => (
-                          <div key={idx} style={{ display: 'flex', gap: '0.5rem' }}>
-                            <textarea
-                              value={val}
-                              onChange={(e) => handleRepeatableChange(section.id, idx, e.target.value)}
-                              placeholder={section.placeholder || '...'}
-                              rows={3}
-                              className="legal-preview-editor"
-                              style={{ flex: 1 }}
-                            />
-                            <button
-                              type="button"
-                              onClick={() => removeRepeatable(section.id, idx)}
-                              className="btn-doc-secondary"
-                              style={{ padding: '0 0.5rem', height: 'fit-content' }}
-                              title="Eliminar"
-                            >
-                              X
-                            </button>
-                          </div>
-                        ))}
-                        <button
-                          type="button"
-                          onClick={() => addRepeatable(section.id)}
-                          className="btn-doc-secondary"
-                          style={{ justifySelf: 'start', fontSize: '0.8rem', padding: '0.25rem 0.75rem', minHeight: '32px' }}
-                        >
-                          + {section.repeatLabel || 'Agregar'}
-                        </button>
-                      </div>
-                    )}
+                        📋 Copiar
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleExportDocx}
+                        className="machote-btn-secondary"
+                        style={{ fontSize: '0.8rem', padding: '0.3rem 0.6rem' }}
+                      >
+                        📄 Descargar DOCX
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleExportTxt}
+                        className="machote-btn-secondary"
+                        style={{ fontSize: '0.8rem', padding: '0.3rem 0.6rem' }}
+                      >
+                        📝 Texto Plano
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handlePrint}
+                        className="machote-btn-primary"
+                        style={{ fontSize: '0.8rem', padding: '0.3rem 0.6rem' }}
+                      >
+                        🖨️ Imprimir / PDF
+                      </button>
+                    </div>
                   </div>
-                );
-              })}
-            </div>
-          </div>
 
-          {/* Preview Panel */}
-          <div className="machote-preview-panel glass-card" style={{ padding: '1.5rem' }}>
-            <div className="machote-preview-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-              <h2>Vista previa</h2>
-              <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                <button type="button" onClick={handleDocxExport} className="btn-doc-primary" style={{ minHeight: '44px', fontSize: '0.85rem' }}>Descargar DOCX</button>
-                <button type="button" onClick={handlePdfExport} className="btn-doc-secondary" style={{ minHeight: '44px', fontSize: '0.85rem' }}>Abrir impresión</button>
-                <button type="button" onClick={handleTextExport} className="btn-doc-secondary" style={{ minHeight: '44px', fontSize: '0.85rem' }}>Texto plano</button>
-                <button type="button" onClick={handleCopyText} className="btn-doc-secondary" style={{ minHeight: '44px', fontSize: '0.85rem' }}>Copiar</button>
+                  {fastReview && (
+                    <div className="legal-info-box" style={{ marginBottom: '1rem', padding: '0.75rem', fontSize: '0.8rem' }}>
+                      <p className="font-semibold" style={{ color: '#60a5fa' }}>Resultado de Revisión Rápida:</p>
+                      {fastReview.camposFaltantes.length > 0 && (
+                        <p style={{ color: '#ef4444', marginTop: '0.2rem' }}>• Campos requeridos pendientes: {fastReview.camposFaltantes.join(', ')}</p>
+                      )}
+                      {fastReview.recomendaciones.length > 0 && (
+                        <p style={{ color: '#fbbf24', marginTop: '0.2rem' }}>• Recomendaciones: {fastReview.recomendaciones.join(', ')}</p>
+                      )}
+                    </div>
+                  )}
+
+                  {deepReview && (
+                    <div className="legal-info-box" style={{ marginBottom: '1rem', padding: '0.75rem', fontSize: '0.8rem' }}>
+                      <p className="font-semibold" style={{ color: '#a78bfa' }}>Revisión Profunda (IA):</p>
+                      {deepReview.revisionLegal && <p style={{ marginTop: '0.2rem' }}><strong>Legal:</strong> {deepReview.revisionLegal}</p>}
+                      {deepReview.revisionProcesal && <p style={{ marginTop: '0.2rem' }}><strong>Procesal:</strong> {deepReview.revisionProcesal}</p>}
+                      {deepReview.riesgos && deepReview.riesgos.length > 0 && (
+                        <p style={{ color: '#f87171', marginTop: '0.2rem' }}><strong>Riesgos:</strong> {deepReview.riesgos.join(' | ')}</p>
+                      )}
+                    </div>
+                  )}
+
+                  {hasPendingMarkers(renderedText) && (
+                    <div className="legal-warning" style={{ marginBottom: '1rem', padding: '0.5rem', fontSize: '0.75rem' }}>
+                      ⚠️ {DRAFT_WARNING}
+                    </div>
+                  )}
+
+                  <div
+                    className="machote-document-paper"
+                    role="document"
+                    aria-label="Vista previa del documento jurídico"
+                    style={{ flex: 1, minHeight: '450px', overflowY: 'auto', whiteSpace: 'pre-wrap', fontFamily: 'Arial, sans-serif', fontSize: '0.88rem', lineHeight: '1.6' }}
+                  >
+                    {renderedText || 'Complete el formulario para ver la previsualización del documento.'}
+                  </div>
+                </div>
               </div>
             </div>
-
-            <div
-              className="machote-document-paper"
-              role="document"
-              aria-label="Vista previa del documento jurídico"
-              suppressHydrationWarning
-            >
-              {renderedText || 'Complete el formulario para ver la previsualización del documento.'}
-            </div>
-          </div>
-        </div>
           </>
+        )}
+
+        {/* Contestations & Strategy Tab View */}
+        {activeTab === 'contestations' && (
+          <div className="contestations-container" style={{ marginTop: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+            <div className="glass-card" style={{ padding: '1.5rem', border: '1px solid rgba(255,255,255,0.1)' }}>
+              <h2 style={{ fontSize: '1.3rem', fontWeight: 600, marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                ⚖️ Generador de Contestaciones y Recursos con IA
+              </h2>
+              <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', marginBottom: '1.25rem' }}>
+                Carga o pega la sentencia, demanda o acuerdo de tu expediente y escribe la indicación. La IA generará la contestación completa con agravios, preceptos legales y puntos petitorios.
+              </p>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem', marginBottom: '1.25rem' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.35rem' }}>
+                    1. Texto o Documento Base de tu Expediente
+                  </label>
+                  <textarea
+                    value={contestationDocumentText}
+                    onChange={(e) => setContestationDocumentText(e.target.value)}
+                    rows={8}
+                    placeholder="Pega aquí la sentencia, demanda, laudo o texto de tu archivo (ej. Amparo Directo 800/2024)... Si lo dejas en blanco, usará el machote o borrador activo."
+                    className="machote-input-control"
+                    style={{ fontSize: '0.85rem' }}
+                  />
+                  <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
+                    <input
+                      type="file"
+                      accept=".pdf,.docx,.txt"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        setContestationLoading(true);
+                        try {
+                          const formData = new FormData();
+                          formData.append('file', file);
+                          const res = await fetch('/api/templates/analyze-upload', { method: 'POST', body: formData });
+                          const data = await res.json();
+                          if (data.extractedText) {
+                            setContestationDocumentText(data.extractedText);
+                            setFeedback({ tone: 'success', message: `Texto de ${file.name} extraído correctamente.` });
+                          } else {
+                            setFeedback({ tone: 'warning', message: `Archivo ${file.name} cargado.` });
+                          }
+                        } catch {
+                          setFeedback({ tone: 'error', message: 'No se pudo leer el archivo.' });
+                        } finally {
+                          setContestationLoading(false);
+                        }
+                      }}
+                      style={{ fontSize: '0.8rem' }}
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.35rem' }}>
+                    2. Indicación o Instrucción para la IA *
+                  </label>
+                  <textarea
+                    value={contestationPrompt}
+                    onChange={(e) => setContestationPrompt(e.target.value)}
+                    rows={4}
+                    placeholder="Escribe la indicación exacta de lo que necesitas (ej. Generar contestación o recurso de revisión en amparo directo ante la SCJN)..."
+                    className="machote-input-control"
+                    style={{ fontSize: '0.85rem', marginBottom: '0.5rem' }}
+                  />
+
+                  <label style={{ display: 'block', fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '0.35rem' }}>
+                    💡 Indicaciones rápidas sugeridas:
+                  </label>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
+                    <button
+                      type="button"
+                      onClick={() => setContestationPrompt('A mi archivo dame una contestación / recurso de revisión extraordinaria ante la sentencia de un amparo directo')}
+                      className="machote-btn-secondary"
+                      style={{ fontSize: '0.75rem', padding: '0.25rem 0.5rem' }}
+                    >
+                      🏛️ Recurso de Revisión Amparo Directo ante SCJN
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setContestationPrompt('Generar contestación de demanda civil / mercantil con excepciones y defensas')}
+                      className="machote-btn-secondary"
+                      style={{ fontSize: '0.75rem', padding: '0.25rem 0.5rem' }}
+                    >
+                      ⚖️ Contestación Demanda Civil / Mercantil
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setContestationPrompt('Generar contestación a demanda laboral burocrática respecto a reinstalación, salarios e IPEJAL')}
+                      className="machote-btn-secondary"
+                      style={{ fontSize: '0.75rem', padding: '0.25rem 0.5rem' }}
+                    >
+                      💼 Contestación Laboral Burocrática
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setContestationPrompt('Analizar excepciones, defectos procesales y puntos débiles de este documento')}
+                      className="machote-btn-secondary"
+                      style={{ fontSize: '0.75rem', padding: '0.25rem 0.5rem' }}
+                    >
+                      🛡️ Analizar Excepciones y Defectos
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleGenerateContestation}
+                disabled={contestationLoading}
+                className="machote-btn-primary"
+                style={{ width: '100%', padding: '0.75rem', fontSize: '1rem', background: 'linear-gradient(135deg, #2563eb, #7c3aed)' }}
+              >
+                {contestationLoading ? '⌛ Generando Contestación y Estrategia con IA...' : '🚀 Generar Contestación / Estrategia con IA'}
+              </button>
+            </div>
+
+            {/* Generated Contestation Result */}
+            {contestationResult && (
+              <div className="glass-card" style={{ padding: '1.5rem', border: '1px solid rgba(59, 130, 246, 0.3)', backgroundColor: 'rgba(15, 23, 42, 0.6)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+                  <h3 style={{ fontSize: '1.2rem', fontWeight: 600, color: '#60a5fa' }}>
+                    📄 {contestationResult.title}
+                  </h3>
+                  <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard.writeText(contestationResult.text);
+                        setFeedback({ tone: 'success', message: 'Contestación copiada al portapapeles.' });
+                      }}
+                      className="machote-btn-secondary"
+                      style={{ fontSize: '0.85rem', padding: '0.35rem 0.75rem' }}
+                    >
+                      📋 Copiar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleExportContestationDocx}
+                      className="machote-btn-secondary"
+                      style={{ fontSize: '0.85rem', padding: '0.35rem 0.75rem' }}
+                    >
+                      📄 Descargar DOCX
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const html = generatePrintHtml({
+                          title: contestationResult.title,
+                          header: contestationResult.title,
+                          body: contestationResult.text,
+                          sections: [],
+                          footer: 'Generado por Radar Jurídico IA',
+                          warnings: [],
+                          disclaimer: 'Borrador generado por IA.',
+                          generatedAt: new Date().toLocaleDateString('es-MX'),
+                        });
+                        const printWindow = window.open('', '_blank');
+                        if (printWindow) {
+                          printWindow.document.write(html);
+                          printWindow.document.close();
+                        }
+                      }}
+                      className="machote-btn-secondary"
+                      style={{ fontSize: '0.85rem', padding: '0.35rem 0.75rem' }}
+                    >
+                      🖨️ Imprimir / PDF
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleSaveContestationAsTemplate}
+                      className="machote-btn-primary"
+                      style={{ fontSize: '0.85rem', padding: '0.35rem 0.75rem' }}
+                    >
+                      💾 Guardar en Mis Plantillas
+                    </button>
+                  </div>
+                </div>
+
+                <div
+                  className="machote-document-paper"
+                  style={{ minHeight: '350px', maxHeight: '600px', overflowY: 'auto', whiteSpace: 'pre-wrap', fontFamily: 'Arial, sans-serif', lineHeight: '1.6', fontSize: '0.92rem' }}
+                >
+                  {contestationResult.text}
+                </div>
+              </div>
+            )}
+          </div>
         )}
 
         {/* My Templates Tab View */}

@@ -1,102 +1,131 @@
-import https from 'https';
 import * as Cheerio from 'cheerio';
-import { normalizeExpediente } from '@/lib/utils/normalizeExpediente';
-import type { BulletinParsedEntry } from '@/lib/bulletins/types';
+import * as https from 'https';
 
-export const TJA_JALISCO_URL = 'https://tjajal.gob.mx/boletines';
-export const TJA_ADAPTER_VERSION = '1.0.0';
+const TJA_JALISCO_URL = 'https://tjajal.gob.mx/boletines';
 
-export type TjaQueryInput = {
+export interface BulletinAdapterInput {
   expedienteNumber: string;
-  court?: string;      // Sala (e.g. "I-UNITARIA")
-  startDate?: string;  // FAcu (YYYY-MM-DD)
-  endDate?: string;    // FAcuerdo (YYYY-MM-DD)
-};
+  court?: string;
+  year?: number;
+}
 
-export type TjaQueryResult = {
-  status: 'FOUND' | 'NOT_FOUND' | 'SOURCE_OFFLINE' | 'CAPTCHA_REQUIRED' | 'RATE_LIMIT' | 'UNKNOWN';
+export interface BulletinParsedEntry {
+  expedienteNumber: string;
+  court: string;
+  agreementDateRaw: string | null;
+  publicationDateRaw: string | null;
+  sourceUrl: string;
+  heading: string;
+  extract: string;
+  evidenceKind: string;
+}
+
+export interface BulletinAdapterResult {
+  status: 'FOUND' | 'NOT_FOUND' | 'SOURCE_OFFLINE';
   httpStatus: number;
   entries: BulletinParsedEntry[];
   rawHtml?: string;
   errorMessage?: string;
-};
-
-function httpGet(url: string): Promise<{ status: number; html: string; cookies: string[] }> {
-  return new Promise((resolve, reject) => {
-    const req = https.get(url, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-      },
-    }, (res) => {
-      let data = '';
-      res.on('data', chunk => data += chunk);
-      res.on('end', () => {
-        const rawCookies = res.headers['set-cookie'] || [];
-        resolve({ status: res.statusCode || 200, html: data, cookies: rawCookies });
-      });
-    });
-    req.on('error', reject);
-  });
 }
 
-function httpPost(url: string, body: string, cookieHeader: string): Promise<{ status: number; html: string }> {
+/**
+ * Helper to perform an HTTPS GET or POST request using Node's native `https` module.
+ * This avoids fetch header sanitization issues when sending Cookie and form-encoded data.
+ */
+function makeHttpsRequest(
+  url: string,
+  method: 'GET' | 'POST' = 'GET',
+  body?: string,
+  headers: Record<string, string> = {}
+): Promise<{ status: number; headers: Record<string, string[] | string | undefined>; html: string }> {
   return new Promise((resolve, reject) => {
-    const req = https.request(url, {
-      method: 'POST',
+    const parsedUrl = new URL(url);
+    const options: https.RequestOptions = {
+      hostname: parsedUrl.hostname,
+      port: parsedUrl.port || 443,
+      path: parsedUrl.pathname + parsedUrl.search,
+      method: method,
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Content-Type': 'application/x-www-form-urlencoded',
-        'Content-Length': Buffer.byteLength(body),
-        'Cookie': cookieHeader,
+        ...headers,
       },
-    }, (res) => {
+    };
+
+    if (body) {
+      options.headers = {
+        ...options.headers,
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Content-Length': Buffer.byteLength(body).toString(),
+      };
+    }
+
+    const req = https.request(options, (res) => {
       let data = '';
-      res.on('data', chunk => data += chunk);
-      res.on('end', () => resolve({ status: res.statusCode || 200, html: data }));
+      res.on('data', (chunk) => {
+        data += chunk;
+      });
+      res.on('end', () => {
+        resolve({
+          status: res.statusCode || 200,
+          headers: res.headers,
+          html: data,
+        });
+      });
     });
-    req.on('error', reject);
-    req.write(body);
+
+    req.on('error', (err) => {
+      reject(err);
+    });
+
+    if (body) {
+      req.write(body);
+    }
     req.end();
   });
 }
 
 /**
- * Executes an official form search against Tribunal de Justicia Administrativa de Jalisco (TJA)
+ * Official Bulletin Search Adapter for Tribunal de Justicia Administrativa del Estado de Jalisco (TJA Jalisco).
+ * Form URL: https://tjajal.gob.mx/boletines
  */
-export async function queryTjaJaliscoBulletin(input: TjaQueryInput): Promise<TjaQueryResult> {
-  const normalizedCase = normalizeExpediente(input.expedienteNumber, 'TJA_JALISCO');
-  const targetExpediente = normalizedCase || input.expedienteNumber;
-
+export async function queryTjaJaliscoBulletin(
+  input: BulletinAdapterInput
+): Promise<BulletinAdapterResult> {
   try {
-    // 1. Initial GET to retrieve CSRF token & cookies
-    const getRes = await httpGet(TJA_JALISCO_URL);
-
+    // 1. Initial GET to obtain CakePHP session cookie and _csrfToken
+    const getRes = await makeHttpsRequest(TJA_JALISCO_URL, 'GET');
     if (getRes.status >= 400) {
       return {
         status: 'SOURCE_OFFLINE',
         httpStatus: getRes.status,
         entries: [],
-        errorMessage: `TJA Jalisco initial page returned HTTP ${getRes.status}`,
+        errorMessage: `TJA Jalisco form returned HTTP ${getRes.status}`,
       };
     }
 
+    const rawCookies = getRes.headers['set-cookie'] || [];
+    const cookieHeader = Array.isArray(rawCookies)
+      ? rawCookies.map((c) => c.split(';')[0]).join('; ')
+      : '';
+
     const $get = Cheerio.load(getRes.html);
-    const csrfToken = $get('input[name="_csrfToken"]').first().val() || '';
-    const cookieHeader = getRes.cookies.map(c => c.split(';')[0]).join('; ');
+    const csrfToken = $get('input[name="_csrfToken"]').val() || '';
 
-    // 2. Build form payload
-    const body = new URLSearchParams();
-    body.append('_csrfToken', String(csrfToken));
-    body.append('FAcu', input.startDate || '');
-    body.append('FAcuerdo', input.endDate || '');
-    body.append('NExpediente', targetExpediente);
-    body.append('Sala', input.court || '');
-    body.append('Actor', '');
-    body.append('Demandados', '');
-    body.append('Terceros', '');
+    // 2. Prepare Form Data
+    const postData = new URLSearchParams({
+      _csrfToken: csrfToken.toString(),
+      FAcu: '',
+      FAcuerdo: '',
+      NExpediente: input.expedienteNumber,
+      Sala: input.court || '',
+    }).toString();
 
-    // 3. POST query to official form
-    const postRes = await httpPost(TJA_JALISCO_URL, body.toString(), cookieHeader);
+    // 3. POST submission to fetch bulletin search results
+    const postRes = await makeHttpsRequest(TJA_JALISCO_URL, 'POST', postData, {
+      Cookie: cookieHeader,
+      Referer: TJA_JALISCO_URL,
+      Origin: 'https://tjajal.gob.mx',
+    });
 
     if (postRes.status >= 400) {
       return {
@@ -130,8 +159,7 @@ export async function queryTjaJaliscoBulletin(input: TjaQueryInput): Promise<Tja
         .get()
         .filter(Boolean);
 
-      const expCol = cols.find(c => c.includes('/') && /\d+\/\d+/.test(c));
-
+      const expCol = cols.find((c) => c.includes('/') && /\d+\/\d+/.test(c));
       if (expCol) {
         const agreementDateRaw = cols[0] || null;
         const publicationDateRaw = cols[1] || null;
