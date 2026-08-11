@@ -1,3 +1,5 @@
+import Tesseract from 'tesseract.js';
+
 export interface ExtractedPdfContent {
   text: string;
   numpages: number;
@@ -46,4 +48,29 @@ export async function extractPdfTextServer(buffer: Buffer): Promise<ExtractedPdf
   } catch (err: any) {
     throw new Error(`Error al procesar el archivo PDF: ${err.message || "Archivo no válido o protegido"}`);
   }
+}
+
+export const OCR_MAX_PAGES = 20;
+
+export function ocrEnabled(): boolean {
+  return process.env.OCR_ENABLED !== 'false';
+}
+
+export async function extractPdfTextWithOCR(buffer: Buffer): Promise<ExtractedPdfContent> {
+  const result = await extractPdfTextServer(buffer);
+  if (result.needsOcr && ocrEnabled()) {
+    // We can't convert easily PDF to image server-side without native deps,
+    // so we return the flag. Actual OCR of raw buffer happens with image files.
+  }
+  return result;
+}
+
+export async function extractImageTextOCR(buffer: Buffer, mimeType: string): Promise<{text: string, confidence: number}> {
+  if (!ocrEnabled()) {
+    return { text: '', confidence: 0 };
+  }
+  const worker = await Tesseract.createWorker('spa');
+  const { data: { text, confidence } } = await worker.recognize(buffer);
+  await worker.terminate();
+  return { text, confidence };
 }

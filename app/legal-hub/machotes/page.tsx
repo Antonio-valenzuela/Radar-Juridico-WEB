@@ -56,6 +56,26 @@ export default function MachotesPage() {
     summary?: string;
   } | null>(null);
   const [extractionWarning, setExtractionWarning] = useState<string | null>(null);
+  const [aiAnalysis, setAiAnalysis] = useState<{
+    analisis: {
+      tipo_documento: string;
+      partes: { actor?: string; demandado?: string; juez?: string; tribunal?: string };
+      pretensiones: string[];
+      fundamentos_citados: string[];
+      hechos_clave: string[];
+      plazos?: string;
+    };
+    sugerencias: Array<{
+      estrategia: string;
+      descripcion: string;
+      fundamento_legal: string;
+      viabilidad: 'alta' | 'media' | 'baja';
+      riesgo: string;
+    }>;
+    advertencias: string[];
+  } | null>(null);
+  const [analysisLoading, setAnalysisLoading] = useState(false);
+  const [selectedSuggestions, setSelectedSuggestions] = useState<number[]>([]);
 
   useEffect(() => {
     const loadTemplates = async () => {
@@ -488,6 +508,43 @@ ${docText.slice(0, 12000)}
       setFeedback({ tone: 'error', message: err.message || 'Ocurrió un error al procesar con IA.' });
     } finally {
       setContestationLoading(false);
+    }
+  };
+
+  const handleAnalyzeDocument = async () => {
+    const docText = contestationDocumentText.trim();
+    if (!docText || docText.length < 50) {
+      setFeedback({ tone: 'warning', message: 'Pega o sube el texto del documento a analizar (mínimo 50 caracteres).' });
+      return;
+    }
+    setAnalysisLoading(true);
+    setAiAnalysis(null);
+    setSelectedSuggestions([]);
+    setFeedback(null);
+    try {
+      const response = await fetch('/api/ai/suggest-response', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          documentText: docText,
+          resourceType,
+          expediente: expedienteOrigen,
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok || !data.ok) {
+        throw new Error(data.error || 'Error al analizar el documento.');
+      }
+      setAiAnalysis({
+        analisis: data.analisis,
+        sugerencias: data.sugerencias || [],
+        advertencias: data.advertencias || [],
+      });
+      setFeedback({ tone: 'success', message: '✅ Análisis completado. Revisa las sugerencias y selecciona las que quieras incluir en tu contestación.' });
+    } catch (err: any) {
+      setFeedback({ tone: 'error', message: err.message || 'Error al analizar el documento.' });
+    } finally {
+      setAnalysisLoading(false);
     }
   };
 
@@ -1094,6 +1151,151 @@ ${docText.slice(0, 12000)}
                     </button>
                   </div>
                 </div>
+
+                {/* AI Analysis Section */}
+                <div style={{ gridColumn: 'span 2', display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                  <button
+                    type="button"
+                    onClick={handleAnalyzeDocument}
+                    disabled={analysisLoading || !contestationDocumentText.trim()}
+                    className="machote-btn-primary"
+                    style={{ fontSize: '0.9rem', padding: '0.5rem 1.25rem', background: 'linear-gradient(135deg, #059669, #0d9488)' }}
+                  >
+                    {analysisLoading ? '⏳ Analizando documento...' : '🔍 Analizar Documento con IA'}
+                  </button>
+                  <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                    La IA analizará el documento y te dará sugerencias de cómo contestar
+                  </span>
+                </div>
+
+                {aiAnalysis && (
+                  <div style={{ gridColumn: 'span 2' }}>
+                    <div className="glass-card" style={{ padding: '1.25rem', border: '1px solid rgba(16,185,129,0.3)' }}>
+                      <h3 style={{ fontSize: '1.1rem', fontWeight: 600, marginBottom: '0.75rem', color: '#10b981' }}>
+                        🧠 Análisis del Documento
+                      </h3>
+                      
+                      {/* Document Info */}
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '1rem' }}>
+                        <div style={{ padding: '0.75rem', background: 'rgba(255,255,255,0.05)', borderRadius: '0.5rem' }}>
+                          <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Tipo de documento</p>
+                          <p style={{ fontSize: '0.95rem', fontWeight: 600 }}>{aiAnalysis.analisis.tipo_documento}</p>
+                        </div>
+                        <div style={{ padding: '0.75rem', background: 'rgba(255,255,255,0.05)', borderRadius: '0.5rem' }}>
+                          <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Tribunal</p>
+                          <p style={{ fontSize: '0.95rem', fontWeight: 600 }}>{aiAnalysis.analisis.partes?.tribunal || 'No identificado'}</p>
+                        </div>
+                        {aiAnalysis.analisis.partes?.actor && (
+                          <div style={{ padding: '0.75rem', background: 'rgba(255,255,255,0.05)', borderRadius: '0.5rem' }}>
+                            <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Actor / Demandante</p>
+                            <p style={{ fontSize: '0.95rem', fontWeight: 600 }}>{aiAnalysis.analisis.partes.actor}</p>
+                          </div>
+                        )}
+                        {aiAnalysis.analisis.partes?.demandado && (
+                          <div style={{ padding: '0.75rem', background: 'rgba(255,255,255,0.05)', borderRadius: '0.5rem' }}>
+                            <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Demandado</p>
+                            <p style={{ fontSize: '0.95rem', fontWeight: 600 }}>{aiAnalysis.analisis.partes.demandado}</p>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Key Claims */}
+                      {aiAnalysis.analisis.pretensiones?.length > 0 && (
+                        <div style={{ marginBottom: '1rem' }}>
+                          <p style={{ fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.35rem' }}>📋 Pretensiones / Puntos Clave:</p>
+                          <ul style={{ fontSize: '0.85rem', paddingLeft: '1.25rem', margin: 0 }}>
+                            {aiAnalysis.analisis.pretensiones.map((p, i) => <li key={i} style={{ marginBottom: '0.2rem' }}>{p}</li>)}
+                          </ul>
+                        </div>
+                      )}
+
+                      {/* Legal Foundations */}
+                      {aiAnalysis.analisis.fundamentos_citados?.length > 0 && (
+                        <div style={{ marginBottom: '1rem' }}>
+                          <p style={{ fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.35rem' }}>⚖️ Fundamentos Citados:</p>
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem' }}>
+                            {aiAnalysis.analisis.fundamentos_citados.map((f, i) => (
+                              <span key={i} style={{ padding: '0.2rem 0.5rem', background: 'rgba(59,130,246,0.15)', borderRadius: '0.25rem', fontSize: '0.8rem' }}>{f}</span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Deadlines/Warnings */}
+                      {aiAnalysis.advertencias?.length > 0 && (
+                        <div className="legal-warning" style={{ marginBottom: '1rem', padding: '0.65rem' }}>
+                          <p style={{ fontWeight: 600, fontSize: '0.85rem' }}>⚠️ Advertencias:</p>
+                          <ul style={{ fontSize: '0.8rem', paddingLeft: '1.25rem', margin: '0.25rem 0 0' }}>
+                            {aiAnalysis.advertencias.map((w, i) => <li key={i}>{w}</li>)}
+                          </ul>
+                        </div>
+                      )}
+
+                      {/* Strategy Suggestions */}
+                      {aiAnalysis.sugerencias?.length > 0 && (
+                        <div>
+                          <p style={{ fontSize: '0.95rem', fontWeight: 600, marginBottom: '0.5rem' }}>💡 Sugerencias de Estrategia:</p>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                            {aiAnalysis.sugerencias.map((s, i) => {
+                              const isSelected = selectedSuggestions.includes(i);
+                              const viabilityColor = s.viabilidad === 'alta' ? '#10b981' : s.viabilidad === 'media' ? '#f59e0b' : '#ef4444';
+                              return (
+                                <div
+                                  key={i}
+                                  onClick={() => {
+                                    setSelectedSuggestions(prev => 
+                                      prev.includes(i) ? prev.filter(x => x !== i) : [...prev, i]
+                                    );
+                                  }}
+                                  style={{
+                                    padding: '1rem',
+                                    border: `2px solid ${isSelected ? '#3b82f6' : 'rgba(255,255,255,0.1)'}`,
+                                    borderRadius: '0.75rem',
+                                    cursor: 'pointer',
+                                    background: isSelected ? 'rgba(59,130,246,0.1)' : 'rgba(255,255,255,0.03)',
+                                    transition: 'all 0.2s ease',
+                                  }}
+                                >
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                      <input type="checkbox" checked={isSelected} readOnly style={{ accentColor: '#3b82f6' }} />
+                                      <span style={{ fontWeight: 600, fontSize: '0.9rem' }}>{s.estrategia}</span>
+                                    </div>
+                                    <span style={{ padding: '0.15rem 0.5rem', borderRadius: '1rem', fontSize: '0.75rem', fontWeight: 600, background: `${viabilityColor}20`, color: viabilityColor }}>
+                                      {s.viabilidad}
+                                    </span>
+                                  </div>
+                                  <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '0.35rem' }}>{s.descripcion}</p>
+                                  <p style={{ fontSize: '0.8rem', color: '#60a5fa' }}>📚 {s.fundamento_legal}</p>
+                                  {s.riesgo && <p style={{ fontSize: '0.8rem', color: '#f87171', marginTop: '0.2rem' }}>⚡ Riesgo: {s.riesgo}</p>}
+                                </div>
+                              );
+                            })}
+                          </div>
+                          {selectedSuggestions.length > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const selectedStrategies = selectedSuggestions.map(i => {
+                                  const s = aiAnalysis.sugerencias[i];
+                                  return `- ${s.estrategia}: ${s.descripcion} (Fundamento: ${s.fundamento_legal})`;
+                                }).join('\n');
+                                setContestationPrompt(prev => 
+                                  prev + '\n\nESTRATEGIAS SELECCIONADAS POR EL ABOGADO:\n' + selectedStrategies
+                                );
+                                setFeedback({ tone: 'success', message: `${selectedSuggestions.length} estrategia(s) agregada(s) a la instrucción.` });
+                              }}
+                              className="machote-btn-primary"
+                              style={{ marginTop: '0.75rem', fontSize: '0.85rem' }}
+                            >
+                              ✅ Agregar {selectedSuggestions.length} estrategia(s) a la instrucción
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
 
               <button

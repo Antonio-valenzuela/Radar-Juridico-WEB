@@ -91,11 +91,7 @@ export function SaveCustomTemplateModal({
       setError('Por favor escribe o pega el contenido de tu escrito o selecciona un archivo.');
       return;
     }
-    if (analysis && !analysis.es_juridico && !analysis.needsOcr) {
-      setError('El documento no parece un machote jurídico.');
-      return;
-    }
-
+    // Non-juridical documents are allowed with a warning - lawyers may upload any type of document
     setLoading(true);
     try {
       const contentToUse = documentContent.trim() || (file?.name
@@ -182,19 +178,32 @@ export function SaveCustomTemplateModal({
 
           <div className="machote-input-group">
             <label>
-              Cargar archivo (.docx, .pdf, .txt) o pegar texto de tu machote
+              Cargar archivo (.pdf, .docx, .doc, .txt, .rtf, imagen) o pegar texto
             </label>
             <input
               type="file"
-              accept=".pdf,.docx,.txt"
+              accept=".pdf,.docx,.doc,.txt,.rtf,.jpg,.jpeg,.png"
               onChange={handleFileUpload}
               style={{ marginBottom: '0.5rem', display: 'block', fontSize: '0.85rem' }}
             />
+
+            {loading && (
+              <div style={{ padding: '0.75rem', background: 'rgba(59,130,246,0.1)', borderRadius: '0.5rem', marginBottom: '0.5rem', fontSize: '0.85rem', color: '#3b82f6' }}>
+                <span style={{ animation: 'pulse 1.5s infinite' }}>⏳</span> Analizando documento... {file?.name && `(${file.name})`}
+                <br />
+                <small style={{ color: '#6b7280' }}>Si el documento es escaneado, la extracción de texto puede tardar un momento.</small>
+              </div>
+            )}
 
             {analysis ? (
               <div className="legal-info-box" style={{ marginBottom: '0.75rem', padding: '0.75rem', borderRadius: '0.5rem', backgroundColor: '#f8fafc', border: '1px solid #d1d5db' }}>
                 <p className="font-semibold">Resultado del análisis</p>
                 <p>¿Es jurídico?: <strong>{analysis.es_juridico ? 'Sí' : 'No'}</strong></p>
+                {!analysis.es_juridico && !analysis.needsOcr && (
+                  <p style={{ color: '#b45309', fontSize: '0.85rem', marginTop: '0.25rem' }}>
+                    ⚠️ Advertencia: El documento no parece un machote jurídico estándar, pero puedes guardarlo de todos modos.
+                  </p>
+                )}
                 <p>Tipo: {analysis.tipo_documento || 'No determinado'}</p>
                 <p>Confianza: {analysis.confianza}%</p>
                 <p>Razón: {analysis.razon}</p>
@@ -205,9 +214,18 @@ export function SaveCustomTemplateModal({
                   <p>Campos inferidos: {analysis.structureJson.campos.map((campo) => campo.etiqueta).join(', ')}</p>
                 ) : null}
                 {analysis.needsOcr && (
-                  <p style={{ color: '#047857', fontWeight: 500, marginTop: '0.25rem' }}>
-                    ✔ Archivo escaneado aceptado correctamente como machote. Puedes guardarlo directamente o pegar texto adicional si deseas edición.
+                  <p style={{ color: analysis.extractedText ? '#047857' : '#b45309', fontWeight: 500, marginTop: '0.25rem' }}>
+                    {analysis.extractedText 
+                      ? '✔ Texto extraído del documento escaneado. Revisa el contenido en el campo de abajo.'
+                      : '⚠️ No se pudo extraer texto automáticamente. Pega el texto manualmente en el campo de abajo.'}
                   </p>
+                )}
+                {analysis.extractedText && (
+                  <div style={{ fontSize: '0.8rem', color: '#6b7280', marginTop: '0.5rem' }}>
+                    📄 {analysis.extractedText.length.toLocaleString()} caracteres extraídos
+                    {analysis.needsOcr && ' (con OCR)'}
+                    {analysis.secciones_detectadas?.length > 0 && ` · Secciones: ${analysis.secciones_detectadas.join(', ')}`}
+                  </div>
                 )}
               </div>
             ) : null}

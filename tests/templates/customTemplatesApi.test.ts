@@ -48,9 +48,9 @@ describe('Custom Templates API & Utilities', () => {
       expect(json.error).toContain('15 MB');
     });
 
-    it('rejects unsupported file formats (.rtf) with status 415', async () => {
+    it('accepts .rtf files and extracts text content', async () => {
       const formData = new FormData();
-      const rtfFile = new File(['{\\rtf1\\ansi Test}'], 'documento.rtf', { type: 'application/rtf' });
+      const rtfFile = new File(['{\\rtf1\\ansi Demanda de amparo juzgado tribunal expediente considerando quejoso}'], 'documento.rtf', { type: 'application/rtf' });
       formData.append('file', rtfFile);
 
       const req = new NextRequest('http://localhost/api/templates/analyze-upload', {
@@ -59,10 +59,10 @@ describe('Custom Templates API & Utilities', () => {
       });
 
       const res = await POST_analyzeUpload(req);
-      expect(res.status).toBe(415);
+      expect(res.status).toBe(200);
       const json = await res.json();
-      expect(json.ok).toBe(false);
-      expect(json.unsupported).toBe(true);
+      expect(json.ok).toBe(true);
+      expect(json.extractedText).toBeTruthy();
     });
 
     it('extracts plain text from .txt files successfully', async () => {

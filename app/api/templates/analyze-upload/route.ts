@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/security/adminAuth';
-import { extractPdfTextServer } from '@/lib/pdf/pdfExtractor';
+import { extractPdfTextServer, extractImageTextOCR, ocrEnabled } from '@/lib/pdf/pdfExtractor';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -20,6 +20,7 @@ interface AnalyzeResult {
   };
   structureJson: null;
   error?: string;
+  ocrNote?: string;
 }
 
 /** Heurística liviana para determinar si el texto parece jurídico */
@@ -106,14 +107,13 @@ export async function POST(request: NextRequest) {
       try {
         const result = await extractPdfTextServer(buffer);
         extractedText = result.text?.trim() || '';
+        needsOcr = result.needsOcr;
         if (extractedText.length < 50) {
           needsOcr = true;
-          extractedText = '';
         }
       } catch (err) {
         console.warn('[analyze-upload] PDF extraction failed:', err);
         needsOcr = true;
-        extractedText = '';
       }
     }
 
@@ -136,14 +136,47 @@ export async function POST(request: NextRequest) {
 
     // ── DOC (legacy) ─────────────────────────────────────────────────────
     else if (ext === 'doc' || mimeType === 'application/msword') {
-      return NextResponse.json(
-        {
-          ok: false,
-          error: 'El formato .doc (Word antiguo) no está soportado todavía. Guarda el archivo como .docx o copia el texto y pégalo en el campo de texto.',
-          unsupported: true,
-        },
-        { status: 415 }
-      );
+      try {
+        const mammoth = await import('mammoth');
+        const arrayBuffer = await file.arrayBuffer();
+        const buffer = Buffer.from(arrayBuffer);
+        const result = await mammoth.extractRawText({ buffer });
+        extractedText = result.value?.trim() || '';
+      } catch (err) {
+        console.warn('[analyze-upload] DOC extraction failed:', err);
+        return NextResponse.json(
+          { ok: false, error: 'No se pudo leer el archivo DOC. Verifica que no esté dañado o intenta convertirlo a DOCX.' },
+          { status: 422 }
+        );
+      }
+    }
+
+    // ── Images ───────────────────────────────────────────────────────────
+    else if (['jpg', 'jpeg', 'png'].includes(ext) || mimeType.startsWith('image/')) {
+      if (!ocrEnabled()) {
+        return NextResponse.json(
+          { ok: false, error: 'La funcionalidad OCR está deshabilitada. No se pueden procesar imágenes.' },
+          { status: 422 }
+        );
+      }
+      try {
+        const arrayBuffer = await file.arrayBuffer();
+        const buffer = Buffer.from(arrayBuffer);
+        const { text } = await extractImageTextOCR(buffer, mimeType);
+        extractedText = text?.trim() || '';
+      } catch (err) {
+        console.warn('[analyze-upload] Image OCR failed:', err);
+        return NextResponse.json(
+          { ok: false, error: 'Error al procesar la imagen con OCR.' },
+          { status: 500 }
+        );
+      }
+    }
+
+    // ── RTF ──────────────────────────────────────────────────────────────
+    else if (ext === 'rtf' || mimeType === 'application/rtf') {
+      const rawText = await file.text();
+      extractedText = rawText.replace(/\\[a-z]+\d*\s?|[{}]/g, '').trim();
     }
 
     // ── Formato no soportado ─────────────────────────────────────────────
@@ -151,7 +184,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         {
           ok: false,
-          error: `Formato no soportado: .${ext}. Los formatos aceptados son: .pdf, .docx, .txt`,
+          error: `Formato no soportado: .${ext}. Los formatos aceptados son: .pdf, .docx, .doc, .txt, .rtf, .jpg, .jpeg, .png`,
           unsupported: true,
         },
         { status: 415 }
@@ -159,11 +192,12 @@ export async function POST(request: NextRequest) {
     }
 
     // ── Manejo de PDFs escaneados / Archivos que requieren OCR ────────────
-    if (needsOcr && !extractedText) {
+    if (needsOcr) {
       return NextResponse.json({
         ok: true,
-        extractedText: '',
+        extractedText,
         needsOcr: true,
+        ocrNote: 'El texto fue extraído con capacidad limitada. Para mejores resultados, pega el texto manualmente.',
         sourceFileName: fileName,
         mimeType,
         classification: {
