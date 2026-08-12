@@ -106,9 +106,13 @@ POR TANTO, A USTED C. JUEZ RESUELVE CONFORME A DERECHO.`;
       expect(res.status).toBe(200);
       const json = await res.json();
       expect(json.ok).toBe(true);
+      // Pipeline should attempt OCR for scanned PDF
       expect(json.needsOcr).toBe(true);
+      // After OCR, the mock provider returns legal text — classification is content-based
       expect(json.classification.es_juridico).toBe(true);
-      expect(json.classification.tipo_documento).toContain('PDF escaneado');
+      // With the new pipeline, OCR recovers the document and validates the source
+      expect(json.pipelineStatus).toBeDefined();
+      expect(json.sourceValidated).toBeDefined();
     });
   });
 

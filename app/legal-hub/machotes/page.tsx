@@ -23,13 +23,28 @@ import { EditCustomTemplateModal } from '@/components/machotes/EditCustomTemplat
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog';
 import type { FastReviewResponse, DeepReviewResponse } from '@/lib/templates/templateReview';
 
+import { IntentClassifier } from '@/components/machotes/IntentClassifier';
+import { PipelineProgress } from '@/components/machotes/PipelineProgress';
+import { UniversalDocEditor } from '@/components/machotes/UniversalDocEditor';
+import { ValidationPanel } from '@/components/machotes/ValidationPanel';
+import type { UniversalLegalDocument, PipelineState, ClassificationResult, UploadedSourceDocument } from '@/lib/legal-engine/types';
+import { runGenerationPipeline, generateSection } from '@/lib/legal-engine/pipeline';
+import { validateDocument } from '@/lib/legal-engine/validator';
+import { exportUniversalToDocx } from '@/lib/legal-engine/exportDocxUniversal';
+
 export default function MachotesPage() {
   const { activeDocument, setActiveDocument, setContextMode } = useLegalWorkspaceContext();
   const [customTemplates, setCustomTemplates] = useState<ProfessionalTemplate[]>([]);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>(templates[0].id);
   const [isAiFillOpen, setIsAiFillOpen] = useState(false);
   const [isSaveCustomOpen, setIsSaveCustomOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<'generator' | 'my-templates' | 'contestations'>('generator');
+  const [activeTab, setActiveTab] = useState<'generator' | 'my-templates' | 'contestations' | 'universal'>('universal');
+  
+  // Universal Legal Engine States
+  const [universalDoc, setUniversalDoc] = useState<UniversalLegalDocument | null>(null);
+  const [pipelineState, setPipelineState] = useState<PipelineState | null>(null);
+  const [isUniversalGenerating, setIsUniversalGenerating] = useState(false);
+  const [uploadedSourceDocs, setUploadedSourceDocs] = useState<UploadedSourceDocument[]>([]);
   const [editingTemplate, setEditingTemplate] = useState<ProfessionalTemplate | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
@@ -76,6 +91,34 @@ export default function MachotesPage() {
   } | null>(null);
   const [analysisLoading, setAnalysisLoading] = useState(false);
   const [selectedSuggestions, setSelectedSuggestions] = useState<number[]>([]);
+  const [extractionInfo, setExtractionInfo] = useState<{
+    qualityScore?: {
+      confidence: number;
+      qualityLabel: string;
+      pageCount: number;
+      textLength: number;
+      avgCharsPerPage: number;
+      status: string;
+      ocrUsed: boolean;
+      emptyPages: number;
+    };
+    steps?: Array<{
+      step: number;
+      label: string;
+      done: boolean;
+      status: 'pending' | 'ok' | 'warn' | 'error' | 'running';
+      detail?: string;
+    }>;
+    fileName?: string;
+    sourceValidated?: boolean;
+    sourceValidationMethod?: string;
+    pipelineStatus?: 'READY' | 'NEEDS_MANUAL_REVIEW' | 'FAILED';
+    ocrProvider?: string | null;
+    warnings?: string[];
+  } | null>(null);
+  const [analyzeUnderWarning, setAnalyzeUnderWarning] = useState(false);
+  const [copiedPreview, setCopiedPreview] = useState(false);
+  const [copiedContestation, setCopiedContestation] = useState(false);
 
   useEffect(() => {
     const loadTemplates = async () => {
@@ -177,7 +220,7 @@ export default function MachotesPage() {
     setFeedback(null);
 
     try {
-      const response = await fetch('/api/templates/review-fast', {
+      const response = await adminFetch('/api/templates/review-fast', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -206,7 +249,7 @@ export default function MachotesPage() {
     setFeedback(null);
 
     try {
-      const response = await fetch('/api/templates/review-deep', {
+      const response = await adminFetch('/api/templates/review-deep', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -332,14 +375,18 @@ export default function MachotesPage() {
         onConfirm: () => {
           setConfirmDialog(null);
           navigator.clipboard.writeText(renderedText);
-          setFeedback({ tone: 'success', message: 'Copiado al portapapeles con advertencia de campos pendientes.' });
+          setCopiedPreview(true);
+          setFeedback({ tone: 'success', message: '📋 Copiado al portapapeles con advertencia de campos pendientes.' });
+          setTimeout(() => setCopiedPreview(false), 2500);
         },
       });
       return;
     }
 
     navigator.clipboard.writeText(renderedText);
-    setFeedback({ tone: 'success', message: 'Documento copiado al portapapeles.' });
+    setCopiedPreview(true);
+    setFeedback({ tone: 'success', message: '✅ Documento copiado al portapapeles con éxito.' });
+    setTimeout(() => setCopiedPreview(false), 2500);
   };
 
   const handleExportDocx = async () => {
@@ -450,10 +497,10 @@ export default function MachotesPage() {
       const fullPrompt = `
 TIPO DE RECURSO / CONTESTACIÓN: ${resourceType}
 DATOS DE ORIGEN DE TU EXPEDIENTE:
-- Expediente de origen: ${expedienteOrigen || 'Verificar en autos'}
-- Tribunal / Autoridad emisora: ${tribunalEmisor || 'Verificar en autos'}
-- Fecha de resolución: ${fechaResolucion || 'Verificar fecha'}
-- Magistrado ponente / Autoridad: ${magistradoPonente || 'Verificar ponente'}
+- Expediente de origen: ${expedienteOrigen || '[Identificar y extraer número de expediente del documento base]'}
+- Tribunal / Autoridad emisora: ${tribunalEmisor || '[Identificar y extraer autoridad del documento base]'}
+- Fecha de resolución: ${fechaResolucion || '[Identificar fecha del documento base]'}
+- Magistrado ponente / Autoridad: ${magistradoPonente || '[Identificar ponente o autoridad]'}
 
 INSTRUCCIÓN ESPECÍFICA:
 ${contestationPrompt.trim()}
@@ -462,7 +509,7 @@ DOCUMENTO BASE DE LA SENTENCIA O DEMANDA:
 ${docText.slice(0, 12000)}
 `;
 
-      const response = await fetch('/api/ai/generate', {
+      const response = await adminFetch('/api/ai/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -498,12 +545,22 @@ ${docText.slice(0, 12000)}
         generatedText = typeof payload.data === 'string' ? payload.data : JSON.stringify(payload.data, null, 2);
       }
 
+      const fallbackUsed = payload.data?.providerSummary?.fallbackUsed === true || payload.fallbackUsed === true;
+
       setContestationResult({
         title: `${resourceType} - ${expedienteOrigen || 'Expediente'}`,
         text: generatedText.trim(),
-        summary: payload.data?.summary || 'Recurso / Contestación generado exitosamente.',
+        summary: payload.data?.summary || 'Recurso / Contestación proyectado.',
       });
-      setFeedback({ tone: 'success', message: '¡Recurso / Contestación legal proyectado con éxito por la IA!' });
+
+      if (fallbackUsed) {
+        setFeedback({
+          tone: 'warning',
+          message: '⚠️ No fue posible conectar con los proveedores de IA remotos (Gemini/Groq/OpenRouter). Se aplicó la plantilla local determinística — revísala a fondo antes de presentar.',
+        });
+      } else {
+        setFeedback({ tone: 'success', message: '¡Recurso / Contestación legal proyectado con éxito por la IA!' });
+      }
     } catch (err: any) {
       setFeedback({ tone: 'error', message: err.message || 'Ocurrió un error al procesar con IA.' });
     } finally {
@@ -522,7 +579,7 @@ ${docText.slice(0, 12000)}
     setSelectedSuggestions([]);
     setFeedback(null);
     try {
-      const response = await fetch('/api/ai/suggest-response', {
+      const response = await adminFetch('/api/ai/suggest-response', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -584,7 +641,7 @@ ${docText.slice(0, 12000)}
 
   return (
     <>
-      <main className="machotes-page-container machotes-workspace">
+      <main className="machote-page-container">
         <header className="machotes-header">
           <div className="machotes-header-content">
             <div className="machotes-header-left">
@@ -611,52 +668,40 @@ ${docText.slice(0, 12000)}
               >
                 ✨ Llenar con IA
               </button>
-              <button
-                type="button"
-                onClick={handleFastReview}
-                disabled={reviewLoading === 'fast'}
-                className="machote-btn-secondary"
-              >
-                {reviewLoading === 'fast' ? 'Revisando...' : '⚡ Revisión Rápida'}
-              </button>
-              <button
-                type="button"
-                onClick={handleDeepReview}
-                disabled={reviewLoading === 'deep'}
-                className="machote-btn-secondary"
-              >
-                {reviewLoading === 'deep' ? 'Revisando...' : '🧠 Revisión Profunda (3 IA)'}
-              </button>
             </div>
           </div>
 
           {/* Navigation Tabs */}
-          <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1.25rem', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '0.5rem', flexWrap: 'wrap' }}>
+          <nav className="machote-tabs">
+            <button
+              type="button"
+              onClick={() => setActiveTab('universal')}
+              className={`machote-tab ${activeTab === 'universal' ? 'machote-tab--accent' : ''}`}
+            >
+              ✨ Motor Universal (Nuevo)
+            </button>
             <button
               type="button"
               onClick={() => setActiveTab('generator')}
-              className={activeTab === 'generator' ? 'machote-btn-primary' : 'machote-btn-secondary'}
-              style={{ fontSize: '0.9rem', padding: '0.4rem 1rem' }}
+              className={`machote-tab ${activeTab === 'generator' ? 'machote-tab--active' : ''}`}
             >
-              📄 Generador de Escritos Iniciales
+              📄 Escritos Iniciales
             </button>
             <button
               type="button"
               onClick={() => setActiveTab('contestations')}
-              className={activeTab === 'contestations' ? 'machote-btn-primary' : 'machote-btn-secondary'}
-              style={{ fontSize: '0.9rem', padding: '0.4rem 1rem', background: activeTab === 'contestations' ? 'linear-gradient(135deg, #2563eb, #7c3aed)' : undefined, border: 'none' }}
+              className={`machote-tab ${activeTab === 'contestations' ? 'machote-tab--active' : ''}`}
             >
-              ⚖️ Contestaciones, Recursos y Agravios con IA
+              ⚖️ Contestaciones y Recursos
             </button>
             <button
               type="button"
               onClick={() => setActiveTab('my-templates')}
-              className={activeTab === 'my-templates' ? 'machote-btn-primary' : 'machote-btn-secondary'}
-              style={{ fontSize: '0.9rem', padding: '0.4rem 1rem' }}
+              className={`machote-tab ${activeTab === 'my-templates' ? 'machote-tab--active' : ''}`}
             >
               📂 Mis Plantillas ({customTemplates.length})
             </button>
-          </div>
+          </nav>
         </header>
 
         <SaveCustomTemplateModal
@@ -665,7 +710,8 @@ ${docText.slice(0, 12000)}
           onTemplateCreated={(newTemplate) => {
             setCustomTemplates((prev) => [newTemplate, ...prev.filter(t => t.id !== newTemplate.id)]);
             setSelectedTemplateId(newTemplate.id);
-            setFeedback({ tone: 'success', message: `Tu machote "${newTemplate.title}" se guardó y está listo para usarse.` });
+            setActiveTab('generator');
+            setFeedback({ tone: 'success', message: `✅ Tu machote "${newTemplate.title}" fue guardado y cargado en el editor.` });
           }}
         />
 
@@ -721,6 +767,24 @@ ${docText.slice(0, 12000)}
               </div>
 
               <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-end', flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  onClick={handleFastReview}
+                  disabled={reviewLoading === 'fast'}
+                  className="machote-btn-secondary"
+                  style={{ fontSize: '0.85rem' }}
+                >
+                  {reviewLoading === 'fast' ? 'Revisando...' : '⚡ Revisión Rápida'}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDeepReview}
+                  disabled={reviewLoading === 'deep'}
+                  className="machote-btn-secondary"
+                  style={{ fontSize: '0.85rem' }}
+                >
+                  {reviewLoading === 'deep' ? 'Revisando...' : '🧠 Revisión Profunda (3 IA)'}
+                </button>
                 <button
                   type="button"
                   onClick={handleLoadSample}
@@ -881,9 +945,17 @@ ${docText.slice(0, 12000)}
                         type="button"
                         onClick={handleCopyText}
                         className="machote-btn-secondary"
-                        style={{ fontSize: '0.8rem', padding: '0.3rem 0.6rem' }}
+                        style={{
+                          fontSize: '0.8rem',
+                          padding: '0.3rem 0.6rem',
+                          background: copiedPreview ? 'rgba(16, 185, 129, 0.25)' : undefined,
+                          color: copiedPreview ? '#34d399' : undefined,
+                          borderColor: copiedPreview ? '#10b981' : undefined,
+                          fontWeight: copiedPreview ? 700 : 400,
+                          transition: 'all 0.2s ease',
+                        }}
                       >
-                        📋 Copiar
+                        {copiedPreview ? '✓ ¡Copiado!' : '📋 Copiar'}
                       </button>
                       <button
                         type="button"
@@ -969,7 +1041,7 @@ ${docText.slice(0, 12000)}
 
         {/* Contestations & Resources Tab View */}
         {activeTab === 'contestations' && (
-          <div className="contestations-container" style={{ marginTop: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+          <div className="contestations-container" style={{ marginTop: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.5rem', maxWidth: '1100px' }}>
             <div className="glass-card" style={{ padding: '1.5rem', border: '1px solid rgba(255,255,255,0.1)' }}>
               <h2 style={{ fontSize: '1.3rem', fontWeight: 600, marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 ⚖️ Módulo Especializado de Contestaciones, Recursos y Agravios
@@ -979,8 +1051,8 @@ ${docText.slice(0, 12000)}
               </p>
 
               {/* Step 1: Select Resource Type & Origin Case Fields */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '1rem', marginBottom: '1.25rem' }}>
-                <div style={{ gridColumn: 'span 2' }}>
+              <div className="contestation-metadata-grid" style={{ marginBottom: '1.25rem' }}>
+                <div className="span-2">
                   <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.35rem' }}>
                     Tipo de Recurso / Contestación *
                   </label>
@@ -988,7 +1060,6 @@ ${docText.slice(0, 12000)}
                     value={resourceType}
                     onChange={(e) => setResourceType(e.target.value)}
                     className="machote-input-control"
-                    style={{ fontSize: '0.85rem' }}
                   >
                     <option value="Amparo Directo en Revisión (SCJN)">🏛️ Amparo Directo en Revisión (SCJN)</option>
                     <option value="Recurso de Queja (Ley de Amparo)">⚖️ Recurso de Queja (Ley de Amparo)</option>
@@ -1009,7 +1080,6 @@ ${docText.slice(0, 12000)}
                     onChange={(e) => setExpedienteOrigen(e.target.value)}
                     placeholder="Ej. 800/2024"
                     className="machote-input-control"
-                    style={{ fontSize: '0.85rem' }}
                   />
                 </div>
 
@@ -1023,11 +1093,10 @@ ${docText.slice(0, 12000)}
                     onChange={(e) => setFechaResolucion(e.target.value)}
                     placeholder="Ej. 15 de abril de 2026"
                     className="machote-input-control"
-                    style={{ fontSize: '0.85rem' }}
                   />
                 </div>
 
-                <div style={{ gridColumn: 'span 2' }}>
+                <div className="span-2">
                   <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.35rem' }}>
                     Tribunal o Autoridad Emisora
                   </label>
@@ -1037,11 +1106,10 @@ ${docText.slice(0, 12000)}
                     onChange={(e) => setTribunalEmisor(e.target.value)}
                     placeholder="Ej. 2do Tribunal Colegiado en Materia de Trabajo del 3er Circuito"
                     className="machote-input-control"
-                    style={{ fontSize: '0.85rem' }}
                   />
                 </div>
 
-                <div style={{ gridColumn: 'span 2' }}>
+                <div className="span-2">
                   <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.35rem' }}>
                     Magistrado Ponente / Juez
                   </label>
@@ -1051,13 +1119,12 @@ ${docText.slice(0, 12000)}
                     onChange={(e) => setMagistradoPonente(e.target.value)}
                     placeholder="Ej. Luis Ávalos García"
                     className="machote-input-control"
-                    style={{ fontSize: '0.85rem' }}
                   />
                 </div>
               </div>
 
               {/* Step 2: Source Document & Instruction */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem', marginBottom: '1.25rem' }}>
+              <div className="contestation-source-grid" style={{ marginBottom: '1.25rem' }}>
                 <div>
                   <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.35rem' }}>
                     Sentencia o Demanda Impugnada (Fuente de Verdad)
@@ -1082,17 +1149,35 @@ ${docText.slice(0, 12000)}
                         try {
                           const formData = new FormData();
                           formData.append('file', file);
-                          const res = await fetch('/api/templates/analyze-upload', { method: 'POST', body: formData });
+                          const res = await adminFetch('/api/templates/analyze-upload', { method: 'POST', body: formData });
                           const data = await res.json();
-                          if (data.extractedText) {
-                            setContestationDocumentText(data.extractedText);
-                            if (data.needsOcr) {
-                              setExtractionWarning(`⚠️ Extracción de texto de ${file.name} marcada como PDF escaneado. Se conservó el texto recuperado sin reemplazar con datos ficticios.`);
+                          if (data.ok) {
+                            if (data.extractedText) {
+                              setContestationDocumentText(data.extractedText);
+                              setExtractionInfo({
+                                qualityScore: data.qualityScore,
+                                steps: data.extractionSteps,
+                                fileName: file.name,
+                                sourceValidated: data.sourceValidated,
+                                sourceValidationMethod: data.sourceValidationMethod,
+                                pipelineStatus: data.pipelineStatus,
+                                ocrProvider: data.ocrProvider,
+                                warnings: data.warnings,
+                              });
+                              setAnalyzeUnderWarning(false);
+                              if (data.sourceValidated) {
+                                setFeedback({ tone: 'success', message: `✅ Fuente validada: ${file.name} (${(data.extractedText || '').length.toLocaleString()} caracteres, ${data.qualityScore?.confidence ?? 0}% calidad)` });
+                              } else if (data.extractedText) {
+                                setExtractionWarning(`⚠️ Extracción incompleta en ${file.name}. Revisa el texto o activa OCR. Puedes analizar bajo advertencia.`);
+                              } else {
+                                setExtractionWarning(`⚠️ ${file.name} no tiene texto seleccionable. Complementa el texto manualmente o sube la imagen como PNG/JPG para OCR.`);
+                              }
                             } else {
-                              setFeedback({ tone: 'success', message: `Texto de ${file.name} cargado correctamente como fuente de verdad.` });
+                              setExtractionInfo(null);
+                              setExtractionWarning(`⚠️ El archivo ${file.name} no pudo procesarse. ${data.error || 'Intenta con otro formato.'}`);
                             }
                           } else {
-                            setExtractionWarning(`⚠️ El archivo ${file.name} requiere revisión de extracción. Puedes pegar el texto manualmente en el campo.`);
+                            setExtractionWarning(`⚠️ ${data.error || `No se pudo extraer texto de ${file.name}. Puedes pegar el texto manualmente.`}`);
                           }
                         } catch {
                           setFeedback({ tone: 'error', message: 'No se pudo leer el archivo.' });
@@ -1104,6 +1189,93 @@ ${docText.slice(0, 12000)}
                     />
                     {extractionWarning && (
                       <p style={{ color: '#fbbf24', fontSize: '0.8rem', marginTop: '0.35rem' }}>{extractionWarning}</p>
+                    )}
+                    {extractionInfo?.steps && (
+                      <div style={{ marginTop: '0.75rem', padding: '1rem', background: 'rgba(15, 23, 42, 0.85)', borderRadius: '0.625rem', border: `1px solid ${extractionInfo.sourceValidated ? 'rgba(16, 185, 129, 0.4)' : 'rgba(239, 68, 68, 0.35)'}` }}>
+                        {/* Header */}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.6rem' }}>
+                          <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#60a5fa' }}>📊 PIPELINE DE EXTRACCIÓN</span>
+                          <span style={{
+                            padding: '0.2rem 0.55rem', borderRadius: '1rem', fontSize: '0.72rem', fontWeight: 700,
+                            background: extractionInfo.pipelineStatus === 'READY' ? 'rgba(16,185,129,0.2)' : extractionInfo.pipelineStatus === 'NEEDS_MANUAL_REVIEW' ? 'rgba(245,158,11,0.2)' : 'rgba(239,68,68,0.2)',
+                            color: extractionInfo.pipelineStatus === 'READY' ? '#34d399' : extractionInfo.pipelineStatus === 'NEEDS_MANUAL_REVIEW' ? '#fbbf24' : '#f87171',
+                          }}>
+                            {extractionInfo.pipelineStatus === 'READY' ? '✅ FUENTE VALIDADA' : extractionInfo.pipelineStatus === 'NEEDS_MANUAL_REVIEW' ? '⚠️ REVISIÓN MANUAL' : '❌ EXTRACCIÓN FALLIDA'}
+                          </span>
+                        </div>
+
+                        {/* Steps */}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', marginBottom: '0.6rem' }}>
+                          {extractionInfo.steps.map((s) => {
+                            const icon = s.status === 'ok' ? '✓' : s.status === 'error' ? '✗' : s.status === 'warn' ? '⚠' : s.status === 'running' ? '⟳' : '○';
+                            const color = s.status === 'ok' ? '#10b981' : s.status === 'error' ? '#f87171' : s.status === 'warn' ? '#fbbf24' : '#94a3b8';
+                            return (
+                              <div key={s.step} style={{ display: 'flex', alignItems: 'flex-start', gap: '0.4rem', fontSize: '0.78rem' }}>
+                                <span style={{ color, fontWeight: 700, minWidth: '1rem', marginTop: '0.05rem' }}>{icon}</span>
+                                <div>
+                                  <span style={{ color }}>{s.label}</span>
+                                  {s.detail && <div style={{ color: '#94a3b8', fontSize: '0.72rem', marginTop: '0.1rem' }}>↳ {s.detail}</div>}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+
+                        {/* Metrics badges */}
+                        {extractionInfo.qualityScore && (
+                          <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', marginBottom: '0.5rem' }}>
+                            <span style={{ padding: '0.2rem 0.5rem', background: 'rgba(255,255,255,0.07)', borderRadius: '0.25rem', fontSize: '0.73rem' }}>
+                              📄 {extractionInfo.qualityScore.pageCount} pág.
+                            </span>
+                            <span style={{ padding: '0.2rem 0.5rem', background: 'rgba(255,255,255,0.07)', borderRadius: '0.25rem', fontSize: '0.73rem' }}>
+                              🔤 {extractionInfo.qualityScore.textLength.toLocaleString()} chars
+                            </span>
+                            <span style={{ padding: '0.2rem 0.5rem', background: 'rgba(255,255,255,0.07)', borderRadius: '0.25rem', fontSize: '0.73rem' }}>
+                              📊 {Math.round(extractionInfo.qualityScore.avgCharsPerPage)} chars/pág.
+                            </span>
+                            {extractionInfo.ocrProvider && (
+                              <span style={{ padding: '0.2rem 0.5rem', background: 'rgba(139, 92, 246, 0.15)', borderRadius: '0.25rem', fontSize: '0.73rem', color: '#a78bfa' }}>
+                                🔍 OCR: {extractionInfo.ocrProvider}
+                              </span>
+                            )}
+                            <span style={{
+                              padding: '0.2rem 0.5rem',
+                              background: extractionInfo.qualityScore.confidence >= 70 ? 'rgba(16, 185, 129, 0.15)' : 'rgba(245, 158, 11, 0.15)',
+                              borderRadius: '0.25rem', fontSize: '0.73rem',
+                              color: extractionInfo.qualityScore.confidence >= 70 ? '#34d399' : '#fbbf24',
+                            }}>
+                              ⚡ {extractionInfo.qualityScore.confidence}% — {extractionInfo.qualityScore.qualityLabel}
+                            </span>
+                          </div>
+                        )}
+
+                        {/* Warnings */}
+                        {extractionInfo.warnings && extractionInfo.warnings.length > 0 && (
+                          <div style={{ fontSize: '0.73rem', color: '#fbbf24', marginTop: '0.25rem' }}>
+                            {extractionInfo.warnings.filter(w => !w.includes('MOCK')).slice(0, 3).map((w, i) => (
+                              <div key={i}>⚠ {w}</div>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* Analyze under warning CTA (only when not validated) */}
+                        {!extractionInfo.sourceValidated && contestationDocumentText.trim() && (
+                          <div style={{ marginTop: '0.6rem', padding: '0.5rem 0.75rem', background: 'rgba(245, 158, 11, 0.1)', border: '1px solid rgba(245, 158, 11, 0.3)', borderRadius: '0.4rem' }}>
+                            <p style={{ fontSize: '0.75rem', color: '#fbbf24', marginBottom: '0.35rem' }}>
+                              ⚠️ La fuente no fue validada automáticamente. El análisis IA puede producir resultados inexactos si el texto está incompleto.
+                            </p>
+                            <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.75rem', cursor: 'pointer', color: '#fbbf24' }}>
+                              <input
+                                type="checkbox"
+                                checked={analyzeUnderWarning}
+                                onChange={(e) => setAnalyzeUnderWarning(e.target.checked)}
+                                style={{ accentColor: '#f59e0b' }}
+                              />
+                              Entiendo los riesgos y deseo analizar bajo advertencia
+                            </label>
+                          </div>
+                        )}
+                      </div>
                     )}
                   </div>
                 </div>
@@ -1153,23 +1325,47 @@ ${docText.slice(0, 12000)}
                 </div>
 
                 {/* AI Analysis Section */}
-                <div style={{ gridColumn: 'span 2', display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
-                  <button
-                    type="button"
-                    onClick={handleAnalyzeDocument}
-                    disabled={analysisLoading || !contestationDocumentText.trim()}
-                    className="machote-btn-primary"
-                    style={{ fontSize: '0.9rem', padding: '0.5rem 1.25rem', background: 'linear-gradient(135deg, #059669, #0d9488)' }}
-                  >
-                    {analysisLoading ? '⏳ Analizando documento...' : '🔍 Analizar Documento con IA'}
-                  </button>
-                  <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                    La IA analizará el documento y te dará sugerencias de cómo contestar
-                  </span>
+                <div className="contestation-full-width" style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                  {/* Block AI analysis when source is not validated */}
+                  {extractionInfo && !extractionInfo.sourceValidated && !analyzeUnderWarning ? (
+                    <div style={{ flex: 1, padding: '0.6rem 0.9rem', background: 'rgba(239, 68, 68, 0.08)', border: '1px solid rgba(239, 68, 68, 0.25)', borderRadius: '0.5rem', fontSize: '0.82rem' }}>
+                      <span style={{ color: '#f87171', fontWeight: 600 }}>🔒 Análisis IA bloqueado</span>
+                      <span style={{ color: 'var(--text-secondary)', marginLeft: '0.5rem' }}>
+                        La fuente no fue validada. Acepta el análisis bajo advertencia en el panel de extracción para continuar.
+                      </span>
+                    </div>
+                  ) : (
+                    <>
+                      <button
+                        type="button"
+                        onClick={handleAnalyzeDocument}
+                        disabled={analysisLoading || !contestationDocumentText.trim()}
+                        className="machote-btn-primary"
+                        style={{
+                          fontSize: '0.9rem',
+                          padding: '0.5rem 1.25rem',
+                          background: analyzeUnderWarning && extractionInfo && !extractionInfo.sourceValidated
+                            ? 'linear-gradient(135deg, #d97706, #b45309)'
+                            : 'linear-gradient(135deg, #059669, #0d9488)',
+                        }}
+                      >
+                        {analysisLoading
+                          ? '⏳ Analizando documento...'
+                          : analyzeUnderWarning && extractionInfo && !extractionInfo.sourceValidated
+                          ? '⚠️ Analizar bajo advertencia'
+                          : '🔍 Analizar Documento con IA'}
+                      </button>
+                      <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                        {analyzeUnderWarning && extractionInfo && !extractionInfo.sourceValidated
+                          ? 'Fuente no validada — el análisis puede ser impreciso'
+                          : 'La IA analizará el documento y te dará sugerencias de cómo contestar'}
+                      </span>
+                    </>
+                  )}
                 </div>
 
                 {aiAnalysis && (
-                  <div style={{ gridColumn: 'span 2' }}>
+                  <div className="contestation-full-width">
                     <div className="glass-card" style={{ padding: '1.25rem', border: '1px solid rgba(16,185,129,0.3)' }}>
                       <h3 style={{ fontSize: '1.1rem', fontWeight: 600, marginBottom: '0.75rem', color: '#10b981' }}>
                         🧠 Análisis del Documento
@@ -1321,12 +1517,22 @@ ${docText.slice(0, 12000)}
                       type="button"
                       onClick={() => {
                         navigator.clipboard.writeText(contestationResult.text);
-                        setFeedback({ tone: 'success', message: 'Escrito copiado al portapapeles.' });
+                        setCopiedContestation(true);
+                        setFeedback({ tone: 'success', message: '✅ Escrito copiado al portapapeles con éxito.' });
+                        setTimeout(() => setCopiedContestation(false), 2500);
                       }}
                       className="machote-btn-secondary"
-                      style={{ fontSize: '0.85rem', padding: '0.35rem 0.75rem' }}
+                      style={{
+                        fontSize: '0.85rem',
+                        padding: '0.35rem 0.75rem',
+                        background: copiedContestation ? 'rgba(16, 185, 129, 0.25)' : undefined,
+                        color: copiedContestation ? '#34d399' : undefined,
+                        borderColor: copiedContestation ? '#10b981' : undefined,
+                        fontWeight: copiedContestation ? 700 : 400,
+                        transition: 'all 0.2s ease',
+                      }}
                     >
-                      📋 Copiar
+                      {copiedContestation ? '✓ ¡Copiado!' : '📋 Copiar'}
                     </button>
                     <button
                       type="button"
@@ -1377,6 +1583,205 @@ ${docText.slice(0, 12000)}
                 >
                   {contestationResult.text}
                 </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ✨ Motor Universal Tab View */}
+        {activeTab === 'universal' && (
+          <div style={{ marginTop: '1rem' }}>
+            {!universalDoc ? (
+              <div style={{ maxWidth: '900px', margin: '0 auto' }}>
+                <IntentClassifier
+                  isProcessing={isUniversalGenerating}
+                  onConfirmClassification={async (classification, userInstruction) => {
+                    setIsUniversalGenerating(true);
+                    try {
+                      const doc = await runGenerationPipeline({
+                        userInstruction,
+                        sourceDocuments: uploadedSourceDocs,
+                        existingClassification: classification,
+                      });
+                      setUniversalDoc(doc);
+                      setPipelineState(doc.generationMetadata.pipelineState);
+                      setFeedback({ tone: 'success', message: `Documento "${doc.title}" estructurado y generado exitosamente.` });
+                    } catch (err: any) {
+                      setFeedback({ tone: 'error', message: err.message || 'Error al procesar el escrito.' });
+                    } finally {
+                      setIsUniversalGenerating(false);
+                    }
+                  }}
+                />
+
+                {/* Source Document File Upload Area */}
+                <div style={{ background: 'var(--surface)', borderRadius: 'var(--radius-lg)', padding: '1.5rem', border: '1px solid var(--border)', marginTop: '1.5rem' }}>
+                  <h3 style={{ fontSize: '1.05rem', fontWeight: 700, margin: '0 0 0.5rem', color: 'var(--text-main)' }}>
+                    📎 Documentos de Soporte (Sentencias, Demandas, Expediente)
+                  </h3>
+                  <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '1rem' }}>
+                    Adjunta los archivos del caso para que el motor extraiga hechos, antecedentes y constancias reales.
+                  </p>
+
+                  <input
+                    type="file"
+                    accept=".pdf,.docx,.doc,.txt,.rtf,.jpg,.jpeg,.png"
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      const formData = new FormData();
+                      formData.append('file', file);
+                      try {
+                        const res = await adminFetch('/api/templates/analyze-upload', {
+                          method: 'POST',
+                          body: formData,
+                        });
+                        const payload = await res.json();
+                        if (payload.ok) {
+                          const extracted = payload.extractedText || '';
+                          const doc: UploadedSourceDocument = {
+                            id: `src-${Date.now()}`,
+                            name: payload.sourceFileName || file.name,
+                            extractedText: extracted,
+                            classification: payload.classification,
+                            uploadedAt: new Date().toISOString(),
+                          };
+                          setUploadedSourceDocs((prev) => [...prev, doc]);
+                          if (extracted) {
+                            setFeedback({ tone: 'success', message: `Archivo "${file.name}" analizado e incorporado al contexto (${extracted.length} caracteres).` });
+                          } else {
+                            setFeedback({ tone: 'warning', message: `Archivo "${file.name}" subido. Fue identificado como PDF escaneado sin capa de texto seleccionable.` });
+                          }
+                        } else {
+                          setFeedback({ tone: 'error', message: payload.error || 'No se pudo procesar el archivo.' });
+                        }
+                      } catch (err: any) {
+                        setFeedback({ tone: 'error', message: 'Error al subir documento.' });
+                      }
+                    }}
+                    style={{ fontSize: '0.85rem' }}
+                  />
+
+                  {uploadedSourceDocs.length > 0 && (
+                    <div style={{ marginTop: '1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                      <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-muted)' }}>Documentos listos:</div>
+                      {uploadedSourceDocs.map((doc) => (
+                        <div key={doc.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--surface-muted)', padding: '0.5rem 0.75rem', borderRadius: 'var(--radius-sm)', fontSize: '0.85rem' }}>
+                          <span>📄 <strong>{doc.name || doc.filename || 'Documento'}</strong> ({(doc.extractedText?.length || doc.content?.length || 0).toLocaleString()} caracteres)</span>
+                          <button
+                            type="button"
+                            onClick={() => setUploadedSourceDocs((prev) => prev.filter((d) => d.id !== doc.id))}
+                            style={{ color: '#ef4444', border: 'none', background: 'transparent', cursor: 'pointer' }}
+                          >
+                            ❌
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div>
+                {/* Top Action Bar */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '0.75rem' }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setUniversalDoc(null);
+                      setPipelineState(null);
+                    }}
+                    className="machote-btn-secondary"
+                    style={{ fontSize: '0.85rem' }}
+                  >
+                    ← Iniciar Nuevo Escrito
+                  </button>
+
+                  <div style={{ display: 'flex', gap: '0.5rem' }}>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        try {
+                          const buffer = await exportUniversalToDocx(universalDoc);
+                          const blob = new Blob([new Uint8Array(buffer)], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+                          const url = URL.createObjectURL(blob);
+                          const a = document.createElement('a');
+                          a.href = url;
+                          a.download = `${universalDoc.title.replace(/[^a-zA-Z0-9\s-]/g, '')}.docx`;
+                          a.click();
+                          setFeedback({ tone: 'success', message: 'Documento DOCX exportado exitosamente.' });
+                        } catch (err: any) {
+                          setFeedback({ tone: 'error', message: 'Error al exportar DOCX.' });
+                        }
+                      }}
+                      className="machote-btn-primary"
+                      style={{ fontSize: '0.85rem' }}
+                    >
+                      📄 Descargar DOCX
+                    </button>
+                  </div>
+                </div>
+
+                {/* Pipeline Progress */}
+                {pipelineState && <PipelineProgress state={pipelineState} />}
+
+                {/* Universal Document Editor */}
+                <UniversalDocEditor
+                  document={universalDoc}
+                  onUpdateDocument={(updated) => {
+                    setUniversalDoc(updated);
+                    const validation = validateDocument(updated);
+                    setUniversalDoc({ ...updated, validation });
+                  }}
+                  onRegenerateSection={async (sectionId, instruction) => {
+                    try {
+                      const result = await generateSection(universalDoc, sectionId, instruction);
+                      const updatedSections = universalDoc.sections.map((s) => {
+                        if (s.id !== sectionId) return s;
+                        return {
+                          ...s,
+                          content: [
+                            {
+                              id: `block-${Date.now()}`,
+                              text: result.text,
+                              layer: 'GENERATED_ARGUMENT' as const,
+                              trustLevel: 'AI_INFERENCE' as const,
+                              trust: 'AI_INFERENCE' as const,
+                              createdAt: new Date().toISOString(),
+                            },
+                          ],
+                          isGenerated: true,
+                          validationWarnings: result.warnings,
+                        };
+                      });
+                      const updatedDoc = { ...universalDoc, sections: updatedSections, updatedAt: new Date().toISOString() };
+                      const validation = validateDocument(updatedDoc);
+                      setUniversalDoc({ ...updatedDoc, validation });
+                      setFeedback({ tone: 'success', message: 'Sección regenerada exitosamente.' });
+                    } catch (err: any) {
+                      setFeedback({ tone: 'error', message: err.message || 'Error al regenerar sección.' });
+                    }
+                  }}
+                />
+
+                {/* Pre-Export Validation Panel */}
+                <ValidationPanel
+                  validation={universalDoc.validation}
+                  onExport={async () => {
+                    try {
+                      const buffer = await exportUniversalToDocx(universalDoc);
+                      const blob = new Blob([new Uint8Array(buffer)], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement('a');
+                      a.href = url;
+                      a.download = `${universalDoc.title.replace(/[^a-zA-Z0-9\s-]/g, '')}.docx`;
+                      a.click();
+                      setFeedback({ tone: 'success', message: 'Documento DOCX exportado exitosamente.' });
+                    } catch (err: any) {
+                      setFeedback({ tone: 'error', message: 'Error al exportar DOCX.' });
+                    }
+                  }}
+                />
               </div>
             )}
           </div>
@@ -1446,6 +1851,7 @@ ${docText.slice(0, 12000)}
                         onClick={() => {
                           setSelectedTemplateId(t.id);
                           setActiveTab('generator');
+                          setFeedback({ tone: 'success', message: `✅ Plantilla "${t.title}" cargada y lista en la vista previa.` });
                         }}
                         className="machote-btn-primary"
                         style={{ flex: 1, fontSize: '0.85rem', padding: '0.35rem 0.5rem' }}

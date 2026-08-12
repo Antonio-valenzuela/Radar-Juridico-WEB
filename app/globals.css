@@ -1172,6 +1172,176 @@ textarea:disabled {
   background: rgba(37, 99, 235, 0.22);
 }
 
+/* ═══ Machotes page layout ═══ */
+.machote-page-container {
+  max-width: 1360px;
+  margin: 0 auto;
+  padding: 0 2rem 3rem;
+}
+
+.machotes-header {
+  padding: 1.5rem 0 1rem;
+  margin-bottom: 0.5rem;
+}
+
+.machote-btn-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  color: var(--primary);
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-decoration: none;
+  transition: opacity 0.15s ease;
+}
+
+.machote-btn-back:hover {
+  opacity: 0.75;
+}
+
+.machotes-header-content {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1.25rem;
+}
+
+.machotes-header-left {
+  flex: 1 1 400px;
+  min-width: 0;
+}
+
+.machotes-header-left h1 {
+  margin: 0.5rem 0 0.6rem;
+  color: var(--text-main);
+  font-size: 2rem;
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+}
+
+.machotes-header-left .subtitle {
+  max-width: 540px;
+  color: var(--text-secondary);
+  font-size: 0.92rem;
+  line-height: 1.6;
+  margin: 0;
+}
+
+.machotes-header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: flex-start;
+  flex-shrink: 0;
+}
+
+/* ─── Tabs navigation ─── */
+.machote-tabs {
+  display: flex;
+  gap: 0.25rem;
+  margin-top: 1.25rem;
+  padding: 0.3rem;
+  background: var(--surface-muted);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.machote-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  white-space: nowrap;
+  padding: 0.55rem 1.1rem;
+  border-radius: var(--radius-md);
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+
+.machote-tab:hover {
+  background: rgba(11, 37, 69, 0.06);
+  color: var(--text-primary);
+}
+
+.machote-tab--active {
+  background: var(--primary);
+  color: #FFFFFF;
+  box-shadow: 0 2px 8px rgba(11, 37, 69, 0.18);
+}
+
+.machote-tab--active:hover {
+  background: var(--primary-hover);
+  color: #FFFFFF;
+}
+
+.machote-tab--accent {
+  background: linear-gradient(135deg, #2563eb, #7c3aed);
+  color: #FFFFFF;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.25);
+}
+
+.machote-tab--accent:hover {
+  opacity: 0.92;
+  color: #FFFFFF;
+}
+
+/* ─── Workspace grid (form + preview) ─── */
+.machote-workspace-grid {
+  display: grid;
+  grid-template-columns: minmax(340px, 1fr) minmax(400px, 1.3fr);
+  gap: 1.5rem;
+  align-items: start;
+  margin-top: 0.5rem;
+}
+
+.machote-form-column {
+  min-width: 0;
+}
+
+.machote-preview-column {
+  min-width: 0;
+  position: sticky;
+  top: 80px;
+}
+
+.machote-section-block {
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.machote-section-block:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+/* ─── Contestations layout ─── */
+.contestation-metadata-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.contestation-metadata-grid .span-2 {
+  grid-column: span 2;
+}
+
+.contestation-source-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.25rem;
+}
+
+.contestation-full-width {
+  grid-column: 1 / -1;
+}
+
 /* Legal monitoring */
 .monitoring-shell {
   padding-bottom: 4rem;
@@ -1555,6 +1725,22 @@ textarea:disabled {
   .alerts-change-card {
     grid-template-columns: 1fr;
   }
+
+  .machote-workspace-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .machote-preview-column {
+    position: static;
+  }
+
+  .contestation-metadata-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .contestation-source-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 600px) {
@@ -1574,6 +1760,39 @@ textarea:disabled {
 
   .machote-preview-header {
     display: grid;
+  }
+
+  .machotes-header-content {
+    flex-direction: column;
+  }
+
+  .machotes-header-left h1 {
+    font-size: 1.6rem;
+  }
+
+  .machotes-header-actions {
+    width: 100%;
+  }
+
+  .machote-tabs {
+    gap: 0.15rem;
+  }
+
+  .machote-tab {
+    font-size: 0.8rem;
+    padding: 0.45rem 0.75rem;
+  }
+
+  .machote-page-container {
+    padding: 0 1rem 2rem;
+  }
+
+  .contestation-metadata-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .contestation-metadata-grid .span-2 {
+    grid-column: span 1;
   }
 }
 

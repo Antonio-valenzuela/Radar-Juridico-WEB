@@ -53,6 +53,70 @@ export const renderToDocument = (
     return Array.isArray(val) ? val.join(', ') : val;
   };
 
+  // ── CUSTOM TEMPLATES WITH ORIGINAL TEXT ───────────────────────────────────
+  if (template.originalText && template.originalText.trim().length > 0) {
+    let customText = template.originalText;
+
+    // Substitute any section values entered into the custom template text
+    for (const sec of template.sections) {
+      const val = values[sec.id];
+      if (hasMeaningfulValue(val)) {
+        const strVal = Array.isArray(val) ? val.join(', ') : val;
+        const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        customText = customText
+          .replace(new RegExp(`\\[PENDIENTE:\\s*${escapeRegExp(sec.title)}\\]`, 'gi'), strVal)
+          .replace(new RegExp(`\\[PENDIENTE:\\s*${escapeRegExp(sec.id)}\\]`, 'gi'), strVal)
+          .replace(new RegExp(`\\{${escapeRegExp(sec.id)}\\}`, 'gi'), strVal)
+          .replace(new RegExp(`\\{${escapeRegExp(sec.title)}\\}`, 'gi'), strVal);
+      }
+    }
+
+    const validation = validateTemplateValues(template, values);
+    const sections: RenderedDocument['sections'] = [];
+
+    if (!validation.valid) {
+      sections.push({
+        title: 'DATOS OBLIGATORIOS PENDIENTES',
+        content: validation.missingFields.map((field) => `[PENDIENTE: ${field.title}]`),
+        numbered: false,
+      });
+    }
+
+    sections.push({
+      title: template.title.toUpperCase(),
+      content: customText,
+      numbered: false,
+    });
+
+    const pendingMetadata = [
+      template.legalBasis,
+      ...template.applicableLaws,
+      ...template.warnings,
+    ].filter((value) => hasPendingMarkers(value));
+    const documentHasPendingMarkers = hasPendingMarkers([customText]);
+
+    sections.unshift({
+      title: DRAFT_WARNING,
+      content: pendingMetadata.length > 0 || documentHasPendingMarkers
+        ? 'Este documento conserva campos jurídicos pendientes de validar.'
+        : 'Este documento fue generado a partir de una plantilla y debe ser revisado por un profesional del derecho antes de presentarse.',
+      numbered: false,
+    });
+
+    return {
+      title: template.title,
+      header: `${template.title.toUpperCase()}\n${template.legalBasis ? `FUNDAMENTO: ${template.legalBasis}\n` : ''}\n`,
+      expediente: (values['expediente'] as string) || '',
+      body: '',
+      sections,
+      footer: `\n___________________________\nFIRMA / PROMOVENTE\n`,
+      warnings: template.warnings,
+      disclaimer: template.disclaimer,
+      generatedAt: options?.generatedAt ? new Date(options.generatedAt).toISOString() : new Date().toISOString()
+    };
+  }
+
+  // ── DYNAMIC SECTION-BASED TEMPLATES ──────────────────────────────────────
   const doc: RenderedDocument = {
     title: template.title,
     header: '',
@@ -65,9 +129,15 @@ export const renderToDocument = (
     generatedAt: options?.generatedAt ? new Date(options.generatedAt).toISOString() : new Date().toISOString()
   };
 
-  const auth = getVal('autoridad_competente', 'Autoridad competente');
+  const hasSection = (id: string) => template.sections.some((s) => s.id === id);
+
+  const authLabel = template.sections.find((s) => s.id === 'autoridad_competente' || s.id === 'autoridad')?.title || 'Autoridad competente';
+  const auth = hasSection('autoridad_competente') || hasSection('autoridad')
+    ? getVal(hasSection('autoridad_competente') ? 'autoridad_competente' : 'autoridad', authLabel)
+    : (hasSection('autoridad') ? getVal('autoridad', 'Autoridad') : getVal('autoridad_competente', 'Autoridad competente'));
+
   const exp = values['expediente'] ? `EXPEDIENTE: ${values['expediente']}` : '';
-  const tipo = values['tipo_procedimiento'] ? `ASUNTO: ${values['tipo_procedimiento']}` : '';
+  const tipo = values['tipo_procedimiento'] || values['tipo_juicio'] ? `ASUNTO: ${values['tipo_procedimiento'] || values['tipo_juicio']}` : '';
 
   const actorName = values['actor'] || values['quejoso'] || values['promovente'] || '';
   const actor = actorName ? `${actorName}` : '';
@@ -88,7 +158,9 @@ export const renderToDocument = (
   if (actorName) {
     intro += `${actorName}`;
     if (values['personalidad']) intro += `, ${values['personalidad']}`;
-    if (values['domicilio_procesal']) intro += `, señalando como domicilio procesal el ubicado en ${values['domicilio_procesal']}`;
+    if (values['domicilio_procesal'] || values['domicilio']) {
+      intro += `, señalando como domicilio procesal el ubicado en ${values['domicilio_procesal'] || values['domicilio']}`;
+    }
     if (values['personas_autorizadas']) {
       const auths = Array.isArray(values['personas_autorizadas']) ? values['personas_autorizadas'].join(', ') : values['personas_autorizadas'];
       intro += `, y autorizando para oír y recibir notificaciones a ${auths}`;
@@ -97,8 +169,8 @@ export const renderToDocument = (
   } else if (values['promoventes']) {
     intro += `${values['promoventes']}`;
     if (values['personalidad']) intro += `, ${values['personalidad']}`;
-    if (values['domicilio_procesal']) {
-      intro += `, señalando como domicilio procesal el ubicado en ${values['domicilio_procesal']}`;
+    if (values['domicilio_procesal'] || values['domicilio']) {
+      intro += `, señalando como domicilio procesal el ubicado en ${values['domicilio_procesal'] || values['domicilio']}`;
     }
     if (values['personas_autorizadas']) {
       const auths = Array.isArray(values['personas_autorizadas'])
@@ -116,8 +188,8 @@ export const renderToDocument = (
   doc.body = intro;
 
   const excludedFromSections = [
-    'autoridad_competente', 'expediente', 'tipo_procedimiento', 'actor', 'quejoso',
-    'promovente', 'promoventes', 'personalidad', 'domicilio_procesal', 'personas_autorizadas',
+    'autoridad_competente', 'autoridad', 'expediente', 'tipo_procedimiento', 'tipo_juicio', 'actor', 'quejoso',
+    'promovente', 'promoventes', 'personalidad', 'domicilio_procesal', 'domicilio', 'personas_autorizadas',
     'cuerpo_escrito', 'protesta', 'lugar_fecha', 'firma', 'lista_anexos', 'puntos_petitorios', 'firmas'
   ];
 
@@ -139,6 +211,8 @@ export const renderToDocument = (
         'contestacion_prestaciones',
         'contestacion_hechos',
         'clausulas',
+        'garantias_violadas',
+        'fundamentos',
       ].includes(sec.id)
     });
   }
@@ -154,25 +228,27 @@ export const renderToDocument = (
     });
   }
 
-  const petitoriosVal = getVal('puntos_petitorios', 'Puntos petitorios', true) as string[];
-  doc.sections.push({
-    title: 'PUNTOS PETITORIOS',
-    content: petitoriosVal,
-    numbered: true
-  });
+  if (hasSection('puntos_petitorios')) {
+    const petitoriosVal = getVal('puntos_petitorios', 'Puntos petitorios', true) as string[];
+    doc.sections.push({
+      title: 'PUNTOS PETITORIOS',
+      content: petitoriosVal,
+      numbered: true
+    });
+  }
 
   let footerStr = '';
-  const protesta = getVal('protesta', 'Protesta');
-  const lugarFecha = getVal('lugar_fecha', 'Lugar y fecha');
-  const firma = getVal('firma', 'Firma');
+  const protesta = hasSection('protesta') ? getVal('protesta', 'Protesta') : '';
+  const lugarFecha = hasSection('lugar_fecha') || hasSection('firma') ? getVal(hasSection('lugar_fecha') ? 'lugar_fecha' : 'firma', 'Lugar y fecha') : '';
+  const firma = hasSection('firma') ? getVal('firma', 'Firma') : '';
 
-  footerStr += `\n${protesta}\n\n`;
-  footerStr += `${lugarFecha}\n\n\n`;
+  if (protesta) footerStr += `\n${protesta}\n\n`;
+  if (lugarFecha) footerStr += `${lugarFecha}\n\n\n`;
 
   if (values['firmas']) {
-      footerStr += `${values['firmas']}\n`;
-  } else {
-      footerStr += `___________________________\n${firma}\n`;
+    footerStr += `${values['firmas']}\n`;
+  } else if (firma) {
+    footerStr += `___________________________\n${firma}\n`;
   }
 
   if (values['lista_anexos']) {

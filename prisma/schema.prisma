@@ -1214,6 +1214,11 @@ model LegalDraft {
   formData       Json?
   renderedText   String?  @db.Text
   pendingMarkers Json?
+  structuredDoc  Json?
+  pipelineState  Json?
+  sourceDocuments Json?
+  validationResults Json?
+  generationMetadata Json?
   status         String   @default("DRAFT")
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt

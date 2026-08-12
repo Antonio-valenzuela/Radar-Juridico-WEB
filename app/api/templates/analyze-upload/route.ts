@@ -1,16 +1,57 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/security/adminAuth';
-import { extractPdfTextServer, extractImageTextOCR, ocrEnabled } from '@/lib/pdf/pdfExtractor';
+import { extractDocument } from '@/lib/pdf/documentExtractor';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
-interface AnalyzeResult {
+// ── Response shape ─────────────────────────────────────────────────────────────
+
+export interface AnalyzeResult {
   ok: boolean;
+  /** Full extracted text for use by AI legal analysis */
   extractedText: string;
+  /** True when OCR was used to obtain the text */
   needsOcr: boolean;
+  /** Original file name */
   sourceFileName: string;
+  /** Detected MIME type */
   mimeType: string;
+  /**
+   * True when the extraction pipeline validated the source for AI use.
+   * When false, the client must NOT invoke AI legal analysis automatically.
+   */
+  sourceValidated: boolean;
+  /** How the source was validated */
+  sourceValidationMethod: string;
+  /** Which OCR provider was used, if any */
+  ocrProvider: string | null;
+  /** Structured quality metrics */
+  qualityScore: {
+    confidence: number;
+    qualityLabel: string;
+    pageCount: number;
+    textLength: number;
+    avgCharsPerPage: number;
+    status: 'READY' | 'NEEDS_OCR' | 'LOW_QUALITY' | 'FAILED';
+    ocrUsed: boolean;
+    emptyPages: number;
+  };
+  /** Ordered extraction steps for the UI */
+  extractionSteps: Array<{
+    step: number;
+    label: string;
+    done: boolean;
+    status: 'pending' | 'ok' | 'warn' | 'error' | 'running';
+    detail?: string;
+  }>;
+  /** Per-page breakdown for traceability */
+  pages: Array<{
+    page: number;
+    text: string;
+    chars: number;
+  }>;
+  /** Legal document classification */
   classification: {
     es_juridico: boolean;
     tipo_documento: string;
@@ -19,11 +60,15 @@ interface AnalyzeResult {
     secciones_detectadas: string[];
   };
   structureJson: null;
+  /** Human-readable warnings (no secrets) */
+  warnings: string[];
+  /** Pipeline status */
+  pipelineStatus: 'READY' | 'NEEDS_MANUAL_REVIEW' | 'FAILED';
   error?: string;
-  ocrNote?: string;
 }
 
-/** Heurística liviana para determinar si el texto parece jurídico */
+// ── Heuristic legal classifier ─────────────────────────────────────────────────
+
 function classifyLegalText(text: string): AnalyzeResult['classification'] {
   const lower = text.toLowerCase();
   const keywords = [
@@ -67,8 +112,9 @@ function classifyLegalText(text: string): AnalyzeResult['classification'] {
   };
 }
 
+// ── POST /api/templates/analyze-upload ────────────────────────────────────────
+
 export async function POST(request: NextRequest) {
-  // Auth: público cuando ENABLE_PUBLIC_AI=true, protegido en producción cerrada
   const auth = requireAdmin(request as unknown as Request);
   if (!auth.ok) return auth.response;
 
@@ -80,7 +126,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ ok: false, error: 'No se recibió ningún archivo.' }, { status: 400 });
     }
 
-    const MAX_FILE_SIZE_BYTES = 15 * 1024 * 1024; // 15MB
+    const MAX_FILE_SIZE_BYTES = 15 * 1024 * 1024; // 15 MB
     if (file.size > MAX_FILE_SIZE_BYTES) {
       return NextResponse.json(
         { ok: false, error: 'El archivo excede el tamaño máximo permitido de 15 MB.' },
@@ -92,95 +138,9 @@ export async function POST(request: NextRequest) {
     const mimeType = file.type || '';
     const ext = fileName.split('.').pop()?.toLowerCase() || '';
 
-    let extractedText = '';
-    let needsOcr = false;
-
-    // ── TXT ─────────────────────────────────────────────────────────────
-    if (ext === 'txt' || mimeType.includes('text/plain')) {
-      extractedText = await file.text();
-    }
-
-    // ── PDF ─────────────────────────────────────────────────────────────
-    else if (ext === 'pdf' || mimeType === 'application/pdf') {
-      const arrayBuffer = await file.arrayBuffer();
-      const buffer = Buffer.from(arrayBuffer);
-      try {
-        const result = await extractPdfTextServer(buffer);
-        extractedText = result.text?.trim() || '';
-        needsOcr = result.needsOcr;
-        if (extractedText.length < 50) {
-          needsOcr = true;
-        }
-      } catch (err) {
-        console.warn('[analyze-upload] PDF extraction failed:', err);
-        needsOcr = true;
-      }
-    }
-
-    // ── DOCX ────────────────────────────────────────────────────────────
-    else if (ext === 'docx' || mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
-      try {
-        const mammoth = await import('mammoth');
-        const arrayBuffer = await file.arrayBuffer();
-        const buffer = Buffer.from(arrayBuffer);
-        const result = await mammoth.extractRawText({ buffer });
-        extractedText = result.value?.trim() || '';
-      } catch (err) {
-        console.warn('[analyze-upload] DOCX extraction failed:', err);
-        return NextResponse.json(
-          { ok: false, error: 'No se pudo leer el archivo DOCX. Verifica que no esté dañado o protegido.' },
-          { status: 422 }
-        );
-      }
-    }
-
-    // ── DOC (legacy) ─────────────────────────────────────────────────────
-    else if (ext === 'doc' || mimeType === 'application/msword') {
-      try {
-        const mammoth = await import('mammoth');
-        const arrayBuffer = await file.arrayBuffer();
-        const buffer = Buffer.from(arrayBuffer);
-        const result = await mammoth.extractRawText({ buffer });
-        extractedText = result.value?.trim() || '';
-      } catch (err) {
-        console.warn('[analyze-upload] DOC extraction failed:', err);
-        return NextResponse.json(
-          { ok: false, error: 'No se pudo leer el archivo DOC. Verifica que no esté dañado o intenta convertirlo a DOCX.' },
-          { status: 422 }
-        );
-      }
-    }
-
-    // ── Images ───────────────────────────────────────────────────────────
-    else if (['jpg', 'jpeg', 'png'].includes(ext) || mimeType.startsWith('image/')) {
-      if (!ocrEnabled()) {
-        return NextResponse.json(
-          { ok: false, error: 'La funcionalidad OCR está deshabilitada. No se pueden procesar imágenes.' },
-          { status: 422 }
-        );
-      }
-      try {
-        const arrayBuffer = await file.arrayBuffer();
-        const buffer = Buffer.from(arrayBuffer);
-        const { text } = await extractImageTextOCR(buffer, mimeType);
-        extractedText = text?.trim() || '';
-      } catch (err) {
-        console.warn('[analyze-upload] Image OCR failed:', err);
-        return NextResponse.json(
-          { ok: false, error: 'Error al procesar la imagen con OCR.' },
-          { status: 500 }
-        );
-      }
-    }
-
-    // ── RTF ──────────────────────────────────────────────────────────────
-    else if (ext === 'rtf' || mimeType === 'application/rtf') {
-      const rawText = await file.text();
-      extractedText = rawText.replace(/\\[a-z]+\d*\s?|[{}]/g, '').trim();
-    }
-
-    // ── Formato no soportado ─────────────────────────────────────────────
-    else {
+    // Guard: reject unsupported formats before allocating memory
+    const supportedExts = ['pdf', 'docx', 'doc', 'txt', 'rtf', 'jpg', 'jpeg', 'png'];
+    if (!supportedExts.includes(ext) && !mimeType.startsWith('image/') && !mimeType.includes('pdf')) {
       return NextResponse.json(
         {
           ok: false,
@@ -191,44 +151,52 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // ── Manejo de PDFs escaneados / Archivos que requieren OCR ────────────
-    if (needsOcr) {
-      return NextResponse.json({
-        ok: true,
-        extractedText,
-        needsOcr: true,
-        ocrNote: 'El texto fue extraído con capacidad limitada. Para mejores resultados, pega el texto manualmente.',
-        sourceFileName: fileName,
-        mimeType,
-        classification: {
-          es_juridico: true,
-          tipo_documento: 'PDF escaneado / Documento adjunto',
-          confianza: 75,
-          razon: 'PDF escaneado aceptado correctamente. Puedes guardar el machote directamente o pegar el texto si deseas edición avanzada.',
-          secciones_detectadas: ['Documento completo adjunto'],
-        },
-        structureJson: null,
-      } satisfies AnalyzeResult);
-    }
+    const arrayBuffer = await file.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
 
-    if (!extractedText) {
-      return NextResponse.json(
-        { ok: false, error: 'El archivo no contiene texto extraíble.' },
-        { status: 422 }
-      );
-    }
+    // ── Run universal extraction pipeline ─────────────────────────────────────
+    const result = await extractDocument({ buffer, fileName, mimeType });
 
-    const classification = classifyLegalText(extractedText);
+    // ── Classify legal content (only on validated text) ───────────────────────
+    const classification = result.text.length > 50
+      ? classifyLegalText(result.text)
+      : {
+          es_juridico: false,
+          tipo_documento: 'Sin texto suficiente para clasificar',
+          confianza: 0,
+          razon: 'Texto insuficiente.',
+          secciones_detectadas: [],
+        };
 
-    return NextResponse.json({
+    // Build response — always includes sourceValidated flag
+    const response: AnalyzeResult = {
       ok: true,
-      extractedText,
-      needsOcr: false,
+      extractedText: result.text,
+      needsOcr: result.ocrUsed || !result.sourceValidated,
       sourceFileName: fileName,
       mimeType,
+      sourceValidated: result.sourceValidated,
+      sourceValidationMethod: result.sourceValidationMethod,
+      ocrProvider: result.ocrProvider,
+      qualityScore: {
+        confidence: result.qualityScore.confidence,
+        qualityLabel: result.qualityScore.qualityLabel,
+        pageCount: result.pageCount,
+        textLength: result.textLength,
+        avgCharsPerPage: result.avgCharsPerPage,
+        status: result.qualityScore.status,
+        ocrUsed: result.ocrUsed,
+        emptyPages: result.qualityScore.emptyPages,
+      },
+      extractionSteps: result.extractionSteps,
+      pages: result.pages,
       classification,
-      structureJson: null, // La estructuración con IA se hace opcionalmente desde el modal
-    } satisfies AnalyzeResult);
+      structureJson: null,
+      warnings: result.warnings,
+      pipelineStatus: result.status,
+    };
+
+    return NextResponse.json(response satisfies AnalyzeResult);
   } catch (err: any) {
     console.error('[analyze-upload] Error:', err);
     return NextResponse.json(
