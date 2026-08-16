@@ -36,10 +36,10 @@ export function PaginatedDocumentEditor({
   const [editingText, setEditingText] = useState('');
   const [sectionInstruction, setSectionInstruction] = useState('');
 
-  // Run Quality Gate Check
+  // Quality Gate Evaluation
   const qualityGate = useMemo(() => runQualityGateCheck(document), [document]);
 
-  // Compute pages based on sections & character counts (approx 1800 chars per Letter page)
+  // Compute pages based on sections & character counts (~1800 chars per Letter page)
   const CHARS_PER_PAGE = 1800;
 
   const pageBreakdown = useMemo(() => {
@@ -73,7 +73,6 @@ export function PaginatedDocumentEditor({
   const totalPages = pageBreakdown.length;
   const activePageData = pageBreakdown.find((p) => p.pageNumber === currentPage) || pageBreakdown[0];
 
-  // Handle section edit save
   const handleSaveSectionEdit = (sectionId: string) => {
     const updatedSections = document.sections.map((sec) => {
       if (sec.id === sectionId) {
@@ -104,74 +103,67 @@ export function PaginatedDocumentEditor({
   };
 
   return (
-    <div className="flex flex-col h-full bg-slate-950 text-slate-100 font-sans border border-slate-800 rounded-xl overflow-hidden shadow-2xl">
+    <div className="flex flex-col h-full bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-xl text-slate-900 font-sans">
       {/* ── Toolbar & Top Controls ────────────────────────────────────────── */}
-      <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-3 bg-slate-900 border-b border-slate-800">
+      <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-3.5 bg-slate-50 border-b border-slate-200">
         <div className="flex items-center space-x-3">
-          <span className="text-xs font-semibold uppercase tracking-wider text-amber-400 bg-amber-950/60 px-2.5 py-1 rounded border border-amber-800/60">
-            {activeMode === 'source' ? 'Modo Fuente (Solo Lectura)' : 'Modo Borrador (Editable)'}
+          <span className="text-[11px] font-bold uppercase tracking-wider text-[#0B2545] bg-blue-50 px-3 py-1 rounded-full border border-blue-200">
+            {activeMode === 'source' ? 'Modo Fuente (Inmutable)' : 'Modo Borrador (Editable)'}
           </span>
-          <h2 className="text-sm font-semibold truncate max-w-xs sm:max-w-md text-slate-200">
+          <h2 className="text-sm font-extrabold truncate max-w-xs sm:max-w-md text-[#0B2545]">
             {document.title}
           </h2>
         </div>
 
-        {/* Quality Status Badge */}
+        {/* Quality Status & Export Buttons */}
         <div className="flex items-center space-x-3">
           {!qualityGate.canMarkAsFinal ? (
-            <div className="flex items-center space-x-2 bg-red-950/80 border border-red-800 px-3 py-1 rounded-md text-xs text-red-300 font-medium">
-              <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
-              <span>REQUIERE REVISIÓN (Puntaje: {qualityGate.qualityScore}/100)</span>
+            <div className="flex items-center space-x-2 bg-amber-50 border border-amber-300 px-3 py-1 rounded-full text-xs text-amber-800 font-bold">
+              <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
+              <span>REQUIERE REVISIÓN ({qualityGate.qualityScore}/100)</span>
             </div>
           ) : (
-            <div className="flex items-center space-x-2 bg-emerald-950/80 border border-emerald-800 px-3 py-1 rounded-md text-xs text-emerald-300 font-medium">
-              <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-              <span>DOCUMENTO VERIFICADO PARA FIRMA</span>
+            <div className="flex items-center space-x-2 bg-emerald-50 border border-emerald-300 px-3 py-1 rounded-full text-xs text-emerald-800 font-bold">
+              <span className="w-2 h-2 rounded-full bg-emerald-600"></span>
+              <span>VERIFICADO PARA FIRMA</span>
             </div>
           )}
 
-          {/* Action buttons */}
           {onExportDocx && (
-            <button
-              onClick={onExportDocx}
-              className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold rounded-md transition shadow"
-            >
-              Exportar DOCX
+            <button onClick={onExportDocx} className="machote-btn-primary text-xs py-1.5 px-4">
+              📄 Exportar DOCX
             </button>
           )}
           {onExportPdf && (
-            <button
-              onClick={onExportPdf}
-              className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-md border border-slate-700 transition"
-            >
-              Imprimir / PDF
+            <button onClick={onExportPdf} className="machote-btn-secondary text-xs py-1.5 px-4">
+              🖨️ Imprimir / PDF
             </button>
           )}
         </div>
       </div>
 
-      {/* ── Secondary Controls: Page Navigation & Zoom ──────────────────────── */}
-      <div className="flex items-center justify-between px-6 py-2 bg-slate-900/80 border-b border-slate-800 text-xs text-slate-400">
+      {/* ── Secondary Navigation Bar: Page Controls & Zoom ─────────────────── */}
+      <div className="flex items-center justify-between px-6 py-2.5 bg-slate-100/70 border-b border-slate-200 text-xs text-slate-600">
         <div className="flex items-center space-x-4">
           <button
             onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
             disabled={currentPage === 1}
-            className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 disabled:opacity-40 rounded text-slate-200 font-medium"
+            className="px-3 py-1 bg-white hover:bg-slate-50 disabled:opacity-40 rounded-lg text-slate-700 font-semibold border border-slate-300 shadow-sm"
           >
             ← Anterior
           </button>
-          <span className="font-medium text-slate-300">
-            Página <span className="text-amber-400 font-bold">{currentPage}</span> de {totalPages}
+          <span className="font-medium text-slate-700">
+            Página <span className="text-[#0B2545] font-extrabold">{currentPage}</span> de {totalPages}
           </span>
           <button
             onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
             disabled={currentPage === totalPages}
-            className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 disabled:opacity-40 rounded text-slate-200 font-medium"
+            className="px-3 py-1 bg-white hover:bg-slate-50 disabled:opacity-40 rounded-lg text-slate-700 font-semibold border border-slate-300 shadow-sm"
           >
             Siguiente →
           </button>
 
-          <div className="flex items-center space-x-1.5 pl-4 border-l border-slate-800">
+          <div className="flex items-center space-x-2 pl-4 border-l border-slate-300">
             <span>Ir a página:</span>
             <input
               type="number"
@@ -182,204 +174,119 @@ export function PaginatedDocumentEditor({
                 const val = parseInt(e.target.value);
                 if (val >= 1 && val <= totalPages) setCurrentPage(val);
               }}
-              className="w-12 px-1.5 py-0.5 bg-slate-950 border border-slate-700 rounded text-slate-200 text-center"
+              className="w-12 px-2 py-0.5 bg-white border border-slate-300 rounded-lg text-slate-900 text-center font-bold"
             />
           </div>
         </div>
 
-        {/* Search & Zoom */}
-        <div className="flex items-center space-x-4">
-          <div className="relative">
-            <input
-              type="text"
-              placeholder="Buscar en el escrito..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-44 px-2 py-1 bg-slate-950 border border-slate-800 rounded text-xs text-slate-200 focus:outline-none focus:border-amber-500"
-            />
-          </div>
-          <div className="flex items-center space-x-1">
-            <button
-              onClick={() => setZoomLevel((z) => Math.max(60, z - 10))}
-              className="px-2 py-0.5 bg-slate-800 hover:bg-slate-700 rounded font-bold"
-            >
-              -
-            </button>
-            <span className="w-12 text-center font-mono">{zoomLevel}%</span>
-            <button
-              onClick={() => setZoomLevel((z) => Math.min(150, z + 10))}
-              className="px-2 py-0.5 bg-slate-800 hover:bg-slate-700 rounded font-bold"
-            >
-              +
-            </button>
-          </div>
+        {/* Search */}
+        <div className="flex items-center space-x-3">
+          <input
+            type="text"
+            placeholder="Buscar en el documento..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-48 px-3 py-1 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-[#0B2545] shadow-sm"
+          />
         </div>
       </div>
 
-      {/* ── Main Workspace Body: Thumbnail Sidebar + Page Canvas ─────────────── */}
-      <div className="flex flex-1 overflow-hidden">
-        {/* Left Page Thumbnail Sidebar */}
-        <div className="w-48 bg-slate-900/90 border-r border-slate-800 p-3 overflow-y-auto hidden md:block">
-          <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">
-            Páginas ({totalPages})
-          </h3>
-          <div className="space-y-3">
-            {pageBreakdown.map((p) => {
-              const isSelected = p.pageNumber === currentPage;
-              return (
-                <button
-                  key={p.pageNumber}
-                  onClick={() => setCurrentPage(p.pageNumber)}
-                  className={`w-full text-left p-2.5 rounded-lg border transition ${
-                    isSelected
-                      ? 'bg-amber-950/40 border-amber-500 text-amber-200'
-                      : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700'
-                  }`}
-                >
-                  <div className="flex items-center justify-between text-xs font-medium mb-1">
-                    <span>Página {p.pageNumber}</span>
-                    {isSelected && <span className="w-1.5 h-1.5 rounded-full bg-amber-400"></span>}
-                  </div>
-                  <div className="text-[10px] text-slate-500 line-clamp-2 italic">
-                    {p.sections[0]?.section.title || 'Sección'}
-                  </div>
-                </button>
-              );
-            })}
+      {/* ── Page Workstation Canvas (Letter Paper Sheet) ───────────────────────── */}
+      <div className="flex-1 bg-slate-100/90 p-8 overflow-y-auto flex justify-center">
+        <div className="w-full max-w-[816px] bg-white shadow-2xl rounded-sm border border-slate-200/80 p-12 min-h-[1056px] text-slate-900 font-serif leading-relaxed text-sm space-y-8">
+          {/* Header Marker */}
+          <div className="border-b border-slate-200 pb-3 flex justify-between items-center text-[11px] text-slate-400 font-sans tracking-wide">
+            <span>JURÍDICO RADAR — MOTOR DE ELABORACIÓN JURÍDICA</span>
+            <span>EXPEDIENTE: {document.caseRefs.expediente || '800/2024'}</span>
           </div>
-        </div>
 
-        {/* Center Canvas: Letter Page Editor */}
-        <div className="flex-1 bg-slate-950 p-6 overflow-y-auto flex justify-center">
-          <div
-            style={{ transform: `scale(${zoomLevel / 100})`, transformOrigin: 'top center' }}
-            className="w-full max-w-[8.5in] min-h-[11in] bg-slate-900 border border-slate-700 shadow-2xl rounded-sm p-12 text-slate-100 flex flex-col justify-between"
-          >
-            {/* Header Margin */}
-            <div className="border-b border-slate-800/80 pb-3 mb-6 flex justify-between text-[11px] text-slate-400 tracking-wide">
-              <span>{document.title}</span>
-              <span className="uppercase font-semibold tracking-wider text-amber-500">{document.documentTypeLabel}</span>
+          {activePageData?.sections.length === 0 ? (
+            <div className="text-center py-20 text-slate-400 italic font-sans text-xs">
+              No hay contenido redactado en esta página.
             </div>
+          ) : (
+            activePageData.sections.map(({ section, text }) => {
+              const isEditing = editingSectionId === section.id;
+              const isManuallyEdited = section.isManuallyEdited || section.content.some((b) => b.isManuallyEdited);
 
-            {/* Page Content */}
-            <div className="flex-1 space-y-8">
-              {activePageData?.sections.map(({ section, text }) => {
-                const isEditing = editingSectionId === section.id;
-                const isManuallyEdited = section.isManuallyEdited || section.content[0]?.isManuallyEdited;
-
-                return (
-                  <div
-                    key={section.id}
-                    className={`group relative p-4 rounded-lg border transition ${
-                      isEditing
-                        ? 'border-amber-500 bg-slate-950'
-                        : isManuallyEdited
-                        ? 'border-emerald-800/60 bg-emerald-950/10'
-                        : 'border-slate-800/60 hover:border-slate-700 bg-slate-900/50'
-                    }`}
-                  >
-                    {/* Section Header */}
-                    <div className="flex items-center justify-between mb-3 border-b border-slate-800 pb-2">
-                      <div className="flex items-center space-x-2">
-                        <h4 className="text-sm font-bold uppercase tracking-wider text-amber-300">
-                          {section.title}
-                        </h4>
-                        {isManuallyEdited && (
-                          <span className="text-[10px] bg-emerald-950 text-emerald-300 border border-emerald-800 px-2 py-0.5 rounded">
-                            Editado manualmente
-                          </span>
-                        )}
-                      </div>
-
-                      {/* Section Tools */}
-                      {activeMode === 'draft' && (
-                        <div className="flex items-center space-x-2 opacity-90 group-hover:opacity-100 transition">
-                          {!isEditing ? (
-                            <>
-                              <button
-                                onClick={() => {
-                                  setEditingSectionId(section.id);
-                                  setEditingText(text);
-                                }}
-                                className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-xs text-slate-200 rounded border border-slate-700"
-                              >
-                                Editar
-                              </button>
-                              {onRegenerateSection && (
-                                <button
-                                  onClick={() => onRegenerateSection(section.id)}
-                                  disabled={isGenerating}
-                                  className="px-2 py-1 bg-amber-950/80 hover:bg-amber-900 text-xs text-amber-200 rounded border border-amber-800 disabled:opacity-50"
-                                >
-                                  Regenerar
-                                </button>
-                              )}
-                            </>
-                          ) : (
-                            <div className="flex items-center space-x-2">
-                              <button
-                                onClick={() => handleSaveSectionEdit(section.id)}
-                                className="px-3 py-1 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold rounded"
-                              >
-                                Guardar
-                              </button>
-                              <button
-                                onClick={() => setEditingSectionId(null)}
-                                className="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-xs text-slate-300 rounded"
-                              >
-                                Cancelar
-                              </button>
-                            </div>
-                          )}
-                        </div>
+              return (
+                <div
+                  key={section.id}
+                  className="group relative p-4 rounded-xl border border-transparent hover:border-slate-200 hover:bg-slate-50/60 transition space-y-3 font-sans"
+                >
+                  <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                    <div className="flex items-center space-x-2">
+                      <h3 className="font-extrabold text-[#0B2545] text-xs uppercase tracking-wider">
+                        {section.title}
+                      </h3>
+                      {isManuallyEdited && (
+                        <span className="px-2 py-0.5 text-[9px] font-bold uppercase rounded bg-amber-100 text-amber-800 border border-amber-300">
+                          Editado Manualmente
+                        </span>
                       )}
                     </div>
 
-                    {/* Section Body */}
-                    {isEditing ? (
-                      <div className="space-y-3">
-                        <textarea
-                          rows={10}
-                          value={editingText}
-                          onChange={(e) => setEditingText(e.target.value)}
-                          className="w-full p-3 bg-slate-950 border border-amber-500/80 rounded font-serif text-sm leading-relaxed text-slate-100 focus:outline-none"
-                        />
-                        {onRegenerateSection && (
-                          <div className="flex items-center space-x-2 pt-2 border-t border-slate-800">
-                            <input
-                              type="text"
-                              placeholder="Instrucción específica para esta sección (opcional)..."
-                              value={sectionInstruction}
-                              onChange={(e) => setSectionInstruction(e.target.value)}
-                              className="flex-1 px-3 py-1.5 bg-slate-950 border border-slate-800 rounded text-xs text-slate-200"
-                            />
-                            <button
-                              onClick={async () => {
-                                await onRegenerateSection(section.id, sectionInstruction);
-                                setEditingSectionId(null);
-                              }}
-                              className="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white text-xs font-semibold rounded"
-                            >
-                              Reformular con IA
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    ) : (
-                      <div className="font-serif text-sm leading-relaxed whitespace-pre-wrap text-slate-200">
-                        {text || <span className="italic text-slate-500">[Sección vacía]</span>}
-                      </div>
-                    )}
+                    <div className="opacity-0 group-hover:opacity-100 transition flex items-center space-x-2">
+                      {!isEditing && (
+                        <button
+                          onClick={() => {
+                            setEditingSectionId(section.id);
+                            setEditingText(text);
+                          }}
+                          className="px-2.5 py-1 bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 text-[11px] font-bold rounded-lg shadow-sm"
+                        >
+                          ✏️ Editar
+                        </button>
+                      )}
+                      {onRegenerateSection && (
+                        <button
+                          onClick={() => onRegenerateSection(section.id, sectionInstruction)}
+                          disabled={isGenerating}
+                          className="px-2.5 py-1 bg-blue-50 border border-blue-200 hover:bg-blue-100 text-[#0B2545] text-[11px] font-bold rounded-lg shadow-sm"
+                        >
+                          🔄 Regenerar
+                        </button>
+                      )}
+                    </div>
                   </div>
-                );
-              })}
-            </div>
 
-            {/* Footer Margin */}
-            <div className="border-t border-slate-800/80 pt-4 mt-8 flex items-center justify-between text-[11px] text-slate-500">
-              <span>Jurisprudencia & Estrategia Radar</span>
-              <span>Página {currentPage} de {totalPages}</span>
-            </div>
+                  {isEditing ? (
+                    <div className="space-y-3">
+                      <textarea
+                        rows={8}
+                        value={editingText}
+                        onChange={(e) => setEditingText(e.target.value)}
+                        className="w-full p-3 bg-white border border-[#0B2545] rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-200 font-serif leading-relaxed"
+                      />
+                      <div className="flex justify-end space-x-2">
+                        <button
+                          onClick={() => setEditingSectionId(null)}
+                          className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-lg"
+                        >
+                          Cancelar
+                        </button>
+                        <button
+                          onClick={() => handleSaveSectionEdit(section.id)}
+                          className="machote-btn-primary text-xs py-1.5 px-4"
+                        >
+                          Guardar Cambios
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="font-serif leading-relaxed whitespace-pre-wrap text-slate-800 text-sm">
+                      {text}
+                    </div>
+                  )}
+                </div>
+              );
+            })
+          )}
+
+          {/* Footer Marker */}
+          <div className="border-t border-slate-200 pt-3 flex justify-between items-center text-[11px] text-slate-400 font-sans tracking-wide">
+            <span>PÁGINA {currentPage} DE {totalPages}</span>
+            <span>PROTESTO LO NECESARIO EN DERECHO</span>
           </div>
         </div>
       </div>

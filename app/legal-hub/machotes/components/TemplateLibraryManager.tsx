@@ -53,7 +53,7 @@ export function TemplateLibraryManager({
   return (
     <div className="space-y-6">
       {/* ── Top Bar: Search & Catalog Filters ─────────────────────────────── */}
-      <div className="bg-slate-900 border border-slate-800 p-5 rounded-xl space-y-4 shadow-lg">
+      <div className="card p-5 bg-white border border-slate-200 rounded-2xl space-y-4 shadow-md">
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
           <div className="relative flex-1">
             <input
@@ -61,28 +61,28 @@ export function TemplateLibraryManager({
               placeholder="Buscar en mis plantillas y machotes por nombre o palabra clave..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full px-4 py-2.5 bg-slate-950 border border-slate-700 rounded-lg text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-amber-500"
+              className="w-full px-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#0B2545]"
             />
           </div>
           <button
             onClick={onCreateNewTemplate}
-            className="px-4 py-2.5 bg-amber-600 hover:bg-amber-500 text-white font-semibold text-sm rounded-lg transition shadow flex items-center justify-center space-x-2"
+            className="machote-btn-primary text-xs py-2.5 px-5"
           >
             <span>+ Crear Machote / Plantilla</span>
           </button>
         </div>
 
         {/* Dynamic Catalog Filters */}
-        <div className="flex flex-wrap items-center gap-4 text-xs">
+        <div className="flex flex-wrap items-center gap-4 text-xs pt-2 border-t border-slate-100">
           <div className="flex items-center space-x-2">
-            <span className="text-slate-400 font-semibold uppercase">Materia:</span>
+            <span className="text-slate-500 font-bold uppercase tracking-wider">Materia:</span>
             <select
               value={selectedMatterId}
               onChange={(e) => {
                 setSelectedMatterId(e.target.value);
                 setSelectedSubcategoryId('all');
               }}
-              className="px-3 py-1.5 bg-slate-950 border border-slate-700 rounded text-slate-200 focus:outline-none focus:border-amber-500"
+              className="px-3.5 py-1.5 bg-slate-50 border border-slate-300 rounded-xl text-slate-800 font-semibold focus:outline-none focus:ring-2 focus:ring-[#0B2545]"
             >
               <option value="all">Todas las Materias ({LEGAL_MATTERS_CATALOG.length})</option>
               {LEGAL_MATTERS_CATALOG.map((m) => (
@@ -95,11 +95,11 @@ export function TemplateLibraryManager({
 
           {activeMatter && activeMatter.subcategories.length > 0 && (
             <div className="flex items-center space-x-2">
-              <span className="text-slate-400 font-semibold uppercase">Subcategoría:</span>
+              <span className="text-slate-500 font-bold uppercase tracking-wider">Subcategoría:</span>
               <select
                 value={selectedSubcategoryId}
                 onChange={(e) => setSelectedSubcategoryId(e.target.value)}
-                className="px-3 py-1.5 bg-slate-950 border border-slate-700 rounded text-slate-200 focus:outline-none focus:border-amber-500"
+                className="px-3.5 py-1.5 bg-slate-50 border border-slate-300 rounded-xl text-slate-800 font-semibold focus:outline-none focus:ring-2 focus:ring-[#0B2545]"
               >
                 <option value="all">Todas las Subcategorías</option>
                 {activeMatter.subcategories.map((sub) => (
@@ -116,60 +116,60 @@ export function TemplateLibraryManager({
       {/* ── Template Cards Grid ────────────────────────────────────────────── */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {filteredTemplates.length === 0 ? (
-          <div className="col-span-full bg-slate-900/50 border border-slate-800 rounded-xl p-12 text-center text-slate-400">
+          <div className="col-span-full bg-white border border-slate-200 rounded-2xl p-12 text-center text-slate-500 shadow-sm">
             <p className="text-sm italic">No se encontraron machotes o plantillas en el catálogo.</p>
           </div>
         ) : (
           filteredTemplates.map((tpl) => (
             <div
               key={tpl.id}
-              className="bg-slate-900 border border-slate-800 hover:border-slate-700 rounded-xl p-5 flex flex-col justify-between space-y-4 shadow-lg hover:shadow-xl transition group"
+              className="bg-white border border-slate-200 hover:border-[#0B2545] rounded-2xl p-5 flex flex-col justify-between space-y-4 shadow-sm hover:shadow-md transition group"
             >
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-amber-950/80 text-amber-300 border border-amber-800/80">
+                  <span className="text-[10px] font-extrabold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-blue-50 text-[#0B2545] border border-blue-200">
                     {tpl.category || 'Machote'}
                   </span>
-                  <span className="text-xs font-mono text-slate-400">
+                  <span className="text-xs font-mono font-bold text-slate-400">
                     v{tpl.version || 1}
                   </span>
                 </div>
 
-                <h3 className="text-base font-bold text-slate-100 group-hover:text-amber-400 transition mb-1">
+                <h3 className="text-base font-bold text-[#0B2545] group-hover:text-blue-600 transition mb-1">
                   {tpl.name}
                 </h3>
                 {tpl.description && (
-                  <p className="text-xs text-slate-400 line-clamp-2">{tpl.description}</p>
+                  <p className="text-xs text-slate-600 line-clamp-2">{tpl.description}</p>
                 )}
               </div>
 
-              <div className="pt-3 border-t border-slate-800/80 flex items-center justify-between">
-                <span className="text-[11px] text-slate-500">
-                  Actualizado: {new Date(tpl.updatedAt).toLocaleDateString('es-MX')}
+              <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
+                <span className="text-[11px] text-slate-400">
+                  {new Date(tpl.updatedAt).toLocaleDateString('es-MX')}
                 </span>
 
                 <div className="flex items-center space-x-2">
                   <button
                     onClick={() => onUseTemplate(tpl)}
-                    className="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white font-semibold text-xs rounded transition shadow"
+                    className="machote-btn-primary text-xs py-1.5 px-3"
                   >
                     Usar
                   </button>
                   <button
                     onClick={() => onEditTemplate(tpl)}
-                    className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-xs rounded border border-slate-700 transition"
+                    className="machote-btn-secondary text-xs py-1.5 px-2.5"
                   >
                     Editar
                   </button>
                   <button
                     onClick={() => setSelectedTemplateForVersions(tpl)}
-                    className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-200 font-semibold text-xs rounded border border-slate-700 transition"
+                    className="machote-btn-secondary text-xs py-1.5 px-2"
                   >
                     v{tpl.version}
                   </button>
                   <button
                     onClick={() => onDeleteTemplate(tpl.id)}
-                    className="px-2 py-1.5 text-red-400 hover:text-red-300 hover:bg-red-950/50 rounded text-xs transition"
+                    className="px-2 py-1.5 text-red-500 hover:bg-red-50 rounded-lg text-xs transition"
                     title="Eliminar plantilla"
                   >
                     🗑️
@@ -183,50 +183,35 @@ export function TemplateLibraryManager({
 
       {/* ── Version History Modal ─────────────────────────────────────────── */}
       {selectedTemplateForVersions && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 max-w-md w-full space-y-4 shadow-2xl">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <h3 className="text-sm font-bold text-amber-400">
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white border border-slate-200 rounded-2xl p-6 max-w-md w-full space-y-4 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <h3 className="text-sm font-bold text-[#0B2545]">
                 Historial de Versiones: {selectedTemplateForVersions.name}
               </h3>
               <button
                 onClick={() => setSelectedTemplateForVersions(null)}
-                className="text-slate-400 hover:text-white"
+                className="text-slate-400 hover:text-slate-700 text-lg font-bold"
               >
                 ✕
               </button>
             </div>
 
             <div className="space-y-3 max-h-60 overflow-y-auto">
-              {(selectedTemplateForVersions.versions || [
-                {
-                  id: 'v1',
-                  templateId: selectedTemplateForVersions.id,
-                  version: selectedTemplateForVersions.version || 1,
-                  title: selectedTemplateForVersions.name,
-                  structureJson: {},
-                  variables: [],
-                  createdAt: selectedTemplateForVersions.updatedAt,
-                },
-              ]).map((ver) => (
-                <div
-                  key={ver.id || ver.version}
-                  className="flex items-center justify-between p-3 bg-slate-950 border border-slate-800 rounded-lg text-xs"
-                >
+              {(selectedTemplateForVersions.versions || []).map((v) => (
+                <div key={v.version} className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between text-xs">
                   <div>
-                    <span className="font-bold text-amber-300">Versión {ver.version}</span>
-                    <p className="text-[11px] text-slate-500">
-                      {new Date(ver.createdAt).toLocaleDateString('es-MX')}
-                    </p>
+                    <span className="font-bold text-[#0B2545]">Versión {v.version}</span>
+                    <p className="text-[11px] text-slate-500">{new Date(v.createdAt).toLocaleDateString('es-MX')}</p>
                   </div>
                   <button
                     onClick={() => {
-                      onUseTemplate(selectedTemplateForVersions, ver);
+                      onUseTemplate(selectedTemplateForVersions, v);
                       setSelectedTemplateForVersions(null);
                     }}
-                    className="px-3 py-1 bg-amber-600 hover:bg-amber-500 text-white font-semibold rounded"
+                    className="machote-btn-primary text-xs py-1 px-3"
                   >
-                    Usar v{ver.version}
+                    Restaurar
                   </button>
                 </div>
               ))}

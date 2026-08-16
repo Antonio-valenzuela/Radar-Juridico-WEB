@@ -5,13 +5,7 @@ import Link from 'next/link';
 import { PaginatedDocumentEditor } from './components/PaginatedDocumentEditor';
 import { CaseDocumentsReader } from './components/CaseDocumentsReader';
 import { TemplateLibraryManager, TemplateItem } from './components/TemplateLibraryManager';
-import { AiFillModal } from '@/components/machotes/AiFillModal';
 import { SaveCustomTemplateModal } from '@/components/machotes/SaveCustomTemplateModal';
-import { EditCustomTemplateModal } from '@/components/machotes/EditCustomTemplateModal';
-import { ConfirmDialog } from '@/components/shared/ConfirmDialog';
-import { IntentClassifier } from '@/components/machotes/IntentClassifier';
-import { PipelineProgress } from '@/components/machotes/PipelineProgress';
-import { ValidationPanel } from '@/components/machotes/ValidationPanel';
 
 import type {
   UniversalLegalDocument,
@@ -38,18 +32,16 @@ export default function MachotesPage() {
 
   // User prompt input
   const [userPromptInput, setUserPromptInput] = useState<string>(
-    'Contestar demanda laboral burocrática e interponer recurso de revisión contra la ejecutoría del Amparo Directo 800/2024'
+    'Contestar demanda laboral burocrática e interponer recurso de revisión contra la ejecutoria del Amparo Directo 800/2024'
   );
 
   // Template Library & Custom Templates
   const [customTemplates, setCustomTemplates] = useState<TemplateItem[]>([]);
-  const [isAiFillOpen, setIsAiFillOpen] = useState(false);
   const [isSaveCustomOpen, setIsSaveCustomOpen] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState<any>(null);
 
   const [feedback, setFeedback] = useState<{ tone: 'success' | 'error' | 'warning'; message: string } | null>(null);
 
-  // Load custom templates on mount using standard lawyer fetch
   useEffect(() => {
     loadTemplates();
   }, []);
@@ -257,7 +249,7 @@ export default function MachotesPage() {
     }
   };
 
-  // Use Template from Library (Creates a New Draft without modifying template original)
+  // Use Template from Library
   const handleUseTemplate = async (template: TemplateItem, version?: TemplateVersion) => {
     setFeedback({ tone: 'warning', message: `Creando nuevo borrador basado en la plantilla "${template.name}"...` });
     try {
@@ -282,167 +274,172 @@ export default function MachotesPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans">
-      {/* ── Top Header Navigation ─────────────────────────────────────────────── */}
-      <header className="bg-slate-900 border-b border-slate-800 px-8 py-4 flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-extrabold tracking-tight text-white flex items-center space-x-3">
-            <span className="text-amber-500">⚖️</span>
-            <span>Motor Universal de Redacción e Ingeniería Jurídica</span>
-          </h1>
-          <p className="text-xs text-slate-400 mt-0.5">
-            Elaboración asistida por IA local • Trazabilidad por foja • Perfil de redacción del abogado
-          </p>
-        </div>
-
-        {/* Navigation Tabs */}
-        <div className="flex items-center space-x-2 bg-slate-950 p-1.5 rounded-lg border border-slate-800 text-xs font-semibold">
-          <button
-            onClick={() => setActiveTab('universal')}
-            className={`px-4 py-2 rounded-md transition ${
-              activeTab === 'universal' ? 'bg-amber-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            Motor Universal
-          </button>
-          <button
-            onClick={() => setActiveTab('initial_writings')}
-            className={`px-4 py-2 rounded-md transition ${
-              activeTab === 'initial_writings' ? 'bg-amber-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            Escritos Iniciales
-          </button>
-          <button
-            onClick={() => setActiveTab('responses_resources')}
-            className={`px-4 py-2 rounded-md transition ${
-              activeTab === 'responses_resources' ? 'bg-amber-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            Contestaciones y Recursos
-          </button>
-          <button
-            onClick={() => setActiveTab('my-templates')}
-            className={`px-4 py-2 rounded-md transition ${
-              activeTab === 'my-templates' ? 'bg-amber-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            Mis Plantillas ({customTemplates.length})
-          </button>
-        </div>
-      </header>
+    <div className="container mx-auto px-4 max-w-7xl py-8 space-y-8 font-sans">
+      {/* ── Page Title & Hero Header ────────────────────────────────────────── */}
+      <div className="space-y-3 border-b border-slate-200 pb-6">
+        <Link href="/legal-hub" className="back-link">
+          ← Volver a Centro Jurídico
+        </Link>
+        <h1 className="text-3xl font-extrabold tracking-tight text-[#0B2545]">
+          Generador y Editor de Machotes Jurídicos
+        </h1>
+        <p className="subtitle text-slate-600 text-base max-w-3xl">
+          Elaboración asistida por IA local • Trazabilidad por foja • Perfil de redacción del abogado
+        </p>
+      </div>
 
       {/* ── Feedback Message Banner ───────────────────────────────────────────── */}
       {feedback && (
         <div
-          className={`px-8 py-3 text-xs font-semibold flex items-center justify-between border-b ${
+          className={`px-5 py-3 rounded-xl text-xs font-bold flex items-center justify-between border shadow-sm ${
             feedback.tone === 'success'
-              ? 'bg-emerald-950/80 border-emerald-800 text-emerald-200'
+              ? 'bg-emerald-50 border-emerald-300 text-emerald-800'
               : feedback.tone === 'error'
-              ? 'bg-red-950/80 border-red-800 text-red-200'
-              : 'bg-amber-950/80 border-amber-800 text-amber-200'
+              ? 'bg-red-50 border-red-300 text-red-800'
+              : 'bg-amber-50 border-amber-300 text-amber-800'
           }`}
         >
           <span>{feedback.message}</span>
-          <button onClick={() => setFeedback(null)} className="hover:opacity-75">
+          <button onClick={() => setFeedback(null)} className="hover:opacity-75 text-sm font-bold">
             ✕
           </button>
         </div>
       )}
 
-      {/* ── Main Body Content ─────────────────────────────────────────────────── */}
-      <main className="flex-1 p-8 max-w-[1600px] w-full mx-auto space-y-8">
-        {/* ── TAB: MIS PLANTILLAS ────────────────────────────────────────────── */}
-        {activeTab === 'my-templates' && (
-          <TemplateLibraryManager
-            templates={customTemplates}
-            onUseTemplate={handleUseTemplate}
-            onEditTemplate={(tpl) => setEditingTemplate(tpl)}
-            onDeleteTemplate={async (id) => {
-              await fetch(`/api/templates/custom/${id}`, { method: 'DELETE' });
-              loadTemplates();
-            }}
-            onCreateNewTemplate={() => setIsSaveCustomOpen(true)}
-          />
-        )}
+      {/* ── Navigation Tabs ─────────────────────────────────────────────────── */}
+      <div className="flex flex-wrap items-center gap-3">
+        <button
+          onClick={() => setActiveTab('universal')}
+          className={
+            activeTab === 'universal'
+              ? 'bg-[#0B2545] text-white shadow-md font-bold rounded-xl px-5 py-2.5 text-xs transition-all'
+              : 'text-slate-600 hover:text-[#0B2545] bg-white border border-slate-200 rounded-xl px-5 py-2.5 text-xs font-semibold shadow-sm transition-all'
+          }
+        >
+          ⚙️ Motor Universal
+        </button>
+        <button
+          onClick={() => setActiveTab('initial_writings')}
+          className={
+            activeTab === 'initial_writings'
+              ? 'bg-[#0B2545] text-white shadow-md font-bold rounded-xl px-5 py-2.5 text-xs transition-all'
+              : 'text-slate-600 hover:text-[#0B2545] bg-white border border-slate-200 rounded-xl px-5 py-2.5 text-xs font-semibold shadow-sm transition-all'
+          }
+        >
+          📝 Escritos Iniciales
+        </button>
+        <button
+          onClick={() => setActiveTab('responses_resources')}
+          className={
+            activeTab === 'responses_resources'
+              ? 'bg-[#0B2545] text-white shadow-md font-bold rounded-xl px-5 py-2.5 text-xs transition-all'
+              : 'text-slate-600 hover:text-[#0B2545] bg-white border border-slate-200 rounded-xl px-5 py-2.5 text-xs font-semibold shadow-sm transition-all'
+          }
+        >
+          ⚖️ Contestaciones y Recursos
+        </button>
+        <button
+          onClick={() => setActiveTab('my-templates')}
+          className={
+            activeTab === 'my-templates'
+              ? 'bg-[#0B2545] text-white shadow-md font-bold rounded-xl px-5 py-2.5 text-xs transition-all'
+              : 'text-slate-600 hover:text-[#0B2545] bg-white border border-slate-200 rounded-xl px-5 py-2.5 text-xs font-semibold shadow-sm transition-all'
+          }
+        >
+          📁 Mis Plantillas ({customTemplates.length})
+        </button>
+      </div>
 
-        {/* ── TAB: MOTOR UNIVERSAL & WRITINGS ───────────────────────────────── */}
-        {activeTab !== 'my-templates' && (
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-            {/* Left Column: Case Documents & Pipeline Controls (4 cols) */}
-            <div className="lg:col-span-4 space-y-6">
-              {/* Document Ingestion Card */}
-              <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-4 shadow-lg">
-                <h3 className="text-xs font-bold uppercase tracking-wider text-amber-400">
-                  1. Ingestión de Expediente del Abogado
-                </h3>
-                <p className="text-xs text-slate-400">
-                  Suba cualquier PDF, scan, JPG, PNG o Word. Se procesará localmente sin subir archivos a la nube.
-                </p>
-                <label className="flex flex-col items-center justify-center p-6 border-2 border-dashed border-slate-700 hover:border-amber-500 rounded-xl cursor-pointer bg-slate-950/60 transition group">
-                  <span className="text-2xl mb-1 group-hover:scale-110 transition">📄</span>
-                  <span className="text-xs font-semibold text-slate-300">Cargar Archivo de Trabajo</span>
-                  <span className="text-[10px] text-slate-500 mt-1">PDF, DOCX, PNG, JPG (Sin límite de caracteres)</span>
-                  <input type="file" multiple onChange={handleFileUpload} className="hidden" />
-                </label>
-              </div>
+      {/* ── TAB: MIS PLANTILLAS ────────────────────────────────────────────── */}
+      {activeTab === 'my-templates' && (
+        <TemplateLibraryManager
+          templates={customTemplates}
+          onUseTemplate={handleUseTemplate}
+          onEditTemplate={(tpl) => setEditingTemplate(tpl)}
+          onDeleteTemplate={async (id) => {
+            await fetch(`/api/templates/custom/${id}`, { method: 'DELETE' });
+            loadTemplates();
+          }}
+          onCreateNewTemplate={() => setIsSaveCustomOpen(true)}
+        />
+      )}
 
-              {/* Instruction Prompt Card */}
-              <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-4 shadow-lg">
-                <h3 className="text-xs font-bold uppercase tracking-wider text-amber-400">
-                  2. Instrucción Jurídica del Caso
-                </h3>
-                <textarea
-                  rows={4}
-                  value={userPromptInput}
-                  onChange={(e) => setUserPromptInput(e.target.value)}
-                  placeholder="Describa la instrucción del escrito a elaborar..."
-                  className="w-full p-3 bg-slate-950 border border-slate-700 rounded-lg text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-amber-500 font-sans"
-                />
-                <button
-                  onClick={handleRunPipeline}
-                  disabled={isUniversalGenerating}
-                  className="w-full py-3 bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-white font-extrabold text-xs uppercase tracking-wider rounded-lg transition shadow-lg flex items-center justify-center space-x-2"
-                >
-                  <span>{isUniversalGenerating ? 'Generando...' : 'Generar Escrito Estructurado'}</span>
-                </button>
-              </div>
-
-              {/* Case Documents Reader Component */}
-              <div className="h-[450px]">
-                <CaseDocumentsReader
-                  documents={caseDocuments}
-                  selectedDocId={selectedCaseDoc?.id}
-                  onSelectDocument={(doc) => setSelectedCaseDoc(doc)}
-                />
-              </div>
+      {/* ── TAB: MOTOR UNIVERSAL & WRITINGS ───────────────────────────────── */}
+      {activeTab !== 'my-templates' && (
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+          {/* Left Column: Case Documents & Pipeline Controls (4 cols) */}
+          <div className="lg:col-span-4 space-y-6">
+            {/* Document Ingestion Card */}
+            <div className="card p-6 bg-white border border-slate-200 rounded-2xl shadow-md space-y-4">
+              <h3 className="text-xs font-extrabold uppercase tracking-wider text-[#0B2545] flex items-center space-x-2">
+                <span>📄 1. Documentos del Expediente</span>
+              </h3>
+              <p className="text-xs text-slate-600">
+                Suba cualquier PDF, scan, JPG, PNG o Word. Se procesará localmente sin subir datos privados.
+              </p>
+              <label className="flex flex-col items-center justify-center p-6 border-2 border-dashed border-slate-300 hover:border-[#0B2545] rounded-xl cursor-pointer bg-slate-50/60 transition group text-center">
+                <span className="text-3xl mb-2 group-hover:scale-110 transition">📥</span>
+                <span className="text-xs font-bold text-[#0B2545]">Arrastrar o Seleccionar Archivos</span>
+                <span className="text-[10px] text-slate-500 mt-1">PDF · DOCX · JPG · PNG (Procesamiento Local)</span>
+                <input type="file" multiple onChange={handleFileUpload} className="hidden" />
+              </label>
             </div>
 
-            {/* Right Column: Paginated Lawyer Document Editor Canvas (8 cols) */}
-            <div className="lg:col-span-8 h-[850px]">
-              {universalDoc ? (
-                <PaginatedDocumentEditor
-                  document={universalDoc}
-                  onUpdateDocument={(updated) => setUniversalDoc(updated)}
-                  onRegenerateSection={handleRegenerateSection}
-                  onExportDocx={handleExportDocx}
-                  onExportPdf={handleExportPdf}
-                  caseDocuments={caseDocuments}
-                  isGenerating={isUniversalGenerating}
-                />
-              ) : (
-                <div className="h-full bg-slate-900/60 border border-slate-800 rounded-xl p-12 flex flex-col items-center justify-center text-center space-y-4">
-                  <span className="text-4xl text-slate-600">📜</span>
-                  <h3 className="text-base font-bold text-slate-300">Editor Documental Jurídico</h3>
-                  <p className="text-xs text-slate-500 max-w-md">
-                    Cargue sus documentos o introduzca una instrucción para generar un escrito estructurado en formato paginado Letter con navegación y edición granular.
-                  </p>
-                </div>
-              )}
+            {/* Instruction Prompt Card */}
+            <div className="card p-6 bg-white border border-slate-200 rounded-2xl shadow-md space-y-4">
+              <h3 className="text-xs font-extrabold uppercase tracking-wider text-[#0B2545] flex items-center space-x-2">
+                <span>✍️ 2. Instrucción Jurídica del Caso</span>
+              </h3>
+              <textarea
+                rows={4}
+                value={userPromptInput}
+                onChange={(e) => setUserPromptInput(e.target.value)}
+                placeholder="Describa la instrucción del escrito a elaborar..."
+                className="w-full p-3.5 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#0B2545] font-sans"
+              />
+              <button
+                onClick={handleRunPipeline}
+                disabled={isUniversalGenerating}
+                className="machote-btn-primary w-full py-3 text-xs uppercase tracking-wider justify-center"
+              >
+                <span>{isUniversalGenerating ? 'Generando...' : '⚡ Generar Escrito Estructurado'}</span>
+              </button>
+            </div>
+
+            {/* Case Documents Reader Component */}
+            <div className="h-[480px]">
+              <CaseDocumentsReader
+                documents={caseDocuments}
+                selectedDocId={selectedCaseDoc?.id}
+                onSelectDocument={(doc) => setSelectedCaseDoc(doc)}
+              />
             </div>
           </div>
-        )}
-      </main>
+
+          {/* Right Column: Paginated Lawyer Document Editor Canvas (8 cols) */}
+          <div className="lg:col-span-8 h-[900px]">
+            {universalDoc ? (
+              <PaginatedDocumentEditor
+                document={universalDoc}
+                onUpdateDocument={(updated) => setUniversalDoc(updated)}
+                onRegenerateSection={handleRegenerateSection}
+                onExportDocx={handleExportDocx}
+                onExportPdf={handleExportPdf}
+                caseDocuments={caseDocuments}
+                isGenerating={isUniversalGenerating}
+              />
+            ) : (
+              <div className="h-full bg-white border border-slate-200 rounded-2xl p-12 flex flex-col items-center justify-center text-center space-y-4 shadow-md">
+                <span className="text-5xl text-slate-300">📜</span>
+                <h3 className="text-lg font-bold text-[#0B2545]">Editor Documental Jurídico</h3>
+                <p className="text-xs text-slate-500 max-w-md">
+                  Cargue sus documentos o introduzca una instrucción para generar un escrito estructurado en formato paginado Carta con navegación y edición granular.
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Modals */}
       {isSaveCustomOpen && (

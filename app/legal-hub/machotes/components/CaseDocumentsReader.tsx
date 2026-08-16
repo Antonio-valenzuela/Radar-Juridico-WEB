@@ -20,27 +20,27 @@ export function CaseDocumentsReader({
   const [activePage, setActivePage] = useState(1);
 
   return (
-    <div className="flex flex-col h-full bg-slate-950 border border-slate-800 rounded-xl overflow-hidden shadow-xl text-slate-100">
+    <div className="flex flex-col h-full bg-white border border-slate-200 rounded-2xl shadow-md overflow-hidden text-slate-900">
       {/* Header */}
-      <div className="flex items-center justify-between px-5 py-3 bg-slate-900 border-b border-slate-800">
-        <h3 className="text-xs font-bold uppercase tracking-wider text-amber-400">
-          Documentos del Caso ({documents.length})
+      <div className="flex items-center justify-between px-5 py-3.5 bg-slate-50 border-b border-slate-200">
+        <h3 className="text-xs font-bold uppercase tracking-wider text-[#0B2545] flex items-center space-x-2">
+          <span>📁 Documentos del Caso ({documents.length})</span>
         </h3>
         {onUploadNewDocument && (
           <button
             onClick={onUploadNewDocument}
-            className="px-2.5 py-1 bg-amber-600 hover:bg-amber-500 text-white text-xs font-semibold rounded transition"
+            className="machote-btn-primary text-xs px-3 py-1.5"
           >
-            + Agregar Expediente
+            + Agregar Documento
           </button>
         )}
       </div>
 
       <div className="flex flex-1 overflow-hidden">
         {/* Document List */}
-        <div className="w-56 bg-slate-900/60 border-r border-slate-800 p-3 space-y-2 overflow-y-auto">
+        <div className="w-64 bg-slate-50/70 border-r border-slate-200 p-3 space-y-2 overflow-y-auto">
           {documents.length === 0 ? (
-            <div className="text-xs text-slate-500 italic p-3">
+            <div className="text-xs text-slate-500 italic p-3 text-center">
               No hay documentos cargados en el expediente.
             </div>
           ) : (
@@ -53,23 +53,25 @@ export function CaseDocumentsReader({
                     onSelectDocument(doc);
                     setActivePage(1);
                   }}
-                  className={`w-full text-left p-3 rounded-lg border transition ${
+                  className={`w-full text-left p-3 rounded-xl border transition ${
                     isSelected
-                      ? 'bg-amber-950/40 border-amber-500 text-amber-200'
-                      : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700'
+                      ? 'bg-white border-[#0B2545] text-[#0B2545] shadow-sm font-semibold'
+                      : 'bg-white/60 border-slate-200 text-slate-600 hover:border-slate-300'
                   }`}
                 >
-                  <div className="flex items-center justify-between text-xs font-medium mb-1">
-                    <span className="truncate max-w-[130px]">{doc.name}</span>
-                    <span className="text-[10px] text-slate-500 uppercase">{doc.type}</span>
+                  <div className="flex items-center justify-between text-xs font-medium mb-1.5">
+                    <span className="truncate max-w-[130px] font-bold">{doc.name}</span>
+                    <span className="text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded font-mono uppercase">
+                      {doc.type}
+                    </span>
                   </div>
-                  <div className="flex items-center justify-between text-[10px] text-slate-500">
+                  <div className="flex items-center justify-between text-[11px] text-slate-500">
                     <span>{doc.pageCount} pág(s)</span>
                     <span
-                      className={`px-1.5 py-0.5 rounded font-semibold ${
+                      className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
                         doc.status === 'READY'
-                          ? 'bg-emerald-950 text-emerald-300 border border-emerald-800'
-                          : 'bg-amber-950 text-amber-300 border border-amber-800'
+                          ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                          : 'bg-amber-50 text-amber-700 border border-amber-200'
                       }`}
                     >
                       {doc.status === 'READY' ? 'VERIFICADA' : 'PARCIAL / OCR'}
@@ -82,30 +84,30 @@ export function CaseDocumentsReader({
         </div>
 
         {/* Document Content Reader (Read-Only Source) */}
-        <div className="flex-1 flex flex-col bg-slate-950 p-4 overflow-y-auto">
+        <div className="flex-1 flex flex-col bg-slate-50/40 p-4 overflow-y-auto">
           {selectedDoc ? (
-            <div className="flex-1 flex flex-col space-y-4">
+            <div className="flex-1 flex flex-col space-y-3">
               {/* Document Info Header */}
-              <div className="flex items-center justify-between bg-slate-900 p-3 rounded-lg border border-slate-800 text-xs">
+              <div className="flex items-center justify-between bg-white p-3 rounded-xl border border-slate-200 text-xs shadow-sm">
                 <div>
-                  <h4 className="font-bold text-slate-200">{selectedDoc.name}</h4>
-                  <p className="text-[11px] text-slate-400">
-                    Página {activePage} de {selectedDoc.pageCount} — Ingestión Local
+                  <h4 className="font-bold text-[#0B2545]">{selectedDoc.name}</h4>
+                  <p className="text-[11px] text-slate-500">
+                    Página {activePage} de {selectedDoc.pageCount} — Fuente Inmutable
                   </p>
                 </div>
                 <div className="flex items-center space-x-2">
                   <button
                     onClick={() => setActivePage((p) => Math.max(1, p - 1))}
                     disabled={activePage === 1}
-                    className="px-2 py-1 bg-slate-800 hover:bg-slate-700 disabled:opacity-40 rounded text-xs font-semibold"
+                    className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 disabled:opacity-40 rounded-lg text-xs font-semibold text-slate-700 border border-slate-300"
                   >
                     ←
                   </button>
-                  <span className="font-mono text-amber-400">{activePage}</span>
+                  <span className="font-mono font-bold text-[#0B2545] text-xs px-2">{activePage}</span>
                   <button
                     onClick={() => setActivePage((p) => Math.min(selectedDoc.pageCount, p + 1))}
                     disabled={activePage === selectedDoc.pageCount}
-                    className="px-2 py-1 bg-slate-800 hover:bg-slate-700 disabled:opacity-40 rounded text-xs font-semibold"
+                    className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 disabled:opacity-40 rounded-lg text-xs font-semibold text-slate-700 border border-slate-300"
                   >
                     →
                   </button>
@@ -113,14 +115,14 @@ export function CaseDocumentsReader({
               </div>
 
               {/* Source Text Page Canvas */}
-              <div className="flex-1 bg-slate-900/80 border border-slate-800 rounded-lg p-6 font-serif text-sm leading-relaxed whitespace-pre-wrap text-slate-300 overflow-y-auto">
+              <div className="flex-1 bg-white border border-slate-200 rounded-xl p-6 font-serif text-sm leading-relaxed whitespace-pre-wrap text-slate-800 shadow-inner overflow-y-auto">
                 {selectedDoc.pages && selectedDoc.pages[activePage - 1]
                   ? selectedDoc.pages[activePage - 1].text
                   : 'Sin contenido en la página seleccionada.'}
               </div>
             </div>
           ) : (
-            <div className="flex-1 flex items-center justify-center text-slate-500 text-xs italic">
+            <div className="flex-1 flex items-center justify-center text-slate-400 text-xs italic">
               Seleccione un documento del caso para inspeccionar su contenido fuente.
             </div>
           )}
