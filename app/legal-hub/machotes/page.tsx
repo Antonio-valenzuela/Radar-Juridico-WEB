@@ -310,41 +310,25 @@ export default function MachotesPage() {
       <div className="flex flex-wrap items-center gap-3">
         <button
           onClick={() => setActiveTab('universal')}
-          className={
-            activeTab === 'universal'
-              ? 'bg-[#0B2545] text-white shadow-md font-bold rounded-xl px-5 py-2.5 text-xs transition-all'
-              : 'text-slate-600 hover:text-[#0B2545] bg-white border border-slate-200 rounded-xl px-5 py-2.5 text-xs font-semibold shadow-sm transition-all'
-          }
+          className={`jr-tab ${activeTab === 'universal' ? 'jr-tab-active' : ''}`}
         >
           ⚙️ Motor Universal
         </button>
         <button
           onClick={() => setActiveTab('initial_writings')}
-          className={
-            activeTab === 'initial_writings'
-              ? 'bg-[#0B2545] text-white shadow-md font-bold rounded-xl px-5 py-2.5 text-xs transition-all'
-              : 'text-slate-600 hover:text-[#0B2545] bg-white border border-slate-200 rounded-xl px-5 py-2.5 text-xs font-semibold shadow-sm transition-all'
-          }
+          className={`jr-tab ${activeTab === 'initial_writings' ? 'jr-tab-active' : ''}`}
         >
           📝 Escritos Iniciales
         </button>
         <button
           onClick={() => setActiveTab('responses_resources')}
-          className={
-            activeTab === 'responses_resources'
-              ? 'bg-[#0B2545] text-white shadow-md font-bold rounded-xl px-5 py-2.5 text-xs transition-all'
-              : 'text-slate-600 hover:text-[#0B2545] bg-white border border-slate-200 rounded-xl px-5 py-2.5 text-xs font-semibold shadow-sm transition-all'
-          }
+          className={`jr-tab ${activeTab === 'responses_resources' ? 'jr-tab-active' : ''}`}
         >
           ⚖️ Contestaciones y Recursos
         </button>
         <button
           onClick={() => setActiveTab('my-templates')}
-          className={
-            activeTab === 'my-templates'
-              ? 'bg-[#0B2545] text-white shadow-md font-bold rounded-xl px-5 py-2.5 text-xs transition-all'
-              : 'text-slate-600 hover:text-[#0B2545] bg-white border border-slate-200 rounded-xl px-5 py-2.5 text-xs font-semibold shadow-sm transition-all'
-          }
+          className={`jr-tab ${activeTab === 'my-templates' ? 'jr-tab-active' : ''}`}
         >
           📁 Mis Plantillas ({customTemplates.length})
         </button>
@@ -370,7 +354,7 @@ export default function MachotesPage() {
           {/* Left Column: Case Documents & Pipeline Controls (4 cols) */}
           <div className="lg:col-span-4 space-y-6">
             {/* Document Ingestion Card */}
-            <div className="card p-6 bg-white border border-slate-200 rounded-2xl shadow-md space-y-4">
+            <div className="jr-card space-y-4">
               <h3 className="text-xs font-extrabold uppercase tracking-wider text-[#0B2545] flex items-center space-x-2">
                 <span>📄 1. Documentos del Expediente</span>
               </h3>
@@ -386,7 +370,7 @@ export default function MachotesPage() {
             </div>
 
             {/* Instruction Prompt Card */}
-            <div className="card p-6 bg-white border border-slate-200 rounded-2xl shadow-md space-y-4">
+            <div className="jr-card space-y-4">
               <h3 className="text-xs font-extrabold uppercase tracking-wider text-[#0B2545] flex items-center space-x-2">
                 <span>✍️ 2. Instrucción Jurídica del Caso</span>
               </h3>
@@ -395,12 +379,12 @@ export default function MachotesPage() {
                 value={userPromptInput}
                 onChange={(e) => setUserPromptInput(e.target.value)}
                 placeholder="Describa la instrucción del escrito a elaborar..."
-                className="w-full p-3.5 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#0B2545] font-sans"
+                className="jr-input font-sans text-xs"
               />
               <button
                 onClick={handleRunPipeline}
                 disabled={isUniversalGenerating}
-                className="machote-btn-primary w-full py-3 text-xs uppercase tracking-wider justify-center"
+                className="jr-button-primary w-full py-3 text-xs uppercase tracking-wider justify-center"
               >
                 <span>{isUniversalGenerating ? 'Generando...' : '⚡ Generar Escrito Estructurado'}</span>
               </button>
@@ -429,7 +413,7 @@ export default function MachotesPage() {
                 isGenerating={isUniversalGenerating}
               />
             ) : (
-              <div className="h-full bg-white border border-slate-200 rounded-2xl p-12 flex flex-col items-center justify-center text-center space-y-4 shadow-md">
+              <div className="h-full jr-glass rounded-2xl p-12 flex flex-col items-center justify-center text-center space-y-4 shadow-md">
                 <span className="text-5xl text-slate-300">📜</span>
                 <h3 className="text-lg font-bold text-[#0B2545]">Editor Documental Jurídico</h3>
                 <p className="text-xs text-slate-500 max-w-md">

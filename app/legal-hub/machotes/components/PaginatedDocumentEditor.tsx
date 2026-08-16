@@ -103,7 +103,7 @@ export function PaginatedDocumentEditor({
   };
 
   return (
-    <div className="flex flex-col h-full bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-xl text-slate-900 font-sans">
+    <div className="flex flex-col h-full jr-card p-0 overflow-hidden text-slate-900 font-sans">
       {/* ── Toolbar & Top Controls ────────────────────────────────────────── */}
       <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-3.5 bg-slate-50 border-b border-slate-200">
         <div className="flex items-center space-x-3">
@@ -130,12 +130,12 @@ export function PaginatedDocumentEditor({
           )}
 
           {onExportDocx && (
-            <button onClick={onExportDocx} className="machote-btn-primary text-xs py-1.5 px-4">
+            <button onClick={onExportDocx} className="jr-button-primary text-xs py-1.5 px-4">
               📄 Exportar DOCX
             </button>
           )}
           {onExportPdf && (
-            <button onClick={onExportPdf} className="machote-btn-secondary text-xs py-1.5 px-4">
+            <button onClick={onExportPdf} className="jr-button-secondary text-xs py-1.5 px-4">
               🖨️ Imprimir / PDF
             </button>
           )}
@@ -267,7 +267,7 @@ export function PaginatedDocumentEditor({
                         </button>
                         <button
                           onClick={() => handleSaveSectionEdit(section.id)}
-                          className="machote-btn-primary text-xs py-1.5 px-4"
+                          className="machote-jr-button-primary text-xs py-1.5 px-4"
                         >
                           Guardar Cambios
                         </button>

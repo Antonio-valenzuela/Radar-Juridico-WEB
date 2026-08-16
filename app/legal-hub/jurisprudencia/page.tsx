@@ -102,7 +102,7 @@ export default function JurisprudenciaPage() {
           </p>
         </section>
 
-        <div className="legal-warning glass-card" style={{ marginBottom: '2rem' }}>
+        <div className="legal-warning jr-card" style={{ marginBottom: '2rem' }}>
           <strong>Revisión profesional requerida:</strong>
           <ul style={{ marginTop: '0.5rem', marginLeft: '1.5rem', fontSize: '0.9rem' }}>
             <li>Confirma el tipo, la vigencia y la aplicabilidad del criterio al caso concreto.</li>
@@ -111,7 +111,7 @@ export default function JurisprudenciaPage() {
           </ul>
         </div>
 
-        <section className="glass-card legal-form-panel">
+        <section className="jr-card legal-form-panel">
           <form onSubmit={handleSearch} className="legal-form-grid">
             <label>
               Búsqueda Libre
@@ -174,7 +174,7 @@ export default function JurisprudenciaPage() {
         <section className="legal-hub-grid" style={{ gridTemplateColumns: '1fr' }}>
           {loading && (
             Array(3).fill(0).map((_, i) => (
-              <article key={i} className="glass-card legal-hub-card" style={{ opacity: 0.7 }}>
+              <article key={i} className="jr-card legal-hub-card" style={{ opacity: 0.7 }}>
                 <div style={{ height: '24px', width: '20%', background: 'rgba(255,255,255,0.1)', borderRadius: '4px', marginBottom: '1rem' }} />
                 <div style={{ height: '32px', width: '90%', background: 'rgba(255,255,255,0.1)', borderRadius: '4px', marginBottom: '1rem' }} />
                 <div style={{ height: '100px', width: '100%', background: 'rgba(255,255,255,0.05)', borderRadius: '4px', marginBottom: '1rem' }} />
@@ -184,7 +184,7 @@ export default function JurisprudenciaPage() {
           )}
 
           {!loading && hasSearched && results.length === 0 && !error && (
-            <div className="legal-wide-card glass-card" style={{ textAlign: 'center', padding: '3rem' }}>
+            <div className="legal-wide-card jr-card" style={{ textAlign: 'center', padding: '3rem' }}>
               <h3 style={{ marginBottom: '1rem', color: 'var(--text-muted)' }}>No se encontraron criterios jurídicos verificados en la base local.</h3>
               <p style={{ marginBottom: '1.5rem' }}>Verifica los términos de búsqueda o consulta directamente la fuente oficial.</p>
               <a href="https://sjf2.scjn.gob.mx" target="_blank" rel="noreferrer" className="btn-doc-primary">
@@ -194,14 +194,14 @@ export default function JurisprudenciaPage() {
           )}
 
           {!loading && error && (
-            <div role="alert" className="legal-wide-card glass-card" style={{ textAlign: 'center', padding: '3rem', borderColor: '#ef4444' }}>
+            <div role="alert" className="legal-wide-card jr-card" style={{ textAlign: 'center', padding: '3rem', borderColor: '#ef4444' }}>
               <h3 style={{ color: '#ef4444' }}>Error de conexión</h3>
               <p>No se pudo realizar la búsqueda. Por favor intente más tarde.</p>
             </div>
           )}
 
           {!loading && results.length > 0 && results.map((item) => (
-            <article key={item.id} className="glass-card legal-hub-card" style={{ display: 'grid', gap: '1.5rem' }}>
+            <article key={item.id} className="jr-card legal-hub-card" style={{ display: 'grid', gap: '1.5rem' }}>
               <div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem', marginBottom: '1rem', alignItems: 'center' }}>
                   <span className="document-label" style={{ background: 'rgba(99, 102, 241, 0.2)', padding: '4px 10px', borderRadius: '4px' }}>{item.type}</span>

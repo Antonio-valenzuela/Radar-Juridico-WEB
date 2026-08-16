@@ -322,7 +322,7 @@ export default function BulletinTrackingPage() {
           </div>
         )}
 
-        <section className="glass-card" style={{ marginBottom: "1rem", padding: "1rem 1.25rem", border: "1px solid rgba(96, 165, 250, 0.35)" }}>
+        <section className="jr-card" style={{ marginBottom: "1rem", padding: "1rem 1.25rem", border: "1px solid rgba(96, 165, 250, 0.35)" }}>
           <strong style={{ display: "block", marginBottom: "0.35rem" }}>Prueba rápida</strong>
           <p className="text-muted" style={{ margin: 0, fontSize: "0.95rem" }}>
             Puedes usar datos de ejemplo como expediente <strong>1234/2026</strong>, actor <strong>Juan Pérez</strong>, demandado <strong>Acme S.A.</strong> y juzgado <strong>Juzgado Segundo Civil</strong> para probar el flujo completo.
@@ -330,7 +330,7 @@ export default function BulletinTrackingPage() {
         </section>
 
         {/* Formulario de Creación / Edición */}
-        <section className="glass-card" style={{ marginBottom: "2.5rem", padding: "1.5rem" }}>
+        <section className="jr-card" style={{ marginBottom: "2.5rem", padding: "1.5rem" }}>
           <h2 style={{ marginBottom: "1rem", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <span>{editingId ? "✏️ Editar Seguimiento de Boletín" : "➕ Crear Nuevo Seguimiento de Boletín"}</span>
             {editingId && (
@@ -438,7 +438,7 @@ export default function BulletinTrackingPage() {
             </div>
 
             <div style={{ gridColumn: "1 / -1", display: "flex", justifyContent: "flex-end", marginTop: "0.5rem" }}>
-              <button type="submit" className="btn-primary" disabled={submitting}>
+              <button type="submit" className="jr-button-primary" disabled={submitting}>
                 {submitting ? "Guardando..." : editingId ? "Guardar cambios" : "Crear seguimiento"}
               </button>
             </div>
@@ -446,7 +446,7 @@ export default function BulletinTrackingPage() {
         </section>
 
         {/* Lista de Seguimientos Configurados */}
-        <section className="glass-card" style={{ padding: "1.5rem", marginBottom: "2.5rem" }}>
+        <section className="jr-card" style={{ padding: "1.5rem", marginBottom: "2.5rem" }}>
           <h2 style={{ marginBottom: "1.5rem" }}>📋 Seguimientos Activos ({subscriptions.length})</h2>
 
           {loading ? (
@@ -561,7 +561,7 @@ export default function BulletinTrackingPage() {
             style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.75)", zIndex: 1000, display: "flex", justifyContent: "center", alignItems: "center", padding: "1rem" }}
           >
             <div
-              className="glass-card"
+              className="jr-card"
               onClick={(e) => e.stopPropagation()}
               role="dialog"
               aria-modal="true"
@@ -665,7 +665,7 @@ export default function BulletinTrackingPage() {
         )}
 
         {/* Respaldo: Consulta Manual en Fuentes Oficiales */}
-        <section className="glass-card" style={{ padding: "1.5rem", marginTop: "3rem" }}>
+        <section className="jr-card" style={{ padding: "1.5rem", marginTop: "3rem" }}>
           <h3 style={{ marginBottom: "0.5rem" }}>🔗 Consulta Manual en Fuente Oficial (Respaldo)</h3>
           <p className="text-muted" style={{ fontSize: "0.85rem", marginBottom: "1rem" }}>
             Si requieres consultar directamente el portal oficial para trámites con FIREL, e.firma o CAPTCHA activo:

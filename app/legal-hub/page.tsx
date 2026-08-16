@@ -43,22 +43,22 @@ export default function LegalHubPage() {
             SISE/CJF y formatos base de escritos.
           </p>
           <div className="hero-buttons" aria-label="Accesos rápidos">
-            <Link href="/legal-hub/boletines" className="btn-accent">
+            <Link href="/legal-hub/boletines" className="jr-button-secondary">
               Boletines Judiciales (Rastreo API)
             </Link>
-            <Link href="/legal-hub/cambios" className="btn-primary">
+            <Link href="/legal-hub/cambios" className="jr-button-primary">
               Cambios por Materia (IA)
             </Link>
-            <Link href="/legal-hub/leyes-vigentes" className="btn-primary">
+            <Link href="/legal-hub/leyes-vigentes" className="jr-button-primary">
               Leyes vigentes
             </Link>
-            <Link href="/legal-hub/jurisprudencia" className="btn-primary">
+            <Link href="/legal-hub/jurisprudencia" className="jr-button-primary">
               Jurisprudencia
             </Link>
-            <Link href="/legal-hub/expedientes" className="btn-primary">
+            <Link href="/legal-hub/expedientes" className="jr-button-primary">
               Expedientes
             </Link>
-            <Link href="/legal-hub/machotes" className="btn-primary">
+            <Link href="/legal-hub/machotes" className="jr-button-primary">
               Machotes guiados
             </Link>
           </div>
@@ -70,7 +70,7 @@ export default function LegalHubPage() {
             <button
               key={tab.id}
               type="button"
-              className={`legal-hub-tab ${activeTab === tab.id ? "is-active" : ""}`}
+              className={`jr-tab ${activeTab === tab.id ? "jr-tab-active" : ""}`}
               onClick={() => setActiveTab(tab.id)}
               aria-pressed={activeTab === tab.id}
             >
@@ -79,7 +79,7 @@ export default function LegalHubPage() {
           ))}
         </section>
 
-        <section className="glass-card legal-hub-intro">
+        <section className="jr-card legal-hub-intro">
           <div>
             <span className="document-label">{activeTabInfo.label}</span>
             <h2>{activeTabInfo.description}</h2>
@@ -90,7 +90,7 @@ export default function LegalHubPage() {
               <p>
                 Crea reglas de rastreo automatizado por número de expediente, actor, demandado, juzgado y palabras clave con alertas periódicas y revisión manual.
               </p>
-              <Link href="/legal-hub/boletines" className="btn-primary">
+              <Link href="/legal-hub/boletines" className="jr-button-primary">
                 Abrir Administrador de Boletines →
               </Link>
             </div>
@@ -100,7 +100,7 @@ export default function LegalHubPage() {
         {activeTab !== "machotes" ? (
           <section className="legal-hub-grid">
             {activeShortcuts.map((item) => (
-              <article key={item.id} className="glass-card legal-hub-card">
+              <article key={item.id} className="jr-card legal-hub-card">
                 <div>
                   <span className="document-label">{item.eyebrow}</span>
                   <h2 className="legal-hub-card-title">{item.title}</h2>
@@ -133,7 +133,7 @@ export default function LegalHubPage() {
         ) : (
           <section className="legal-hub-grid">
             {LEGAL_TEMPLATES.map((template) => (
-              <article key={template.id} className="glass-card legal-hub-card template-card">
+              <article key={template.id} className="jr-card legal-hub-card template-card">
                 <div>
                   <span className="document-label">{template.matter}</span>
                   <h2 className="legal-hub-card-title">{template.title}</h2>

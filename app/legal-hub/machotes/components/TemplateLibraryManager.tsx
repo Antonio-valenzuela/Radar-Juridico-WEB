@@ -53,7 +53,7 @@ export function TemplateLibraryManager({
   return (
     <div className="space-y-6">
       {/* ── Top Bar: Search & Catalog Filters ─────────────────────────────── */}
-      <div className="card p-5 bg-white border border-slate-200 rounded-2xl space-y-4 shadow-md">
+      <div className="jr-card p-5 space-y-4">
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
           <div className="relative flex-1">
             <input
@@ -61,12 +61,12 @@ export function TemplateLibraryManager({
               placeholder="Buscar en mis plantillas y machotes por nombre o palabra clave..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full px-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#0B2545]"
+              className="jr-input w-full px-4 py-2.5 text-sm"
             />
           </div>
           <button
             onClick={onCreateNewTemplate}
-            className="machote-btn-primary text-xs py-2.5 px-5"
+            className="jr-button-primary text-xs py-2.5 px-5"
           >
             <span>+ Crear Machote / Plantilla</span>
           </button>
@@ -82,7 +82,7 @@ export function TemplateLibraryManager({
                 setSelectedMatterId(e.target.value);
                 setSelectedSubcategoryId('all');
               }}
-              className="px-3.5 py-1.5 bg-slate-50 border border-slate-300 rounded-xl text-slate-800 font-semibold focus:outline-none focus:ring-2 focus:ring-[#0B2545]"
+              className="jr-input px-3.5 py-1.5 font-semibold"
             >
               <option value="all">Todas las Materias ({LEGAL_MATTERS_CATALOG.length})</option>
               {LEGAL_MATTERS_CATALOG.map((m) => (
@@ -151,19 +151,19 @@ export function TemplateLibraryManager({
                 <div className="flex items-center space-x-2">
                   <button
                     onClick={() => onUseTemplate(tpl)}
-                    className="machote-btn-primary text-xs py-1.5 px-3"
+                    className="machote-jr-button-primary text-xs py-1.5 px-3"
                   >
                     Usar
                   </button>
                   <button
                     onClick={() => onEditTemplate(tpl)}
-                    className="machote-btn-secondary text-xs py-1.5 px-2.5"
+                    className="machote-jr-button-secondary text-xs py-1.5 px-2.5"
                   >
                     Editar
                   </button>
                   <button
                     onClick={() => setSelectedTemplateForVersions(tpl)}
-                    className="machote-btn-secondary text-xs py-1.5 px-2"
+                    className="machote-jr-button-secondary text-xs py-1.5 px-2"
                   >
                     v{tpl.version}
                   </button>
@@ -209,7 +209,7 @@ export function TemplateLibraryManager({
                       onUseTemplate(selectedTemplateForVersions, v);
                       setSelectedTemplateForVersions(null);
                     }}
-                    className="machote-btn-primary text-xs py-1 px-3"
+                    className="machote-jr-button-primary text-xs py-1 px-3"
                   >
                     Restaurar
                   </button>

@@ -144,7 +144,7 @@ export default function ManualIngestPage() {
         </header>
 
         {/* Main Content Form */}
-        <div className="glass-card lawyer-card">
+        <div className="jr-card lawyer-card">
           <form onSubmit={handleIngest}>
             {/* Row 1: URL input */}
             <div className="form-group">
@@ -269,7 +269,7 @@ export default function ManualIngestPage() {
 
         {/* Live Loading Terminal Progress Console */}
         {loading && (
-          <div className="glass-card terminal-card">
+          <div className="jr-card terminal-card">
             <div className="terminal-header">
               <span className="terminal-dot red"></span>
               <span className="terminal-dot yellow"></span>

@@ -77,7 +77,7 @@ export default function DigestsPage() {
           onChange={(e) => setDays(Number(e.target.value))}
           className="days-input"
         />
-        <button onClick={handleGenerate} className="btn-primary" disabled={loading}>
+        <button onClick={handleGenerate} className="jr-button-primary" disabled={loading}>
           {loading ? 'Generando...' : 'Generar Digest'}
         </button>
       </div>

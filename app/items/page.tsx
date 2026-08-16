@@ -23,7 +23,7 @@ export default async function ItemsPage() {
           </p>
         </div>
         <div>
-          <Link href="/admin/ingest/manual-url" className="btn-primary">
+          <Link href="/admin/ingest/manual-url" className="jr-button-primary">
             Agregar link jurídico
           </Link>
         </div>

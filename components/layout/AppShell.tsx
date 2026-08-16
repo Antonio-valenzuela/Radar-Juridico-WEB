@@ -78,7 +78,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       {/* Backdrop */}
       {menuOpen && (
         <div
-          className="drawer-backdrop"
+          className="drawer-backdrop jr-glass-strong"
           onClick={() => setMenuOpen(false)}
           aria-hidden="true"
         />
@@ -87,7 +87,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       {/* Side Drawer */}
       <aside
         id="global-drawer"
-        className={`global-drawer ${menuOpen ? 'is-open' : ''}`}
+        className={`global-drawer jr-glass-strong ${menuOpen ? 'is-open' : ''}`}
         aria-hidden={!menuOpen}
       >
         <nav className="drawer-nav">

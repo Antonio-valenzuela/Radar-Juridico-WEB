@@ -373,6 +373,7 @@ export default function FloatingLegalChat() {
           id="floating-legal-panel"
           role="dialog"
           aria-label="Asistente Legal"
+          className="jr-glass-strong"
           style={{
             position: 'fixed',
             bottom: '24px',
@@ -384,10 +385,7 @@ export default function FloatingLegalChat() {
             zIndex: 99999,
             display: 'flex',
             flexDirection: 'column',
-            backgroundColor: '#FFFFFF',
             borderRadius: '24px',
-            border: '1px solid rgba(0, 0, 0, 0.08)',
-            boxShadow: '0 24px 60px rgba(0, 0, 0, 0.12)',
             overflow: 'hidden',
             boxSizing: 'border-box',
             fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",

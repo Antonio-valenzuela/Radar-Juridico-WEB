@@ -1,71 +1,76 @@
+@import "tailwindcss";
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
 :root {
-  /* Paleta formal: azul marino, grises neutros, acentos sobrios */
-  --primary:        #0B2545; /* azul marino */
-  --primary-hover:  #081d39;
-  --primary-active: #06142a;
-  --accent:         #7A2B2B; /* burdeos suave para acentos */
-  --accent-hover:   #5f2222;
+  /* ── Paleta Jurídico Radar ── */
+  --jr-primary:        #0B2545; /* Azul Marino Profundo */
+  --jr-primary-hover:  #081d39;
+  --jr-accent:         #007aff; /* Apple Blue Accent */
+  --jr-danger:         #e3342f;
 
-  /* Superficies neutras */
-  --background:      #F3F4F6; /* gris muy claro */
-  --surface:         #FFFFFF;
-  --surface-muted:   #F8FAFC;
-  --surface-elevated:#FFFFFF;
-  --surface-overlay: rgba(11, 37, 69, 0.04);
+  /* ── Superficies & Glassmorphism ── */
+  --jr-bg:             #f5f5f7;
+  --jr-surface:        rgba(255, 255, 255, 0.72);
+  --jr-surface-strong: rgba(255, 255, 255, 0.86);
+  --jr-surface-solid:  #ffffff;
+  --jr-border:         rgba(255, 255, 255, 0.45);
+  --jr-border-dark:    rgba(0, 0, 0, 0.08);
 
-  /* Tipografía: mayor contraste y legibilidad */
-  --text-primary:   #0B1220; /* casi negro, menos puro para menor brillo */
-  --text-secondary: #1F2937;
-  --text-muted:     #475569;
-  --text-main:      #0B1220;
-  --text-on-primary:#FFFFFF;
-
-  /* Bordes y focos */
-  --border:        rgba(11, 37, 69, 0.08);
-  --border-strong: rgba(11, 37, 69, 0.14);
-  --border-focus:  #0B2545;
-  --card-bg:       #FFFFFF;
-  --card-border:   rgba(11, 37, 69, 0.08);
-
-  /* Estados */
-  --success:     #0F5132; /* verde sobrio */
-  --success-bg:  rgba(15, 81, 50, 0.12);
-  --warning:     #B45309;
-  --warning-bg:  rgba(180, 83, 9, 0.12);
-  --danger:      #991B1B;
-  --danger-bg:   rgba(153, 27, 27, 0.12);
-  --error:       #991B1B;
-  --error-bg:    rgba(153, 27, 27, 0.12);
-  --info:        #0B2545;
-  --info-bg:     rgba(11, 37, 69, 0.10);
-  --disabled:    rgba(11, 37, 69, 0.20);
-  --focus:       #0B2545;
-
-  /* ── Espaciado (grid 8px) ── */
-  --space-1:  4px;
-  --space-2:  8px;
-  --space-3:  12px;
-  --space-4:  16px;
-  --space-5:  24px;
-  --space-6:  32px;
-  --space-7:  48px;
-  --space-8:  64px;
+  /* ── Tipografía ── */
+  --jr-text:           #111827;
+  --jr-text-secondary: #6b7280;
+  --jr-text-muted:     #9ca3af;
+  --jr-text-on-primary:#ffffff;
 
   /* ── Radios Apple ── */
-  --radius-sm:   10px;
-  --radius-md:   14px;
-  --radius-lg:   20px;
-  --radius-xl:   24px;
-  --radius-full: 9999px;
+  --jr-radius-sm:      10px;
+  --jr-radius-md:      14px;
+  --jr-radius-lg:      18px;
+  --jr-radius-xl:      24px;
+  --jr-radius-full:    9999px;
 
-  /* ── Sombras Paneles Flotantes Apple ── */
-  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.04);
-  --shadow-md: 0 8px 30px rgba(0, 0, 0, 0.05);
-  --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.08);
+  /* ── Sombras Sutiles ── */
+  --jr-shadow-sm:      0 2px 8px rgba(0, 0, 0, 0.05);
+  --jr-shadow-md:      0 8px 30px rgba(0, 0, 0, 0.08);
+  --jr-shadow-lg:      0 18px 50px rgba(0, 0, 0, 0.12);
 
-  /* ── Transición Suave Apple ── */
-  --transition:      0.2s cubic-bezier(0.16, 1, 0.3, 1);
-  --transition-slow: 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  /* ── Blur ── */
+  --jr-blur:           20px;
+  --jr-blur-strong:    24px;
+
+  /* ── Transiciones ── */
+  --jr-transition:     all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  --transition:        var(--jr-transition);
+
+  /* ── Legacy Mappings para no romper componentes existentes ── */
+  --primary:           var(--jr-primary);
+  --primary-hover:     var(--jr-primary-hover);
+  --background:        var(--jr-bg);
+  --surface:           var(--jr-surface-solid);
+  --surface-muted:     #F8FAFC;
+  --border:            var(--jr-border-dark);
+  --border-strong:     rgba(0,0,0,0.12);
+  --border-focus:      var(--jr-accent);
+  --text-primary:      var(--jr-text);
+  --text-secondary:    var(--jr-text-secondary);
+  --text-on-primary:   var(--jr-text-on-primary);
+  --shadow-sm:         var(--jr-shadow-sm);
+  --shadow-md:         var(--jr-shadow-md);
+  --shadow-lg:         var(--jr-shadow-lg);
+  --radius-sm:         var(--jr-radius-sm);
+  --radius-md:         var(--jr-radius-md);
+  --radius-lg:         var(--jr-radius-lg);
+  --radius-xl:         var(--jr-radius-xl);
+  --info-bg:           rgba(11, 37, 69, 0.10);
+  --accent:            var(--jr-accent);
 }
 
 * {
@@ -75,14 +80,61 @@
 }
 
 body {
-  background-color: var(--background);
-  color: var(--text-primary);
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+  background: 
+    radial-gradient(circle at top left, rgba(0, 122, 255, 0.06), transparent 35%),
+    radial-gradient(circle at bottom right, rgba(88, 86, 214, 0.05), transparent 35%),
+    var(--jr-bg);
+  color: var(--jr-text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   line-height: 1.6;
   min-height: 100vh;
   position: relative;
   overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
+
+/* ============================================================
+   GLASSMORPHISM UTILITIES
+   ============================================================ */
+.jr-glass {
+  background: var(--jr-surface);
+  backdrop-filter: blur(var(--jr-blur));
+  -webkit-backdrop-filter: blur(var(--jr-blur));
+  border: 1px solid var(--jr-border);
+}
+
+.jr-glass-strong {
+  background: var(--jr-surface-strong);
+  backdrop-filter: blur(var(--jr-blur-strong));
+  -webkit-backdrop-filter: blur(var(--jr-blur-strong));
+  border: 1px solid rgba(255, 255, 255, 0.55);
+}
+
+.jr-transition {
+  transition: var(--jr-transition);
+}
+
+/* ============================================================
+   COMPONENTES GLOBALES (DESIGN SYSTEM)
+   ============================================================ */
+.jr-card {
+  border-radius: var(--jr-radius-lg);
+  box-shadow: var(--jr-shadow-md);
+  background: rgba(255, 255, 255, 0.78);
+  backdrop-filter: blur(var(--jr-blur));
+  -webkit-backdrop-filter: blur(var(--jr-blur));
+  border: 1px solid var(--jr-border);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  padding: 1.5rem;
+}
+
+.jr-card:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--jr-shadow-lg);
+}
+
+/* Redefiniendo las cards legacy para que usen el nuevo sistema */
 
 .container {
   max-width: 1200px;
@@ -96,20 +148,22 @@ body {
 .glass-card,
 .legal-card,
 .document-card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-xl);
+  border-radius: var(--jr-radius-lg);
+  box-shadow: var(--jr-shadow-md);
+  background: rgba(255, 255, 255, 0.78);
+  backdrop-filter: blur(var(--jr-blur));
+  -webkit-backdrop-filter: blur(var(--jr-blur));
+  border: 1px solid var(--jr-border);
   padding: var(--space-5);
-  transition: border-color var(--transition), box-shadow var(--transition), transform var(--transition);
-  box-shadow: var(--shadow-md);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
 .card:hover,
 .glass-card:hover,
 .legal-card:hover,
 .document-card:hover {
-  border-color: var(--border-strong);
-  box-shadow: var(--shadow-lg);
+  transform: translateY(-1px);
+  box-shadow: var(--jr-shadow-lg);
 }
 
 /* Typography */
@@ -223,49 +277,85 @@ p.subtitle {
 }
 
 /* Primario Apple Blue */
+.jr-button-primary,
 .btn-primary,
 .btn-doc-primary {
-  background-color: var(--primary);
-  color: var(--text-on-primary) !important;
-  border-color: var(--primary);
-  box-shadow: 0 2px 8px rgba(0, 122, 255, 0.22);
+  border-radius: var(--jr-radius-md);
+  padding: 10px 16px;
+  background: var(--jr-primary);
+  color: white !important;
+  box-shadow: 0 4px 14px rgba(10, 37, 64, 0.18);
+  border: 1px solid transparent;
+  transition: var(--jr-transition);
 }
 
+.jr-button-primary:hover,
 .btn-primary:hover,
 .btn-doc-primary:hover {
-  background-color: var(--primary-hover);
-  border-color: var(--primary-hover);
-  color: var(--text-on-primary) !important;
-  box-shadow: 0 4px 12px rgba(0, 122, 255, 0.32);
+  background: var(--jr-primary-hover);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(10, 37, 64, 0.25);
+  color: white !important;
 }
 
-.btn-primary:active,
-.btn-doc-primary:active {
-  background-color: var(--primary-active);
-}
-
-/* Secundario Blanco */
+.jr-button-secondary,
 .btn-secondary,
 .btn-doc-secondary {
-  background-color: var(--surface);
-  color: var(--text-primary) !important;
-  border-color: var(--border-strong);
-  box-shadow: var(--shadow-sm);
+  border-radius: var(--jr-radius-md);
+  padding: 10px 16px;
+  background: var(--jr-surface);
+  backdrop-filter: blur(var(--jr-blur));
+  -webkit-backdrop-filter: blur(var(--jr-blur));
+  color: var(--jr-text) !important;
+  border: 1px solid var(--jr-border-dark);
+  box-shadow: var(--jr-shadow-sm);
+  transition: var(--jr-transition);
 }
 
+.jr-button-secondary:hover,
 .btn-secondary:hover,
 .btn-doc-secondary:hover {
-  background-color: var(--surface-muted);
-  border-color: var(--primary);
-  color: var(--primary) !important;
+  background: var(--jr-surface-strong);
+  border-color: var(--jr-primary);
+  color: var(--jr-primary) !important;
+  transform: translateY(-1px);
 }
 
-/* Acento Verde */
+/* Ghost Button */
+.jr-button-ghost {
+  border-radius: var(--jr-radius-md);
+  padding: 10px 16px;
+  background: transparent;
+  color: var(--jr-text) !important;
+  border: 1px solid transparent;
+  transition: var(--jr-transition);
+}
+
+.jr-button-ghost:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+/* Danger Button */
+.jr-button-danger {
+  border-radius: var(--jr-radius-md);
+  padding: 10px 16px;
+  background: transparent;
+  color: var(--jr-danger) !important;
+  border: 1px solid rgba(227, 52, 47, 0.3);
+  transition: var(--jr-transition);
+}
+
+.jr-button-danger:hover {
+  background: rgba(227, 52, 47, 0.1);
+  border-color: var(--jr-danger);
+}
+
+/* Acento Verde (Legacy) */
 .btn-accent {
-  background-color: var(--accent);
-  color: var(--text-on-primary) !important;
-  border-color: var(--accent);
-  box-shadow: 0 2px 8px rgba(52, 199, 89, 0.22);
+  background-color: var(--success);
+  color: white !important;
+  border-color: var(--success);
+  box-shadow: 0 2px 8px rgba(15, 81, 50, 0.22);
 }
 
 .btn-accent:hover {
@@ -335,24 +425,26 @@ p.subtitle {
   margin-top: 0.25rem;
 }
 
-/* Header Translúcido Apple */
+/* Header Translúcido Apple (Glassmorphism) */
 .header,
-.global-header {
+.global-header,
+.jr-navbar {
   position: fixed !important;
   top: 0 !important;
   left: 0 !important;
   right: 0 !important;
   width: 100% !important;
   height: 64px !important;
-  background-color: rgba(255, 255, 255, 0.85) !important;
-  backdrop-filter: blur(20px) !important;
-  -webkit-backdrop-filter: blur(20px) !important;
-  border-bottom: 1px solid var(--border) !important;
+  background: rgba(255, 255, 255, 0.78) !important;
+  backdrop-filter: blur(24px) !important;
+  -webkit-backdrop-filter: blur(24px) !important;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06) !important;
   display: flex !important;
   justify-content: space-between !important;
   align-items: center !important;
   padding: 0 1.5rem !important;
   z-index: 1000 !important;
+  transition: var(--jr-transition);
 }
 
 .appshell-content {
@@ -591,8 +683,9 @@ p.subtitle {
 
 
 /* ============================================================
-   INPUTS UNIFICADOS — un solo estilo, 3 estados
+   INPUTS UNIFICADOS — Glassmorphism Premium
    ============================================================ */
+.jr-input,
 input[type="text"],
 input[type="date"],
 input[type="number"],
@@ -601,17 +694,17 @@ input[type="email"],
 input[type="password"],
 select,
 textarea {
-  background-color: var(--surface);
-  color: var(--text-primary);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.65);
+  color: var(--jr-text);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: var(--jr-radius-md);
   padding: 0.625rem 0.875rem;
   min-height: 44px;
   font-size: 0.95rem;
   font-family: inherit;
   outline: none;
   width: 100%;
-  transition: border-color var(--transition), box-shadow var(--transition);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
 }
 
 textarea {
@@ -619,19 +712,88 @@ textarea {
   resize: vertical;
 }
 
+.jr-input:focus,
 input:focus,
 select:focus,
 textarea:focus {
-  border-color: var(--border-focus);
-  box-shadow: 0 0 0 3px rgba(23, 59, 87, 0.12);
+  background: rgba(255, 255, 255, 0.85);
+  border-color: rgba(0, 122, 255, 0.45);
+  box-shadow: 0 0 0 4px rgba(0, 122, 255, 0.10);
 }
 
+.jr-input:disabled,
 input:disabled,
 select:disabled,
 textarea:disabled {
   opacity: 0.6;
   cursor: not-allowed;
-  background-color: var(--surface-muted);
+  background-color: rgba(0, 0, 0, 0.03);
+}
+
+/* ============================================================
+   TABS GLOBALES — Pills Glassmorphism
+   ============================================================ */
+.jr-tab {
+  border-radius: 12px;
+  transition: 0.2s ease;
+  background: rgba(255, 255, 255, 0.6);
+  border: 1px solid rgba(0, 0, 0, 0.05);
+  color: var(--jr-text-secondary);
+  padding: 8px 16px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.jr-tab:hover {
+  background: rgba(255, 255, 255, 0.9);
+  color: var(--jr-primary);
+}
+
+.jr-tab-active,
+.jr-tab.is-active {
+  background: rgba(10, 37, 64, 0.95) !important;
+  color: white !important;
+  box-shadow: 0 4px 14px rgba(10, 37, 64, 0.15) !important;
+  border-color: transparent !important;
+}
+
+/* ============================================================
+   MODALES GLOBALES — Glassmorphism
+   ============================================================ */
+.jr-modal-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.jr-modal {
+  background: rgba(255, 255, 255, 0.84);
+  backdrop-filter: blur(30px);
+  -webkit-backdrop-filter: blur(30px);
+  border-radius: var(--jr-radius-xl);
+  box-shadow: 0 25px 80px rgba(0, 0, 0, 0.20);
+  border: 1px solid rgba(255, 255, 255, 0.60);
+  width: 100%;
+  max-width: 600px;
+  max-height: 90vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
 }
 
 

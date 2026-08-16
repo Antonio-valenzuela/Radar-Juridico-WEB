@@ -114,52 +114,52 @@ export default async function Home() {
           Plataforma de monitoreo regulatorio para México. Revisa publicaciones oficiales, leyes vigentes y cambios relevantes con apoyo de IA verificable.
         </p>
         <div className="hero-buttons">
-          <Link href="/search" className="btn-primary">Búsqueda Avanzada</Link>
-          <Link href="/monitoreo" className="btn-secondary">Monitoreo legal</Link>
-          <Link href="/legal-hub" className="btn-secondary">Centro Jurídico</Link>
-          <Link href="/rag" className="btn-accent">Preguntar a IA</Link>
+          <Link href="/search" className="jr-button-primary">Búsqueda Avanzada</Link>
+          <Link href="/monitoreo" className="jr-button-secondary">Monitoreo legal</Link>
+          <Link href="/legal-hub" className="jr-button-secondary">Centro Jurídico</Link>
+          <Link href="/rag" className="jr-button-secondary">Preguntar a IA</Link>
           {process.env.ENABLE_PUBLIC_DEMO !== 'true' && (
-            <Link href="/admin/ingest/manual-url" className="btn-secondary">Agregar link jurídico</Link>
+            <Link href="/admin/ingest/manual-url" className="jr-button-secondary">Agregar link jurídico</Link>
           )}
         </div>
       </section>
 
       <section className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
-        <div className="glass-card">
+        <div className="jr-card">
           <span className="stat-value">{documentsCount.toLocaleString()}</span>
           <span className="stat-label">Documentos</span>
         </div>
-        <div className="glass-card">
+        <div className="jr-card">
           <span className="stat-value">{rulesCount.toLocaleString()}</span>
           <span className="stat-label">Reglas Activas</span>
         </div>
-        <div className="glass-card">
+        <div className="jr-card">
           <span className="stat-value">{alertsCount.toLocaleString()}</span>
           <span className="stat-label">Alertas Generadas</span>
         </div>
-        <div className="glass-card">
+        <div className="jr-card">
           <span className="stat-value">{verifiedNormCount.toLocaleString()}</span>
           <span className="stat-label">Normas verificadas</span>
         </div>
-        <div className="glass-card">
+        <div className="jr-card">
           <span className="stat-value">{verifiedJurisprudenciaCount.toLocaleString()}</span>
           <span className="stat-label">Criterios verificados</span>
         </div>
-        <div className="glass-card">
+        <div className="jr-card">
           <span className="stat-value">{activeCaseCount.toLocaleString()}</span>
           <span className="stat-label">Expedientes activos</span>
         </div>
-        <div className="glass-card">
+        <div className="jr-card">
           <span className="stat-value">{pendingCaseAlertCount.toLocaleString()}</span>
           <span className="stat-label">Avisos de expediente</span>
         </div>
-        <div className="glass-card">
+        <div className="jr-card">
           <span className="stat-value">{sourceErrorCount.toLocaleString()}</span>
           <span className="stat-label">Fuentes con error</span>
         </div>
       </section>
 
-      <section className="glass-card" style={{ marginBottom: '2rem' }}>
+      <section className="jr-card" style={{ marginBottom: '2rem' }}>
         <h2>Monitoreo normativo</h2>
         {lastNormMonitorRun ? (
           <p className="text-muted">
@@ -171,7 +171,7 @@ export default async function Home() {
         )}
       </section>
 
-      <section className="glass-card" style={{ marginBottom: '4rem' }}>
+      <section className="jr-card" style={{ marginBottom: '4rem' }}>
         <h2>Últimos Documentos</h2>
         {recentItems.length === 0 ? (
           <p className="text-muted">Aún no hay documentos indexados. Agrega una URL jurídica o ejecuta una ingesta manual.</p>

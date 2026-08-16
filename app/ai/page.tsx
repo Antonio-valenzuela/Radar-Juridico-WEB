@@ -226,7 +226,7 @@ export default function AILegalPage() {
                 {showToken ? "👁️‍🗨️" : "👁️"}
               </button>
             </div>
-            <button onClick={handleCheckLimits} className="btn-primary" disabled={limitsLoading}>
+            <button onClick={handleCheckLimits} className="jr-button-primary" disabled={limitsLoading}>
               {limitsLoading ? 'Consultando...' : 'Ver intentos restantes de IA'}
             </button>
           </div>
@@ -304,7 +304,7 @@ export default function AILegalPage() {
             <button
               type="button"
               onClick={loadAnalyzeSample}
-              className="btn-secondary"
+              className="jr-button-secondary"
               style={{ padding: '0.2rem 0.5rem', fontSize: '0.8rem' }}
             >
               Cargar ejemplo
@@ -325,7 +325,7 @@ export default function AILegalPage() {
               onChange={e => setAnalyzeSummary(e.target.value)}
               rows={3}
             />
-            <button type="submit" className="btn-primary" disabled={analyzeLoading}>
+            <button type="submit" className="jr-button-primary" disabled={analyzeLoading}>
               {analyzeLoading ? 'Analizando...' : 'Analizar con IA'}
             </button>
           </form>
@@ -361,7 +361,7 @@ export default function AILegalPage() {
             <button
               type="button"
               onClick={loadMatchSample}
-              className="btn-secondary"
+              className="jr-button-secondary"
               style={{ padding: '0.2rem 0.5rem', fontSize: '0.8rem' }}
             >
               Cargar ejemplo
@@ -387,7 +387,7 @@ export default function AILegalPage() {
               onChange={e => setMatchSummary(e.target.value)}
               rows={3}
             />
-            <button type="submit" className="btn-primary" disabled={matchLoading}>
+            <button type="submit" className="jr-button-primary" disabled={matchLoading}>
               {matchLoading ? 'Comparando...' : 'Comparar alerta'}
             </button>
           </form>
@@ -427,7 +427,7 @@ export default function AILegalPage() {
                 style={{ width: '80px' }}
               />
             </div>
-            <button type="submit" className="btn-primary" disabled={digestLoading}>
+            <button type="submit" className="jr-button-primary" disabled={digestLoading}>
               {digestLoading ? 'Generando...' : 'Generar resumen semanal'}
             </button>
           </form>

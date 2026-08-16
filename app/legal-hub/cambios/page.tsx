@@ -95,7 +95,7 @@ export default function CambiosNormativosPage() {
         </section>
 
         {/* Toolbar de Filtros */}
-        <section className="glass-card" style={{ padding: "1.5rem", marginBottom: "2rem" }}>
+        <section className="jr-card" style={{ padding: "1.5rem", marginBottom: "2rem" }}>
           <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap" }}>
             <input
               type="text"
@@ -143,7 +143,7 @@ export default function CambiosNormativosPage() {
         )}
 
         {error && (
-          <div className="glass-card" style={{ padding: "1.5rem", borderLeft: "4px solid #ef4444", marginBottom: "2rem" }}>
+          <div className="jr-card" style={{ padding: "1.5rem", borderLeft: "4px solid #ef4444", marginBottom: "2rem" }}>
             <p style={{ color: "#ef4444", margin: 0 }}>{error}</p>
           </div>
         )}
@@ -152,7 +152,7 @@ export default function CambiosNormativosPage() {
         {!loading && !error && (
           <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
             {filteredDiffs.length === 0 ? (
-              <div className="glass-card" style={{ textAlign: "center", padding: "3rem" }}>
+              <div className="jr-card" style={{ textAlign: "center", padding: "3rem" }}>
                 <p style={{ color: "var(--text-muted)", margin: 0 }}>
                   No hay reformas normativas registradas para los criterios seleccionados.
                 </p>
@@ -161,7 +161,7 @@ export default function CambiosNormativosPage() {
               filteredDiffs.map((diff) => (
                 <article
                   key={diff.id}
-                  className="glass-card"
+                  className="jr-card"
                   style={{
                     padding: "1.75rem",
                     border: "1px solid var(--card-border)",

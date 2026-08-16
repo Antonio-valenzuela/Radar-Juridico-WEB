@@ -41,7 +41,7 @@ export default function SystemStatusPage() {
 
       {healthData && (
         <div className="grid">
-          <div className="glass-card">
+          <div className="jr-card">
             <h2>General</h2>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '1rem' }}>
               <p>
@@ -68,7 +68,7 @@ export default function SystemStatusPage() {
             </div>
           </div>
 
-          <div className="glass-card">
+          <div className="jr-card">
             <h2>Queues</h2>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '1rem' }}>
               {Array.isArray(healthData.queues) && healthData.queues.length > 0 ? (
@@ -85,7 +85,7 @@ export default function SystemStatusPage() {
             </div>
           </div>
 
-          <div className="glass-card">
+          <div className="jr-card">
             <h2>Última ingesta</h2>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '1rem' }}>
               {healthData.latestIngest ? (

@@ -375,7 +375,7 @@ export default function AdminSourcesPage() {
               {showToken ? "👁️‍🗨️" : "👁️"}
             </button>
           </div>
-          <button onClick={fetchSources} className="btn-primary" style={{ padding: '0.4rem 1rem', fontSize: '0.9rem' }} disabled={loading}>
+          <button onClick={fetchSources} className="jr-button-primary" style={{ padding: '0.4rem 1rem', fontSize: '0.9rem' }} disabled={loading}>
             {loading ? 'Cargando...' : 'Cargar'}
           </button>
         </div>
@@ -384,7 +384,7 @@ export default function AdminSourcesPage() {
       {error && (
         <div className="status-error" style={{ padding: 'var(--space-4)', borderRadius: 'var(--radius-md)', marginBottom: 'var(--space-5)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem' }}>
           <span>⚠️ <strong>Error:</strong> {error}</span>
-          <button onClick={() => fetchSources()} className="btn-primary" style={{ padding: '0.35rem 0.85rem', fontSize: '0.85rem', whiteSpace: 'nowrap', flexShrink: 0 }}>
+          <button onClick={() => fetchSources()} className="jr-button-primary" style={{ padding: '0.35rem 0.85rem', fontSize: '0.85rem', whiteSpace: 'nowrap', flexShrink: 0 }}>
             🔄 Reintentar
           </button>
         </div>
@@ -400,7 +400,7 @@ export default function AdminSourcesPage() {
       <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '2rem', marginBottom: '2.5rem' }}>
         
         {/* FORM CARD */}
-        <div className="glass-card">
+        <div className="jr-card">
           <h2>{editId ? 'Editar Fuente Oficial' : 'Registrar Nueva Fuente Oficial'}</h2>
           <form onSubmit={handleSave} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1.25rem' }}>
             
@@ -565,11 +565,11 @@ export default function AdminSourcesPage() {
             </div>
 
             <div style={{ gridColumn: 'span 2', display: 'flex', gap: '1rem', marginTop: '1rem' }}>
-              <button type="submit" className="btn-primary" style={{ padding: '0.7rem 2.5rem' }}>
+              <button type="submit" className="jr-button-primary" style={{ padding: '0.7rem 2.5rem' }}>
                 {editId ? 'Guardar Cambios' : 'Registrar Fuente'}
               </button>
               {editId && (
-                <button type="button" onClick={resetForm} className="btn-primary" style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.2)', boxShadow: 'none' }}>
+                <button type="button" onClick={resetForm} className="jr-button-primary" style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.2)', boxShadow: 'none' }}>
                   Cancelar Edición
                 </button>
               )}
@@ -578,7 +578,7 @@ export default function AdminSourcesPage() {
         </div>
 
         {/* LIST CARD */}
-        <div className="glass-card">
+        <div className="jr-card">
           <h2>Fuentes Registradas ({sources.length})</h2>
           {sources.length === 0 ? (
             <p className="text-muted" style={{ padding: '2rem 0', textAlign: 'center' }}>No hay fuentes oficiales cargadas o el admin token no ha sido ingresado.</p>
@@ -621,13 +621,13 @@ export default function AdminSourcesPage() {
 
                       {/* Top Action buttons */}
                       <div style={{ display: 'flex', gap: '0.5rem' }}>
-                        <button onClick={() => handleEditClick(s)} className="btn-primary" style={{ padding: '0.35rem 0.75rem', fontSize: '0.8rem', background: '#4b5563', boxShadow: 'none' }}>
+                        <button onClick={() => handleEditClick(s)} className="jr-button-primary" style={{ padding: '0.35rem 0.75rem', fontSize: '0.8rem', background: '#4b5563', boxShadow: 'none' }}>
                           Editar
                         </button>
-                        <button onClick={() => handleToggleActive(s)} className="btn-primary" style={{ padding: '0.35rem 0.75rem', fontSize: '0.8rem', background: s.isActive ? '#d97706' : '#16a34a', boxShadow: 'none' }}>
+                        <button onClick={() => handleToggleActive(s)} className="jr-button-primary" style={{ padding: '0.35rem 0.75rem', fontSize: '0.8rem', background: s.isActive ? '#d97706' : '#16a34a', boxShadow: 'none' }}>
                           {s.isActive ? 'Desactivar' : 'Activar'}
                         </button>
-                        <button onClick={() => handleDelete(s.id, s.name)} className="btn-primary" style={{ padding: '0.35rem 0.75rem', fontSize: '0.8rem', background: '#dc2626', boxShadow: 'none' }}>
+                        <button onClick={() => handleDelete(s.id, s.name)} className="jr-button-primary" style={{ padding: '0.35rem 0.75rem', fontSize: '0.8rem', background: '#dc2626', boxShadow: 'none' }}>
                           Eliminar
                         </button>
                       </div>
@@ -670,7 +670,7 @@ export default function AdminSourcesPage() {
                         onClick={() => handleTestConnection(s.id)} 
                         disabled={tStatus?.loading || !s.isActive || s.crawlMode === 'manual_url'} 
                         title={s.crawlMode === 'manual_url' ? "Las fuentes manual_url no soportan prueba automática de conexión. Usa 'Ejecutar Ingesta Manual' con una URL específica." : undefined}
-                        className="btn-primary" 
+                        className="jr-button-primary" 
                         style={{ 
                           padding: '0.45rem 1rem', 
                           fontSize: '0.85rem', 
@@ -686,7 +686,7 @@ export default function AdminSourcesPage() {
                         onClick={() => handleIngest(s.id)} 
                         disabled={isIngestDisabled}
                         title={ingestDisabledReason || undefined}
-                        className="btn-primary" 
+                        className="jr-button-primary" 
                         style={{
                           padding: '0.45rem 1rem',
                           fontSize: '0.85rem',

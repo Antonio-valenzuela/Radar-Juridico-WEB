@@ -517,7 +517,7 @@ export default function SearchPage() {
 
           {/* Action buttons */}
           <div style={{ display: 'flex', gap: 'var(--space-3)', flexWrap: 'wrap', alignItems: 'center' }}>
-            <button type="submit" className="btn-primary" disabled={loading} style={{ flex: 1 }}>
+            <button type="submit" className="jr-button-primary" disabled={loading} style={{ flex: 1 }}>
               {loading ? 'Buscando...' : 'Buscar'}
             </button>
 
@@ -530,7 +530,7 @@ export default function SearchPage() {
                   window.location.href = `/rag`;
                 }
               }}
-              className="btn-accent"
+              className="jr-button-primary"
               style={{ flex: 1 }}
             >
               Preguntar a IA
@@ -539,7 +539,7 @@ export default function SearchPage() {
             <button
               type="button"
               onClick={clearFilters}
-              className="btn-secondary"
+              className="jr-button-secondary"
             >
               Limpiar filtros
             </button>
@@ -550,7 +550,7 @@ export default function SearchPage() {
                 setAlertName(query ? `Alerta: ${query}` : `Alerta materia: ${matter || 'todas'}`);
                 setShowCreateAlert(!showCreateAlert);
               }}
-              className="btn-primary"
+              className="jr-button-primary"
             >
               🔔 Crear alerta
             </button>
@@ -558,7 +558,7 @@ export default function SearchPage() {
             <button
               type="button"
               onClick={() => setShowAdvanced(!showAdvanced)}
-              className="btn-secondary"
+              className="jr-button-secondary"
             >
               {showAdvanced ? 'Ocultar filtros avanzados' : 'Mostrar filtros avanzados'}
             </button>
@@ -688,7 +688,7 @@ export default function SearchPage() {
           <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
             <button
               type="button"
-              className="btn-primary"
+              className="jr-button-primary"
               onClick={async () => {
                 try {
                   let token = getAdminToken();
@@ -727,7 +727,7 @@ export default function SearchPage() {
             <button
               type="button"
               onClick={() => setShowCreateAlert(false)}
-              className="btn-secondary"
+              className="jr-button-secondary"
             >
               Cancelar
             </button>
@@ -745,7 +745,7 @@ export default function SearchPage() {
             </h3>
             <button
               onClick={() => setReportStatus('')}
-              className="btn-secondary"
+              className="jr-button-secondary"
               style={{ minHeight: 'auto', padding: 'var(--space-1) var(--space-2)', fontSize: '1rem' }}
             >
               ✕
@@ -891,7 +891,7 @@ export default function SearchPage() {
 
       {/* Empty state */}
       {!loading && hasSearched && results.length === 0 && !error && !searchMeta?.timedOut && !searchMeta?.partial && !searchMeta?.failed && (
-        <div className="glass-card" style={{ textAlign: 'center', padding: '3rem 2rem' }}>
+        <div className="jr-card" style={{ textAlign: 'center', padding: '3rem 2rem' }}>
           <span style={{ fontSize: '3.0rem', display: 'block', marginBottom: '1.25rem' }}>🔍</span>
           <h2>No se encontraron publicaciones con esos filtros.</h2>
           <p style={{ color: 'var(--text-muted)', marginBottom: '1.5rem', maxWidth: '600px', margin: '0 auto 1.5rem auto' }}>
@@ -981,7 +981,7 @@ export default function SearchPage() {
             💬 Preguntar al asistente IA
           </button>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem', maxWidth: '900px', margin: '0 auto' }}>
-            <Link href="/admin/ingest/manual-url" className="btn-primary" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '8px', padding: '0.85rem' }}>
+            <Link href="/admin/ingest/manual-url" className="jr-button-primary" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '8px', padding: '0.85rem' }}>
               Agregar link jurídico
             </Link>
             <button
@@ -1049,7 +1049,7 @@ export default function SearchPage() {
         <div style={{ display: 'grid', gridTemplateColumns: '260px 1fr', gap: '1.5rem' }}>
           {/* Facets sidebar */}
           <div>
-            <div className="glass-card">
+            <div className="jr-card">
               <h3 style={{ marginTop: 0 }}>Facetas</h3>
               {pagination && (
                 <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
@@ -1092,7 +1092,7 @@ export default function SearchPage() {
               const sourceName = normalizeLegalDisplayText(r.source);
               const matterName = normalizeLegalDisplayText(r.matter);
               return (
-                <div key={r.id} className="glass-card" style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', border: r.isExternal ? '1px solid #ec4899' : '1px solid var(--card-border)' }}>
+                <div key={r.id} className="jr-card" style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', border: r.isExternal ? '1px solid #ec4899' : '1px solid var(--card-border)' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem' }}>
                     {r.isExternal ? (
                       <a href={r.url} target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'none', color: 'inherit', flex: 1 }}>
@@ -1153,7 +1153,7 @@ export default function SearchPage() {
                   <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.5rem', flexWrap: 'wrap' }}>
                     {r.isExternal ? (
                       <>
-                        <a href={r.url} target="_blank" rel="noopener noreferrer" className="btn-primary" style={{ padding: '0.4rem 0.8rem', fontSize: '0.85rem', textDecoration: 'none', display: 'inline-block', borderRadius: '4px' }}>
+                        <a href={r.url} target="_blank" rel="noopener noreferrer" className="jr-button-primary" style={{ padding: '0.4rem 0.8rem', fontSize: '0.85rem', textDecoration: 'none', display: 'inline-block', borderRadius: '4px' }}>
                           Ingresar ahora
                         </a>
                         {process.env.NEXT_PUBLIC_ENABLE_PUBLIC_DEMO !== 'true' && (
@@ -1164,7 +1164,7 @@ export default function SearchPage() {
                       </>
                     ) : (
                       <>
-                        <Link href={`/items/${r.id}`} className="btn-primary" style={{ padding: '0.4rem 0.8rem', fontSize: '0.85rem', textDecoration: 'none', display: 'inline-block', borderRadius: '4px' }}>
+                        <Link href={`/items/${r.id}`} className="jr-button-primary" style={{ padding: '0.4rem 0.8rem', fontSize: '0.85rem', textDecoration: 'none', display: 'inline-block', borderRadius: '4px' }}>
                           Ver detalle
                         </Link>
                         <Link href={`/rag?q=${encodeURIComponent(title)}`} style={{ padding: '0.4rem 0.8rem', fontSize: '0.85rem', background: '#475569', color: 'white', textDecoration: 'none', borderRadius: '4px', transition: 'background 0.2s' }}>
@@ -1184,7 +1184,7 @@ export default function SearchPage() {
 
             {pagination && pagination.total > pagination.offset + pagination.limit && (
               <button
-                className="btn-primary"
+                className="jr-button-primary"
                 style={{ width: '100%', padding: '1rem' }}
                 onClick={() => handleSearch({ offset: (pagination.offset || 0) + limit })}
               >

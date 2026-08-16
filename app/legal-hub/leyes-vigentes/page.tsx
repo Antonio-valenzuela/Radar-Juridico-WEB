@@ -101,18 +101,18 @@ export default function LeyesVigentesPage() {
         </section>
 
         {!loading && error && (
-          <div className="legal-warning glass-card" style={{ marginBottom: '2rem' }}>
+          <div className="legal-warning jr-card" style={{ marginBottom: '2rem' }}>
             <strong>No fue posible consultar la biblioteca normativa.</strong> Intenta de nuevo más tarde.
           </div>
         )}
 
         {!loading && !error && norms.length === 0 && (
-          <div className="legal-warning glass-card" style={{ marginBottom: '2rem' }}>
+          <div className="legal-warning jr-card" style={{ marginBottom: '2rem' }}>
             <strong>No hay normas registradas.</strong> El catálogo inicial puede cargarse con el seed; seguirá marcado como pendiente hasta completar una verificación oficial.
           </div>
         )}
 
-        <section className="glass-card legal-form-panel">
+        <section className="jr-card legal-form-panel">
           <div className="legal-form-grid">
             <label>
               Buscar por ley o palabra clave
@@ -143,7 +143,7 @@ export default function LeyesVigentesPage() {
           {loading ? (
             // Skeleton loaders
             Array(6).fill(0).map((_, i) => (
-              <article key={i} className="glass-card legal-hub-card" style={{ opacity: 0.7 }}>
+              <article key={i} className="jr-card legal-hub-card" style={{ opacity: 0.7 }}>
                 <div style={{ height: '20px', width: '30%', background: 'rgba(255,255,255,0.1)', borderRadius: '4px', marginBottom: '1rem' }} />
                 <div style={{ height: '32px', width: '80%', background: 'rgba(255,255,255,0.1)', borderRadius: '4px', marginBottom: '0.5rem' }} />
                 <div style={{ height: '16px', width: '60%', background: 'rgba(255,255,255,0.1)', borderRadius: '4px', marginBottom: '1.5rem' }} />
@@ -153,7 +153,7 @@ export default function LeyesVigentesPage() {
             ))
           ) : filtered.length > 0 ? (
             filtered.map((law) => (
-              <article key={law.id} className="glass-card legal-hub-card">
+              <article key={law.id} className="jr-card legal-hub-card">
                 <div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.5rem' }}>
                     <span className="document-label">{law.matter}</span>
@@ -186,7 +186,7 @@ export default function LeyesVigentesPage() {
               </article>
             ))
           ) : (
-            <div className="legal-wide-card glass-card" style={{ textAlign: 'center', padding: '3rem' }}>
+            <div className="legal-wide-card jr-card" style={{ textAlign: 'center', padding: '3rem' }}>
               <h3 style={{ marginBottom: '1rem', color: 'var(--text-muted)' }}>No se encontraron normas</h3>
               <p>Intenta ajustar tus filtros de búsqueda.</p>
             </div>

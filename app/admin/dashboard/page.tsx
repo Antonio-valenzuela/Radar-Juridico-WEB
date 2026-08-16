@@ -254,7 +254,7 @@ export default function DashboardPage() {
         </header>
 
         {(adminToken === "" || loadState === "auth-required") && (
-          <form onSubmit={saveToken} className="glass-card" style={{ display: "flex", gap: "0.75rem", alignItems: "end", flexWrap: "wrap", marginBottom: "1.5rem", padding: "1rem" }}>
+          <form onSubmit={saveToken} className="jr-card" style={{ display: "flex", gap: "0.75rem", alignItems: "end", flexWrap: "wrap", marginBottom: "1.5rem", padding: "1rem" }}>
             <label style={{ display: "grid", gap: "0.35rem", flex: "1 1 280px", color: "var(--text-main)", fontWeight: 700 }}>
               Token administrativo
               <input type="password" value={tokenInput} onChange={(event) => setTokenInput(event.target.value)} placeholder="x-admin-token" autoComplete="off" style={{ minHeight: "44px", borderRadius: "8px", border: "1px solid var(--card-border)", background: "rgba(2,6,23,0.65)", color: "white", padding: "0.65rem 0.8rem", font: "inherit" }} />
@@ -278,7 +278,7 @@ export default function DashboardPage() {
                 ["Workers activos", metrics.activeWorkers === null ? "No disponible" : metrics.activeWorkers.toLocaleString(), "#86efac"],
                 ["Clientes dashboard", metrics.dashboardClients.toLocaleString(), "#fde68a"],
               ].map(([label, value, color]) => (
-                <article key={label} className="glass-card" style={{ padding: "1.1rem" }}>
+                <article key={label} className="jr-card" style={{ padding: "1.1rem" }}>
                   <span style={{ color: "var(--text-muted)", fontSize: "0.78rem", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.04em" }}>{label}</span>
                   <strong style={{ display: "block", marginTop: "0.35rem", color, fontSize: "clamp(1.8rem, 4vw, 2.4rem)", lineHeight: 1.1 }}>{value}</strong>
                 </article>
@@ -286,7 +286,7 @@ export default function DashboardPage() {
             </section>
 
             <section style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.5fr) minmax(280px, 1fr)", gap: "1rem", alignItems: "start" }}>
-              <article className="glass-card" style={{ padding: "1.25rem", minWidth: 0 }}>
+              <article className="jr-card" style={{ padding: "1.25rem", minWidth: 0 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", gap: "1rem", alignItems: "baseline", flexWrap: "wrap", marginBottom: "1rem" }}>
                   <h2 style={{ margin: 0, fontSize: "1.2rem" }}>Actividad reciente</h2>
                   <span style={{ color: "var(--text-muted)", fontSize: "0.85rem" }}>Promedio: {metrics.averageProcessingTimeSeconds.toFixed(2)} s</span>
@@ -312,7 +312,7 @@ export default function DashboardPage() {
                 </div>
               </article>
 
-              <article className="glass-card" style={{ padding: "1.25rem" }}>
+              <article className="jr-card" style={{ padding: "1.25rem" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: "0.5rem", marginBottom: "1rem" }}>
                   <h2 style={{ margin: 0, fontSize: "1.2rem" }}>Fuentes oficiales</h2>
                   <span style={{ color: "var(--text-muted)", fontSize: "0.8rem" }}>{metrics.sources.length} registradas</span>
@@ -339,7 +339,7 @@ export default function DashboardPage() {
             </section>
           </>
         ) : !lastError ? (
-          <div className="glass-card" style={{ padding: "3rem 1.5rem", textAlign: "center" }}>
+          <div className="jr-card" style={{ padding: "3rem 1.5rem", textAlign: "center" }}>
             <p style={{ color: "var(--text-muted)", margin: 0 }}>Consultando el estado operativo…</p>
           </div>
         ) : null}

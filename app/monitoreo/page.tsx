@@ -218,25 +218,25 @@ export default async function MonitoringPage() {
         </section>
 
         <section className="monitoring-summary">
-          <div className="glass-card monitoring-stat">
+          <div className="jr-card monitoring-stat">
             <span className="stat-value">{documents.length}</span>
             <span className="stat-label">Documentos vigilados</span>
           </div>
-          <div className="glass-card monitoring-stat">
+          <div className="jr-card monitoring-stat">
             <span className="stat-value">{readyCount}</span>
             <span className="stat-label">Activos o sin cambios</span>
           </div>
-          <div className="glass-card monitoring-stat">
+          <div className="jr-card monitoring-stat">
             <span className="stat-value">{changedCount}</span>
             <span className="stat-label">Cambios detectados</span>
           </div>
-          <div className="glass-card monitoring-stat">
+          <div className="jr-card monitoring-stat">
             <span className="stat-value">{reviewCount}</span>
             <span className="stat-label">Requieren revisión</span>
           </div>
         </section>
 
-        <section className="glass-card monitoring-panel">
+        <section className="jr-card monitoring-panel">
           <div className="monitoring-panel-heading">
             <div>
               <span className="document-label">Fuente oficial</span>
@@ -294,7 +294,7 @@ export default async function MonitoringPage() {
           </div>
         </section>
 
-        <section className="glass-card monitoring-panel">
+        <section className="jr-card monitoring-panel">
           <div className="monitoring-panel-heading">
             <div>
               <span className="document-label">Cambios recientes</span>

@@ -20,7 +20,7 @@ export function CaseDocumentsReader({
   const [activePage, setActivePage] = useState(1);
 
   return (
-    <div className="flex flex-col h-full bg-white border border-slate-200 rounded-2xl shadow-md overflow-hidden text-slate-900">
+    <div className="flex flex-col h-full jr-card p-0 overflow-hidden text-slate-900">
       {/* Header */}
       <div className="flex items-center justify-between px-5 py-3.5 bg-slate-50 border-b border-slate-200">
         <h3 className="text-xs font-bold uppercase tracking-wider text-[#0B2545] flex items-center space-x-2">
@@ -29,7 +29,7 @@ export function CaseDocumentsReader({
         {onUploadNewDocument && (
           <button
             onClick={onUploadNewDocument}
-            className="machote-btn-primary text-xs px-3 py-1.5"
+            className="jr-button-primary text-xs px-3 py-1.5"
           >
             + Agregar Documento
           </button>

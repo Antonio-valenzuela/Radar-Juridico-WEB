@@ -422,7 +422,7 @@ export default function ExpedientesPage() {
         {message && (
           <div
             role={message.tone === 'error' ? 'alert' : 'status'}
-            className="glass-card"
+            className="jr-card"
             style={{ padding: '0.875rem 1rem', marginBottom: '1rem' }}
           >
             {message.text}
@@ -469,17 +469,17 @@ export default function ExpedientesPage() {
             </div>
 
             {loading ? (
-              <div className="glass-card legal-wide-card" style={{ padding: '2rem' }} role="status">
+              <div className="jr-card legal-wide-card" style={{ padding: '2rem' }} role="status">
                 Cargando expedientes…
               </div>
             ) : filteredCases.length === 0 ? (
-              <div className="glass-card legal-wide-card" style={{ textAlign: 'center', padding: '3rem' }}>
+              <div className="jr-card legal-wide-card" style={{ textAlign: 'center', padding: '3rem' }}>
                 <p>No se encontraron expedientes.</p>
               </div>
             ) : (
               <div className="legal-hub-grid">
                 {filteredCases.map((item) => (
-                  <article key={item.id} className="glass-card legal-hub-card">
+                  <article key={item.id} className="jr-card legal-hub-card">
                     <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem' }}>
                       <span className="document-label">{item.matter || 'Sin materia'}</span>
                       <span>{item.status === 'open' ? 'Abierto' : item.status === 'closed' ? 'Concluido' : 'Archivado'}</span>
@@ -506,7 +506,7 @@ export default function ExpedientesPage() {
         )}
 
         {view === 'detail' && selectedCase && (
-          <section className="glass-card" style={{ padding: '2rem' }}>
+          <section className="jr-card" style={{ padding: '2rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem', marginBottom: '2rem' }}>
               <div>
                 <button type="button" onClick={() => setView('list')} className="btn-doc-secondary" style={{ minHeight: '44px', marginBottom: '1rem' }}>Volver</button>
@@ -528,7 +528,7 @@ export default function ExpedientesPage() {
                   role="tab"
                   aria-selected={activeTab === tab}
                   key={tab}
-                  className={`legal-hub-tab ${activeTab === tab ? 'is-active' : ''}`}
+                  className={`jr-tab ${activeTab === tab ? 'is-active' : ''}`}
                   onClick={() => setActiveTab(tab)}
                   style={{ textTransform: 'capitalize', minHeight: '44px' }}
                 >
@@ -659,7 +659,7 @@ export default function ExpedientesPage() {
         )}
 
         {view === 'form' && (
-          <section className="glass-card" style={{ padding: '2rem' }}>
+          <section className="jr-card" style={{ padding: '2rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2rem' }}>
               <h2>{formValues.id ? 'Editar expediente' : 'Nuevo expediente'}</h2>
               <button type="button" onClick={() => setView(formValues.id ? 'detail' : 'list')} className="btn-doc-secondary" style={{ minHeight: '44px' }}>Cancelar</button>

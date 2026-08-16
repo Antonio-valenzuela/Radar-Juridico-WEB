@@ -143,7 +143,7 @@ export default function WatchlistsPage() {
         </section>
 
         <section className="alerts-layout">
-          <div className="glass-card alerts-panel">
+          <div className="jr-card alerts-panel">
             <div className="alerts-panel-heading">
               <span className="document-label">Crear alerta</span>
               <h2>Crear alerta</h2>
@@ -200,7 +200,7 @@ export default function WatchlistsPage() {
             {message ? <div className="alerts-message">{message}</div> : null}
           </div>
 
-          <div className="glass-card alerts-panel">
+          <div className="jr-card alerts-panel">
             <div className="alerts-panel-heading">
               <span className="document-label">Reglas activas</span>
               <h2>Reglas activas</h2>
@@ -230,7 +230,7 @@ export default function WatchlistsPage() {
           </div>
         </section>
 
-        <section className="glass-card alerts-panel">
+        <section className="jr-card alerts-panel">
           <div className="alerts-panel-heading">
             <span className="document-label">Cambios recientes</span>
             <h2>Cambios recientes</h2>

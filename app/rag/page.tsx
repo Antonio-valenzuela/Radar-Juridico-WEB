@@ -451,7 +451,7 @@ export default function RadarLegalPage() {
             <button
               id="radar-search-btn"
               type="submit"
-              className="btn-primary"
+              className="jr-button-primary"
               disabled={isLoading}
               style={{ minWidth: '160px' }}
             >
@@ -569,7 +569,7 @@ export default function RadarLegalPage() {
 
       {/* Loading state */}
       {isLoading && (
-        <div className="glass-card" style={{ textAlign: 'center', padding: '3rem 2rem', marginBottom: '1.5rem' }}>
+        <div className="jr-card" style={{ textAlign: 'center', padding: '3rem 2rem', marginBottom: '1.5rem' }}>
           <div className="spinner" style={{ margin: '0 auto 1.5rem auto', width: '3rem', height: '3rem', borderRadius: '50%', border: '3px solid rgba(255,255,255,0.1)', borderTopColor: 'var(--primary)', animation: 'spin 1s linear infinite' }} />
           <h3 style={{ color: 'var(--text-main)', marginBottom: '0.5rem' }}>
             {weeklyLoading ? 'Cargando resumen semanal…' : 'Procesando Radar'}
@@ -584,7 +584,7 @@ export default function RadarLegalPage() {
       {mode === 'weekly' && weeklyData && !searchLoading && (
         <div>
           {/* Summary bar */}
-          <div className="glass-card" style={{ padding: '1.25rem 1.5rem', marginBottom: '1.5rem' }}>
+          <div className="jr-card" style={{ padding: '1.25rem 1.5rem', marginBottom: '1.5rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
               <div>
                 <h3 style={{ margin: 0, fontSize: '1rem', color: 'var(--text-muted)', fontWeight: 600 }}>
@@ -634,7 +634,7 @@ export default function RadarLegalPage() {
 
           {/* Empty state */}
           {weeklyData.results.length === 0 && !isLoading && (
-            <div className="glass-card" style={{ textAlign: 'center', padding: '4rem 2rem', borderStyle: 'dashed' }}>
+            <div className="jr-card" style={{ textAlign: 'center', padding: '4rem 2rem', borderStyle: 'dashed' }}>
               <span style={{ fontSize: '3rem' }}>📭</span>
               <h3 style={{ color: 'var(--text-main)', marginTop: '1rem', marginBottom: '0.5rem' }}>
                 No hay cambios en el rango seleccionado
@@ -645,7 +645,7 @@ export default function RadarLegalPage() {
               <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'center', flexWrap: 'wrap' }}>
                 <button
                   id="radar-expand-range-btn"
-                  className="btn-primary"
+                  className="jr-button-primary"
                   onClick={() => {
                     const newStart = new Date();
                     newStart.setDate(newStart.getDate() - 30);
@@ -659,7 +659,7 @@ export default function RadarLegalPage() {
                 </button>
                 <button
                   id="radar-force-external-btn"
-                  className="btn-primary"
+                  className="jr-button-primary"
                   onClick={() => setForceExternal(true)}
                   style={{ fontSize: '0.9rem', background: 'rgba(236,72,153,0.15)', border: '1px solid rgba(236,72,153,0.3)' }}
                 >
@@ -678,7 +678,7 @@ export default function RadarLegalPage() {
                 return (
                   <div
                     key={item.id}
-                    className="glass-card"
+                    className="jr-card"
                     style={{ padding: '1.25rem', border: '1px solid var(--card-border)', transition: 'border-color 0.2s' }}
                   >
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.75rem', marginBottom: '0.5rem' }}>
@@ -753,7 +753,7 @@ export default function RadarLegalPage() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
 
             {/* Summary */}
-            <div className="glass-card" style={{ padding: '1.5rem' }}>
+            <div className="jr-card" style={{ padding: '1.5rem' }}>
               <h3 style={{ margin: '0 0 1rem 0' }}>📊 Resumen Semanal Detectado</h3>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1rem', marginBottom: '1rem' }}>
                 {[
@@ -776,7 +776,7 @@ export default function RadarLegalPage() {
             </div>
 
             {/* Local Results */}
-            <div className="glass-card" style={{ padding: '1.5rem' }}>
+            <div className="jr-card" style={{ padding: '1.5rem' }}>
               <h3 style={{ margin: '0 0 1.25rem 0' }}>🔍 Resultados para &ldquo;{formatLegalText(radarData.query)}&rdquo;</h3>
 
               {radarData.localResults.length === 0 && totalExternalResults === 0 ? (
@@ -847,7 +847,7 @@ export default function RadarLegalPage() {
             </div>
 
             {/* Weekly Changes (from radar) */}
-            <div className="glass-card" style={{ padding: '1.5rem' }}>
+            <div className="jr-card" style={{ padding: '1.5rem' }}>
               <h3 style={{ margin: '0 0 1.25rem 0' }}>🔔 Reformas y Cambios Detectados</h3>
               {radarData.weeklyChanges.length === 0 ? (
                 <p style={{ color: 'var(--text-muted)', fontStyle: 'italic', margin: 0 }}>
@@ -885,7 +885,7 @@ export default function RadarLegalPage() {
           {/* Right column — AI analysis */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
             {radarData.aiAnalysis && (
-              <div className="glass-card" style={{ padding: '1.75rem', border: '2px solid rgba(99,102,241,0.2)' }}>
+              <div className="jr-card" style={{ padding: '1.75rem', border: '2px solid rgba(99,102,241,0.2)' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
                   <h3 style={{ margin: 0 }}>🤖 Análisis RAG y Síntesis IA</h3>
                   <span style={{ fontSize: '0.7rem', padding: '0.2rem 0.5rem', background: 'rgba(99,102,241,0.18)', color: '#a5b4fc', borderRadius: '4px', textTransform: 'uppercase', fontWeight: 600 }}>
@@ -942,7 +942,7 @@ export default function RadarLegalPage() {
             )}
 
             {/* Sources */}
-            <div className="glass-card" style={{ padding: '1.5rem' }}>
+            <div className="jr-card" style={{ padding: '1.5rem' }}>
               <h3 style={{ margin: '0 0 1.25rem 0' }}>🔗 Fuentes Consultadas</h3>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', fontSize: '0.9rem' }}>
                 {lastQueryTime && (
@@ -975,7 +975,7 @@ export default function RadarLegalPage() {
 
       {/* Error state in radar mode */}
       {mode === 'radar' && radarStatus === 'error' && !isLoading && (
-        <div className="glass-card" style={{ textAlign: 'center', padding: '3rem 2rem' }}>
+        <div className="jr-card" style={{ textAlign: 'center', padding: '3rem 2rem' }}>
           <span style={{ fontSize: '3rem' }}>⚠️</span>
           <h3 style={{ color: '#f87171', marginTop: '1rem', marginBottom: '0.5rem' }}>Error en Búsqueda con IA</h3>
           <p style={{ color: 'var(--text-muted)', maxWidth: '480px', margin: '0 auto 1.25rem auto' }}>
@@ -983,7 +983,7 @@ export default function RadarLegalPage() {
           </p>
           <button
             id="radar-retry-weekly-btn"
-            className="btn-primary"
+            className="jr-button-primary"
             onClick={() => {
               setMode('weekly');
               setRadarStatus('idle');
