@@ -13,6 +13,11 @@ const updateDraftSchema = z.object({
   formData: z.any().optional().nullable(),
   renderedText: z.string().optional().nullable(),
   pendingMarkers: z.any().optional().nullable(),
+  structuredDoc: z.any().optional().nullable(),
+  pipelineState: z.any().optional().nullable(),
+  sourceDocuments: z.any().optional().nullable(),
+  validationResults: z.any().optional().nullable(),
+  generationMetadata: z.any().optional().nullable(),
   status: z.enum(['DRAFT', 'IN_REVIEW', 'READY_FOR_PROFESSIONAL_REVIEW', 'ARCHIVED']).optional(),
 });
 
@@ -76,6 +81,11 @@ export async function PATCH(
         ...(parsed.formData !== undefined ? { formData: parsed.formData as any } : {}),
         ...(parsed.renderedText !== undefined ? { renderedText: parsed.renderedText } : {}),
         ...(parsed.pendingMarkers !== undefined ? { pendingMarkers: parsed.pendingMarkers as any } : {}),
+        ...(parsed.structuredDoc !== undefined ? { structuredDoc: parsed.structuredDoc as any } : {}),
+        ...(parsed.pipelineState !== undefined ? { pipelineState: parsed.pipelineState as any } : {}),
+        ...(parsed.sourceDocuments !== undefined ? { sourceDocuments: parsed.sourceDocuments as any } : {}),
+        ...(parsed.validationResults !== undefined ? { validationResults: parsed.validationResults as any } : {}),
+        ...(parsed.generationMetadata !== undefined ? { generationMetadata: parsed.generationMetadata as any } : {}),
         ...(parsed.status ? { status: parsed.status } : {}),
       },
     });

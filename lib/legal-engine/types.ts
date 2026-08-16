@@ -75,6 +75,39 @@ export interface UploadedSourceDocument {
   classification?: any;
   uploadDate?: string;
   uploadedAt?: string;
+  pages?: DocumentPage[];
+  sourceValidated?: boolean;
+  sourceValidationMethod?: string;
+  qualityScore?: DocumentQualityScore;
+  warnings?: string[];
+}
+
+export interface DocumentPage {
+  page: number;
+  text: string;
+  chars: number;
+  heading?: string;
+}
+
+export interface DocumentQualityScore {
+  confidence: number;
+  qualityLabel: string;
+  status: 'READY' | 'NEEDS_OCR' | 'LOW_QUALITY' | 'FAILED';
+  ocrUsed?: boolean;
+  emptyPages?: number;
+}
+
+export interface GeneratedSourceReference extends SourceReference {
+  sourceType?: 'SOURCE_FACT' | 'COURT_REASONING' | 'USER_POSITION';
+  score?: number;
+}
+
+export interface PipelineTraceStep {
+  step: number;
+  stage: string;
+  query: string;
+  references: GeneratedSourceReference[];
+  note: string;
 }
 
 export interface ValidationIssue {
@@ -123,6 +156,7 @@ export interface GenerationMetadata {
   promptVersion?: string;
   tokensUsed?: number;
   generationTimeMs?: number;
+  trace?: PipelineTraceStep[];
 }
 
 export interface RequiredInput {

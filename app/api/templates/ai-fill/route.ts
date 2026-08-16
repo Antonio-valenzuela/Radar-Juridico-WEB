@@ -96,7 +96,7 @@ REGLAS OBLIGATORIAS ANTI-ALUCINACIÓN:
   "warnings": ["Advertencia de competencia o plazos si aplica"]
 }`;
 
-    const userMessage = `Plantilla objetivo: ${body.templateName || "Demanda / Escrito Legal"}\n\nTexto a analizar:\n"""${extractedText.slice(0, 12000)}"""`;
+    const userMessage = `Plantilla objetivo: ${body.templateName || "Demanda / Escrito Legal"}\n\nTexto a analizar:\n"""${extractedText}"""`;
 
     const aiRes = await runFastMode({
       systemPrompt,

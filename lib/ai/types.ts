@@ -176,7 +176,7 @@ export function buildLegalAiPrompt(input: LegalAiInput) {
   const payload = {
     title: input.title,
     summary: input.summary || null,
-    text: input.text ? input.text.slice(0, 12000) : null,
+    text: input.text ? input.text : null,
     sourceUrl: input.sourceUrl || null,
     publishedAt: input.publishedAt || null,
   };

@@ -65,7 +65,7 @@ export const DOC_TYPE_RULES: DocTypeRule[] = [
     requiredInputs: []
   },
   {
-    pattern: [/contestaci[oó]n.*demanda.*laboral/i, /contestaci[oó]n.*laboral/i],
+    pattern: [/(?:contestaci[oó]n|contestar).*(?:demanda)?.*laboral/i, /laboral.*(?:contestaci[oó]n|contestar)/i],
     documentType: 'contestacion_demanda_laboral',
     documentTypeLabel: 'Contestación de Demanda Laboral',
     matter: 'laboral',
@@ -75,7 +75,7 @@ export const DOC_TYPE_RULES: DocTypeRule[] = [
     requiredInputs: []
   },
   {
-    pattern: [/contestaci[oó]n.*demanda.*civil/i, /contestaci[oó]n.*civil/i],
+    pattern: [/(?:contestaci[oó]n|contestar).*(?:demanda)?.*civil/i, /civil.*(?:contestaci[oó]n|contestar)/i],
     documentType: 'contestacion_demanda_civil',
     documentTypeLabel: 'Contestación de Demanda Civil',
     matter: 'civil',
@@ -85,7 +85,7 @@ export const DOC_TYPE_RULES: DocTypeRule[] = [
     requiredInputs: []
   },
   {
-    pattern: [/contestaci[oó]n.*demanda/i],
+    pattern: [/contestaci[oó]n/i, /contestar/i],
     documentType: 'contestacion_demanda',
     documentTypeLabel: 'Contestación de Demanda',
     matter: 'general',

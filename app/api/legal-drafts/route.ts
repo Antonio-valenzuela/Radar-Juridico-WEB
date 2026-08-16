@@ -14,6 +14,11 @@ const draftSchema = z.object({
   formData: z.any().optional().nullable(),
   renderedText: z.string().optional().nullable(),
   pendingMarkers: z.any().optional().nullable(),
+  structuredDoc: z.any().optional().nullable(),
+  pipelineState: z.any().optional().nullable(),
+  sourceDocuments: z.any().optional().nullable(),
+  validationResults: z.any().optional().nullable(),
+  generationMetadata: z.any().optional().nullable(),
   status: z.enum(['DRAFT', 'IN_REVIEW', 'READY_FOR_PROFESSIONAL_REVIEW', 'ARCHIVED']).default('DRAFT'),
 });
 
@@ -62,6 +67,11 @@ export async function POST(request: NextRequest) {
         formData: (parsed.formData || {}) as any,
         renderedText: parsed.renderedText || '',
         pendingMarkers: (parsed.pendingMarkers || []) as any,
+        structuredDoc: (parsed.structuredDoc || null) as any,
+        pipelineState: (parsed.pipelineState || null) as any,
+        sourceDocuments: (parsed.sourceDocuments || null) as any,
+        validationResults: (parsed.validationResults || null) as any,
+        generationMetadata: (parsed.generationMetadata || null) as any,
         status: parsed.status,
       },
     });
