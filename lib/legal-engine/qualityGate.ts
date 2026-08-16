@@ -16,10 +16,15 @@ export interface QualityGateResult {
     unverifiedCitationsCount: number;
     manuallyEditedSectionsCount: number;
     sourceReferencesCount: number;
+    referenceLength?: number;
+    isProportional: boolean;
   };
 }
 
-export function runQualityGateCheck(doc: UniversalLegalDocument): QualityGateResult {
+export function runQualityGateCheck(
+  doc: UniversalLegalDocument,
+  options: { referenceLength?: number } = {}
+): QualityGateResult {
   const criticalErrors: ValidationIssue[] = [];
   const warnings: ValidationIssue[] = [];
   const suggestions: string[] = [];
@@ -107,6 +112,17 @@ export function runQualityGateCheck(doc: UniversalLegalDocument): QualityGateRes
     });
   }
 
+  // Check Proportionality Quality Gate against reference document
+  let isProportional = true;
+  const refLength = options.referenceLength || 0;
+  if (refLength > 15000 && characterCount < 4000) {
+    isProportional = false;
+    criticalErrors.push({
+      checkId: 'UNDERDEVELOPED',
+      message: `[UNDERDEVELOPED] El documento generado (${characterCount} chars, ${wordCount} palabras) es desproporcionado respecto a la extensión del machote de referencia (${refLength} chars, 21 págs). Se requiere ejecución con LLM de alta densidad argumentativa.`
+    });
+  }
+
   // Check petition section requirement
   const hasPetition = doc.sections.some(s => s.type === 'petition' && s.content.some(b => b.text.trim()));
   if (!hasPetition) {
@@ -123,10 +139,11 @@ export function runQualityGateCheck(doc: UniversalLegalDocument): QualityGateRes
   qualityScore -= pendingFieldsCount * 5;
   qualityScore -= unverifiedCitationsCount * 5;
   if (characterCount < 1000) qualityScore -= 10;
+  if (!isProportional) qualityScore -= 30;
   qualityScore = Math.max(0, Math.min(100, qualityScore));
 
   const passed = criticalErrors.length === 0;
-  const canMarkAsFinal = passed && pendingFieldsCount === 0 && emptySectionsCount === 0;
+  const canMarkAsFinal = passed && pendingFieldsCount === 0 && emptySectionsCount === 0 && isProportional;
 
   if (!canMarkAsFinal) {
     suggestions.push('Resuelva los campos [DATO PENDIENTE] antes de marcar el documento como FINALIZADO.');
@@ -151,6 +168,8 @@ export function runQualityGateCheck(doc: UniversalLegalDocument): QualityGateRes
       unverifiedCitationsCount,
       manuallyEditedSectionsCount,
       sourceReferencesCount,
+      referenceLength: refLength,
+      isProportional
     }
   };
 }
