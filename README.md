@@ -109,3 +109,15 @@ npm test
 ```
 
 La guía completa de desarrollo, pruebas de producción, backups, Render y VPS está en [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md). `docker-compose.yml` es sólo para desarrollo; producción usa `docker-compose.prod.yml`.
+
+## 🛡️ Política de Seguridad e Ingestión Documental
+
+### Almacenamiento Local de Documentos del Abogado
+Por privacidad, cumplimiento regulatorio y confidencialidad profesional, **ningún documento real del abogado (PDFs, demandas, sentencias, machotes reales con datos personales) debe almacenarse en la carpeta `public/` ni committearse al repositorio Git**.
+
+- **Workspace Local:** Defina la variable de entorno `LEGAL_WORKSPACE_ROOT` en su archivo `.env` o en la consola para especificar el directorio donde se almacenan los expedientes de trabajo:
+  ```env
+  LEGAL_WORKSPACE_ROOT=/ruta/absoluta/a/su/workspace/legal
+  ```
+- **Fixtures Sintéticos:** Para pruebas automatizadas e integración continua, se utilizan exclusivamente fixtures de prueba sintéticos sin datos personales ubicados en `public/fixtures/` o generados por código.
+
