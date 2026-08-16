@@ -80,30 +80,56 @@ export async function extractPdfTextServer(buffer: Buffer): Promise<ExtractedPdf
   }
 
   try {
-    const { PDFParse } = await import("pdf-parse");
-    const parser = new PDFParse({ data: new Uint8Array(buffer) });
+    const pdfModule = eval('require')('pdf-parse');
+    const PDFParse = pdfModule.PDFParse || (pdfModule.default && pdfModule.default.PDFParse);
+    const pdfFn = typeof pdfModule === 'function' ? pdfModule : pdfModule.default;
+
     let totalText = "";
     let numpages = 1;
     let info: any = undefined;
+    let pages: Array<{ pageNumber: number; text: string }> = [];
 
-    try {
-      const result = await parser.getText();
-      totalText = (result?.text || "").trim();
-      numpages = result?.pages?.length || (parser as any).numpages || 1;
-      info = (result as any)?.info;
-    } finally {
-      await parser.destroy().catch(() => {});
+    if (typeof PDFParse === "function") {
+      try {
+        const parser = new PDFParse({ data: new Uint8Array(buffer) });
+        const result = await parser.getText();
+        totalText = (result?.text || "").trim();
+        info = (result as any)?.info;
+
+        if (Array.isArray(result?.pages) && result.pages.length > 0) {
+          numpages = result.pages.length;
+          pages = result.pages.map((p: any, idx: number) => ({
+            pageNumber: p.pageNumber || p.page || (idx + 1),
+            text: (p.text || "").trim(),
+          }));
+        }
+      } catch (e: any) {
+        console.warn("[pdfExtractor] Class PDFParse failed, trying fallback function:", e?.message);
+      }
     }
 
-    // Split text across estimated pages if page-by-page text isn't directly separated
-    const pageChunks = totalText.split(/\f|\n(?=Página \d+)/i);
-    const pages = Array.from({ length: numpages }, (_, i) => {
-      const pageText = (pageChunks[i] || totalText).trim();
-      return {
+    if (!totalText && typeof pdfFn === "function") {
+      try {
+        const result = await pdfFn(buffer);
+        totalText = (result?.text || "").trim();
+        numpages = result?.numpages || 1;
+        info = result?.info;
+      } catch (e: any) {
+        console.warn("[pdfExtractor] Fallback pdfFn failed:", e?.message);
+      }
+    }
+
+    if (pages.length === 0 && totalText.length > 0) {
+      const pageChunks = totalText.split(/\f|\n(?=Página \d+)/i);
+      pages = Array.from({ length: numpages }, (_, i) => ({
         pageNumber: i + 1,
-        text: pageText,
-      };
-    });
+        text: (pageChunks[i] || totalText).trim(),
+      }));
+    }
+
+    if (!totalText) {
+      throw new Error("No se pudo extraer texto seleccionable del PDF.");
+    }
 
     const averageCharsPerPage = totalText.length / Math.max(1, numpages);
     const needsOcr = averageCharsPerPage < 80;
@@ -118,6 +144,7 @@ export async function extractPdfTextServer(buffer: Buffer): Promise<ExtractedPdf
       pages,
     };
   } catch (err: any) {
+    console.error("[extractPdfTextServer Error]", err);
     throw new Error(`Error al procesar el archivo PDF: ${err.message || "Archivo no válido o protegido"}`);
   }
 }

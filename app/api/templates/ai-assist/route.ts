@@ -31,8 +31,10 @@ const asLimitedString = (value: unknown, maxLength: number): string | null => {
   return trimmed;
 };
 
+import { requireLawyerAccess } from '@/lib/security/lawyerAuth';
+
 export async function POST(request: Request) {
-  const auth = requireAdmin(request);
+  const auth = await requireLawyerAccess(request);
   if (!auth.ok) return auth.response;
 
   const forwardedFor = request.headers.get('x-forwarded-for');

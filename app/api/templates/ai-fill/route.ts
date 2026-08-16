@@ -22,9 +22,10 @@ interface StructuredOutput {
   warnings: string[];
 }
 
+import { requireLawyerAccess } from "@/lib/security/lawyerAuth";
+
 export async function POST(req: Request) {
-  // Auth: público cuando ENABLE_PUBLIC_AI=true (demo), protegido con token en producción cerrada
-  const auth = requireAdmin(req);
+  const auth = await requireLawyerAccess(req);
   if (!auth.ok) return auth.response;
 
   try {

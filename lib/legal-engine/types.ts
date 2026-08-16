@@ -251,6 +251,29 @@ export function createEmptyDocument(initial: Partial<UniversalLegalDocument> = {
   };
 }
 
+export interface CaseDocument {
+  id: string;
+  name: string;
+  type: string;
+  pageCount: number;
+  pages?: Array<{ page: number; text: string; chars: number; ocrStatus?: string }>;
+  sourceUrl?: string;
+  role: 'demanda_inicial' | 'sentencia' | 'laudo' | 'anexo' | 'amparo_antecedente' | 'foto' | 'fuente_general';
+  status: 'READY' | 'NEEDS_MANUAL_REVIEW' | 'FAILED' | 'PROCESSING';
+  uploadedAt: string;
+}
+
+export interface TemplateVersion {
+  id: string;
+  templateId: string;
+  version: number;
+  title: string;
+  structureJson: any;
+  variables: any[];
+  createdBy?: string;
+  createdAt: string;
+}
+
 export function createDocumentNode(
   type: SectionType,
   title: string,

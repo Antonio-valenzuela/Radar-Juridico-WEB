@@ -114,8 +114,10 @@ function classifyLegalText(text: string): AnalyzeResult['classification'] {
 
 // ── POST /api/templates/analyze-upload ────────────────────────────────────────
 
+import { requireLawyerAccess } from '@/lib/security/lawyerAuth';
+
 export async function POST(request: NextRequest) {
-  const auth = requireAdmin(request as unknown as Request);
+  const auth = await requireLawyerAccess(request);
   if (!auth.ok) return auth.response;
 
   try {

@@ -1,5 +1,5 @@
 import { prisma } from '@/lib/prisma';
-import { requireAdmin } from '@/lib/security/adminAuth';
+import { requireLawyerAccess } from '@/lib/security/lawyerAuth';
 
 export interface CaseAccessContext {
   organizationId: string;
@@ -51,57 +51,15 @@ export const requireCaseAccess = async (
   | { ok: true; context: CaseAccessContext }
   | { ok: false; response: Response }
 > => {
-  const auth = requireAdmin(request);
-  if (!auth.ok) return auth;
-
-  let identity: { email: string; orgSlug: string };
-  try {
-    identity = getCaseAccessIdentity();
-  } catch (error) {
-    return {
-      ok: false,
-      response: Response.json(
-        {
-          error:
-            error instanceof Error
-              ? error.message
-              : 'La identidad de expedientes no está configurada.',
-        },
-        { status: 503 }
-      ),
-    };
-  }
-
-  const membership = await prisma.orgUserRole.findFirst({
-    where: {
-      user: { email: identity.email },
-      org: { slug: identity.orgSlug },
-    },
-    select: {
-      orgId: true,
-      userId: true,
-      role: true,
-    },
-  });
-  if (!membership) {
-    return {
-      ok: false,
-      response: Response.json(
-        {
-          error:
-            'La identidad configurada no tiene acceso a la organización de expedientes.',
-        },
-        { status: 403 }
-      ),
-    };
-  }
+  const lawyerAuth = await requireLawyerAccess(request);
+  if (!lawyerAuth.ok) return lawyerAuth;
 
   return {
     ok: true,
     context: {
-      organizationId: membership.orgId,
-      userId: membership.userId,
-      role: membership.role,
+      organizationId: lawyerAuth.context.organizationId,
+      userId: lawyerAuth.context.userId,
+      role: lawyerAuth.context.role,
     },
   };
 };

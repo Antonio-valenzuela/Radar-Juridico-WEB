@@ -204,9 +204,9 @@ export function assessExtractionQuality(
   }
 
   // 6. Only uppercase single letters / fragmented (OCR artifact)
-  const wordLike = (clean.match(/\b\w{3,}\b/g) || []).length;
+  const wordLike = (clean.match(/[a-zA-ZáéíóúñÁÉÍÓÚÑ0-9]{3,}/g) || []).length;
   const charCount = totalChars;
-  if (charCount > 500 && wordLike / charCount < 0.05) {
+  if (charCount > 500 && wordLike / charCount < 0.02) {
     warnings.push('Texto muy fragmentado: posible PDF con capa de texto corrupta.');
     return { sufficient: false, reason: 'Texto fragmentado (posible PDF híbrido corrupto)', warnings, emptyPages: 0 };
   }
