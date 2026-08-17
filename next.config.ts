@@ -22,7 +22,7 @@ const nextConfig: NextConfig = {
   output: "standalone",
   distDir: process.env.NEXT_DIST_DIR || ".next",
   poweredByHeader: false,
-  serverExternalPackages: ["@prisma/client", "prisma"],
+  serverExternalPackages: ["@prisma/client", "prisma", "playwright"],
   async headers() {
     return [
       {

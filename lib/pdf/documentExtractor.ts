@@ -461,7 +461,13 @@ export async function extractDocument(
   const finalQuality = assessExtractionQuality(finalText, pageCount);
   const finalScore = computeDocumentQualityScore(finalText, pageCount, ocrUsed);
 
-  const sourceValidated = finalQuality.sufficient && finalScore.status === 'READY';
+  // Un proveedor OCR mock/test jamás puede acreditar una fuente verificada.
+  const mockOcrUsed = ocrUsed && ocrProvider === 'mock';
+  if (mockOcrUsed) {
+    warnings.push('[MOCK OCR] El proveedor OCR configurado es de prueba (mock). La fuente NO se marca como verificada. Configura OCR_PROVIDER=ilovepdf con credenciales reales o =tesseract para OCR de producción.');
+  }
+
+  const sourceValidated = !mockOcrUsed && finalQuality.sufficient && finalScore.status === 'READY';
   let sourceValidationMethod = 'unvalidated';
   if (sourceValidated) {
     sourceValidationMethod = ocrUsed ? 'ocr' : 'native-text';
@@ -471,10 +477,12 @@ export async function extractDocument(
     step: 5,
     label: sourceValidated
       ? `Fuente validada para IA: ${pageCount} páginas, ${finalText.length.toLocaleString()} chars, ${finalScore.confidence}%`
+      : mockOcrUsed
+      ? 'Fuente NO verificada: el OCR usado es un proveedor mock de prueba (configura OCR real)'
       : `Fuente no validada: ${finalQuality.reason}`,
     done: sourceValidated,
     status: sourceValidated ? 'ok' : 'error',
-    detail: sourceValidated ? undefined : finalQuality.reason,
+    detail: sourceValidated ? undefined : mockOcrUsed ? 'Proveedor OCR de prueba no acredita verificación' : finalQuality.reason,
   });
 
   // ── Determine final status ────────────────────────────────────────────────

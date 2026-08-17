@@ -7,7 +7,7 @@ import { LocalProvider } from "@/lib/ai/providers/local";
 
 export const dynamic = "force-dynamic";
 
-export async function handleProviderTest(req: NextRequest) {
+async function handleProviderTest(req: NextRequest) {
   const adminCheck = requireAdmin(req);
   if (!adminCheck.ok) return adminCheck.response;
 

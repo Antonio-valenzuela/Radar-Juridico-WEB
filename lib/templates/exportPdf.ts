@@ -1,3 +1,4 @@
+import 'server-only';
 import { RenderedDocument } from './templateTypes';
 
 const numberToOrdinal = (num: number): string => {

@@ -1,8 +1,13 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
-import { UniversalLegalDocument, DocumentNode, ContentBlock, CaseDocument } from '../../../../lib/legal-engine/types';
-import { runQualityGateCheck } from '../../../../lib/legal-engine/qualityGate';
+import React, { useState, useMemo, useEffect } from 'react';
+import {
+  UniversalLegalDocument,
+  DocumentNode,
+  CaseDocument,
+  UploadedSourceDocument,
+} from '../../../../lib/legal-engine/types';
+import { runQualityGateCheck, QualityGateResult } from '../../../../lib/legal-engine/qualityGate';
 
 interface PaginatedDocumentEditorProps {
   document: UniversalLegalDocument;
@@ -10,12 +15,24 @@ interface PaginatedDocumentEditorProps {
   onRegenerateSection?: (sectionId: string, instruction?: string) => Promise<void>;
   onExportDocx?: () => void;
   onExportPdf?: () => void;
+  onSaveDraft?: () => Promise<boolean>;
+  onCloseEditor?: () => void;
   caseDocuments?: CaseDocument[];
-  activeMode?: 'draft' | 'source';
-  onSelectCaseDocument?: (doc: CaseDocument) => void;
+  sourceDocs?: UploadedSourceDocument[];
   selectedSourceDoc?: CaseDocument | null;
+  onSelectCaseDocument?: (doc: CaseDocument) => void;
   isGenerating?: boolean;
+  referenceText?: string;
 }
+
+type SectionAction = 'regenerate' | 'expand' | 'reduce' | 'reformulate';
+
+const SECTION_ACTION_LABELS: Record<SectionAction, { icon: string; label: string }> = {
+  regenerate: { icon: '🔄', label: 'Regenerar' },
+  expand: { icon: '➕', label: 'Ampliar' },
+  reduce: { icon: '➖', label: 'Reducir' },
+  reformulate: { icon: '✍️', label: 'Reformular' },
+};
 
 export function PaginatedDocumentEditor({
   document,
@@ -23,23 +40,31 @@ export function PaginatedDocumentEditor({
   onRegenerateSection,
   onExportDocx,
   onExportPdf,
+  onSaveDraft,
+  onCloseEditor,
   caseDocuments = [],
-  activeMode = 'draft',
-  onSelectCaseDocument,
+  sourceDocs = [],
   selectedSourceDoc,
+  onSelectCaseDocument,
   isGenerating = false,
+  referenceText,
 }: PaginatedDocumentEditorProps) {
   const [currentPage, setCurrentPage] = useState(1);
   const [zoomLevel, setZoomLevel] = useState(100);
+  const [leftTab, setLeftTab] = useState<'documents' | 'structure' | 'thumbnails'>('documents');
+  const [rightTab, setRightTab] = useState<'fuentes' | 'datos' | 'ia' | 'herramientas' | 'metricas'>('fuentes');
   const [searchQuery, setSearchQuery] = useState('');
-  const [editingSectionId, setEditingSectionId] = useState<string | null>(null);
-  const [editingText, setEditingText] = useState('');
+  const [activeMatch, setActiveMatch] = useState(0);
+  const [searchMatches, setSearchMatches] = useState<Array<{ page: number; sectionId: string }>>([]);
+  const [editingBlock, setEditingBlock] = useState<{ sectionId: string; blockId: string; text: string } | null>(null);
   const [sectionInstruction, setSectionInstruction] = useState('');
+  const [activeSectionId, setActiveSectionId] = useState<string | null>(null);
+  const [showValidation, setShowValidation] = useState(false);
+  const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved'>('idle');
+  const [sourcePage, setSourcePage] = useState(1);
 
-  // Quality Gate Evaluation
-  const qualityGate = useMemo(() => runQualityGateCheck(document), [document]);
+  const qualityGate: QualityGateResult = useMemo(() => runQualityGateCheck(document), [document]);
 
-  // Compute pages based on sections & character counts (~1800 chars per Letter page)
   const CHARS_PER_PAGE = 1800;
 
   const pageBreakdown = useMemo(() => {
@@ -73,98 +98,213 @@ export function PaginatedDocumentEditor({
   const totalPages = pageBreakdown.length;
   const activePageData = pageBreakdown.find((p) => p.pageNumber === currentPage) || pageBreakdown[0];
 
-  const handleSaveSectionEdit = (sectionId: string) => {
-    const updatedSections = document.sections.map((sec) => {
-      if (sec.id === sectionId) {
-        return {
-          ...sec,
-          isManuallyEdited: true,
-          content: [
-            {
-              id: sec.content[0]?.id || crypto.randomUUID(),
-              layer: 'USER_POSITION' as const,
-              trustLevel: 'VERIFIED' as const,
-              text: editingText,
-              isManuallyEdited: true,
-            },
-          ],
-        };
-      }
-      return sec;
-    });
+  const sectionPageMap = useMemo(() => {
+    const map: Record<string, number> = {};
+    pageBreakdown.forEach((p) => p.sections.forEach(({ section }) => (map[section.id] = p.pageNumber)));
+    return map;
+  }, [pageBreakdown]);
 
-    onUpdateDocument({
-      ...document,
-      sections: updatedSections,
-      updatedAt: new Date().toISOString(),
+  // Rebuild search matches across document
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setSearchMatches([]);
+      setActiveMatch(0);
+      return;
+    }
+    const q = searchQuery.toLowerCase();
+    const matches: Array<{ page: number; sectionId: string }> = [];
+    pageBreakdown.forEach((p) => {
+      p.sections.forEach(({ section, text }) => {
+        if (text.toLowerCase().includes(q)) matches.push({ page: p.pageNumber, sectionId: section.id });
+      });
     });
+    setSearchMatches(matches);
+    setActiveMatch(0);
+    if (matches.length > 0) {
+      setCurrentPage(matches[0].page);
+    }
+  }, [searchQuery, pageBreakdown]);
 
-    setEditingSectionId(null);
+  const goToNextMatch = (dir: 1 | -1) => {
+    if (searchMatches.length === 0) return;
+    const next = (activeMatch + dir + searchMatches.length) % searchMatches.length;
+    setActiveMatch(next);
+    setCurrentPage(searchMatches[next].page);
   };
 
+  const scrollToSection = (sectionId: string) => {
+    const page = sectionPageMap[sectionId];
+    if (page) setCurrentPage(page);
+    setActiveSectionId(sectionId);
+    window.setTimeout(() => {
+      const el = globalThis.document.getElementById(`sec-${sectionId}`);
+      el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 60);
+  };
+
+  /* ── Edición granular de bloques ─────────────────────────────────────── */
+  const updateBlock = (sectionId: string, blockId: string, newText: string) => {
+    const updatedSections = document.sections.map((sec) => {
+      if (sec.id !== sectionId) return sec;
+      const content = sec.content.map((b) =>
+        b.id === blockId
+          ? { ...b, text: newText, isManuallyEdited: true, layer: 'USER_POSITION' as const, trustLevel: 'VERIFIED' as const }
+          : b
+      );
+      return { ...sec, content, isManuallyEdited: true };
+    });
+    onUpdateDocument({ ...document, sections: updatedSections, updatedAt: new Date().toISOString() });
+    setEditingBlock(null);
+  };
+
+  const runSectionAction = (action: SectionAction, section: DocumentNode) => {
+    if (!onRegenerateSection) return;
+    const title = section.title;
+    const instructions: Record<SectionAction, string> = {
+      regenerate:
+        sectionInstruction.trim() ||
+        `Regenera por completo el apartado "${title}" con argumentos jurídicos extensos (planteamiento, hecho, norma, criterio, aplicación, refutación, consecuencia y conclusión).`,
+      expand: `Amplía y desarrolla con mayor profundidad el apartado "${title}", incorporando más argumentos, fundamentos legales, doctrina y detalle sin perder precisión ni inventar datos.`,
+      reduce: `Sintetiza el apartado "${title}" conservando lo esencial, los argumentos principales y la precisión jurídica, reduciendo su extensión.`,
+      reformulate: `Reformula el apartado "${title}" con una redacción distinta, manteniendo íntegro el contenido jurídico, la argumentación y el estilo del escrito.`,
+    };
+    void onRegenerateSection(section.id, instructions[action]);
+  };
+
+  const handleSave = async () => {
+    if (!onSaveDraft) return;
+    setSaveState('saving');
+    const ok = await onSaveDraft();
+    setSaveState(ok ? 'saved' : 'idle');
+    if (ok) window.setTimeout(() => setSaveState('idle'), 3000);
+  };
+
+  /* ── Métricas ─────────────────────────────────────────────────────────── */
+  const metrics = useMemo(() => {
+    const generatedChars = document.sections.reduce((a, s) => a + s.content.reduce((x, b) => x + b.text.length, 0), 0);
+    const generatedWords = document.sections.reduce((a, s) => a + s.content.reduce((x, b) => x + b.text.split(/\s+/).filter(Boolean).length, 0), 0);
+    const paragraphs = document.sections.reduce((a, s) => a + s.content.reduce((x, b) => x + b.text.split(/\n\s*\n/).filter(Boolean).length, 0), 0);
+    const argumentsCount = document.sections.filter((s) => s.type === 'argument').length;
+    const sourcesCount = document.sections.reduce((a, s) => a + s.content.reduce((x, b) => x + (b.sources?.length || 0), 0), 0);
+    const srcPages = document.sourceDocuments.reduce((a, s) => a + (s.pages?.length || 0), 0);
+    const srcChars = document.sourceDocuments.reduce((a, s) => a + (s.extractedText?.length || 0), 0);
+    const refChars = referenceText?.length || 0;
+    return {
+      generated: {
+        pages: Math.max(1, Math.ceil(generatedChars / 1800)),
+        chars: generatedChars,
+        words: generatedWords,
+        sections: document.sections.length,
+        paragraphs,
+        arguments: argumentsCount,
+        sources: sourcesCount,
+      },
+      source: { pages: srcPages, chars: srcChars, words: document.sourceDocuments.reduce((a, s) => a + (s.extractedText?.split(/\s+/).filter(Boolean).length || 0), 0) },
+      machote: { chars: refChars, words: referenceText ? referenceText.split(/\s+/).filter(Boolean).length : 0 },
+    };
+  }, [document, referenceText]);
+
+  const activeSection =
+    document.sections.find((s) => s.id === activeSectionId) ||
+    activePageData?.sections[0]?.section ||
+    document.sections[0] ||
+    null;
+
+  const highlight = (text: string) => {
+    if (!searchQuery.trim()) return text;
+    const q = searchQuery.trim();
+    const parts = text.split(new RegExp(`(${q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi'));
+    return parts.map((part, i) =>
+      part.toLowerCase() === q.toLowerCase() ? (
+        <mark key={i} className="bg-yellow-200 rounded-sm px-0.5">{part}</mark>
+      ) : (
+        part
+      )
+    );
+  };
+
+  const selectedSource = caseDocuments.find((d) => d.id === selectedSourceDoc?.id) || selectedSourceDoc || null;
+
   return (
-    <div className="flex flex-col h-full jr-card p-0 overflow-hidden text-slate-900 font-sans">
-      {/* ── Toolbar & Top Controls ────────────────────────────────────────── */}
-      <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-3.5 bg-slate-50 border-b border-slate-200">
-        <div className="flex items-center space-x-3">
-          <span className="text-[11px] font-bold uppercase tracking-wider text-[#0B2545] bg-blue-50 px-3 py-1 rounded-full border border-blue-200">
-            {activeMode === 'source' ? 'Modo Fuente (Inmutable)' : 'Modo Borrador (Editable)'}
+    <div className="flex flex-col h-full bg-[#f5f5f7] text-slate-900 font-sans">
+      {/* ── Barra superior ────────────────────────────────────────────────── */}
+      <div className="shrink-0 bg-white border-b border-slate-200 px-5 py-3 flex items-center justify-between gap-4 shadow-sm">
+        <div className="flex items-center gap-3 min-w-0">
+          {onCloseEditor && (
+            <button
+              onClick={onCloseEditor}
+              className="flex items-center gap-1.5 text-slate-500 hover:text-[#0B2545] text-sm font-bold transition-colors shrink-0"
+            >
+              ← Volver
+            </button>
+          )}
+          <span className="text-[11px] font-bold uppercase tracking-wider text-[#0B2545] bg-blue-50 px-3 py-1 rounded-full border border-blue-200 shrink-0">
+            Modo Borrador (Editable)
           </span>
-          <h2 className="text-sm font-extrabold truncate max-w-xs sm:max-w-md text-[#0B2545]">
-            {document.title}
-          </h2>
+          <div className="min-w-0">
+            <h2 className="text-sm font-extrabold truncate text-[#0B2545]">{document.documentTypeLabel}</h2>
+            <p className="text-[11px] text-slate-500 truncate">{document.title}</p>
+          </div>
         </div>
 
-        {/* Quality Status & Export Buttons */}
-        <div className="flex items-center space-x-3">
+        <div className="flex items-center gap-2 shrink-0">
           {!qualityGate.canMarkAsFinal ? (
-            <div className="flex items-center space-x-2 bg-amber-50 border border-amber-300 px-3 py-1 rounded-full text-xs text-amber-800 font-bold">
-              <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
-              <span>REQUIERE REVISIÓN ({qualityGate.qualityScore}/100)</span>
-            </div>
+            <button
+              onClick={() => { setShowValidation(true); setRightTab('herramientas'); }}
+              className="flex items-center gap-2 bg-amber-50 border border-amber-300 px-3 py-1.5 rounded-full text-[11px] text-amber-800 font-bold hover:bg-amber-100 transition"
+            >
+              <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+              Requiere revisión ({qualityGate.qualityScore}/100)
+            </button>
           ) : (
-            <div className="flex items-center space-x-2 bg-emerald-50 border border-emerald-300 px-3 py-1 rounded-full text-xs text-emerald-800 font-bold">
-              <span className="w-2 h-2 rounded-full bg-emerald-600"></span>
-              <span>VERIFICADO PARA FIRMA</span>
-            </div>
+            <button
+              onClick={() => { setShowValidation(true); setRightTab('herramientas'); }}
+              className="flex items-center gap-2 bg-emerald-50 border border-emerald-300 px-3 py-1.5 rounded-full text-[11px] text-emerald-800 font-bold hover:bg-emerald-100 transition"
+            >
+              <span className="w-2 h-2 rounded-full bg-emerald-600" />
+              Verificado para firma
+            </button>
           )}
 
+          <button onClick={handleSave} disabled={saveState === 'saving' || !onSaveDraft} className="jr-button-primary text-xs py-1.5 px-4">
+            {saveState === 'saving' ? 'Guardando...' : saveState === 'saved' ? '✓ Guardado' : '💾 Guardar'}
+          </button>
           {onExportDocx && (
             <button onClick={onExportDocx} className="jr-button-primary text-xs py-1.5 px-4">
-              📄 Exportar DOCX
+              📄 DOCX
             </button>
           )}
           {onExportPdf && (
             <button onClick={onExportPdf} className="jr-button-secondary text-xs py-1.5 px-4">
-              🖨️ Imprimir / PDF
+              🖨️ PDF
             </button>
           )}
         </div>
       </div>
 
-      {/* ── Secondary Navigation Bar: Page Controls & Zoom ─────────────────── */}
-      <div className="flex items-center justify-between px-6 py-2.5 bg-slate-100/70 border-b border-slate-200 text-xs text-slate-600">
-        <div className="flex items-center space-x-4">
+      {/* ── Barra de navegación de páginas ─────────────────────────────────── */}
+      <div className="shrink-0 bg-white/80 backdrop-blur border-b border-slate-200 px-5 py-2 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-600">
+        <div className="flex items-center gap-3">
           <button
             onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
             disabled={currentPage === 1}
-            className="px-3 py-1 bg-white hover:bg-slate-50 disabled:opacity-40 rounded-lg text-slate-700 font-semibold border border-slate-300 shadow-sm"
+            className="px-2.5 py-1 bg-white hover:bg-slate-50 disabled:opacity-40 rounded-lg text-slate-700 font-semibold border border-slate-300 shadow-sm"
           >
-            ← Anterior
+            ←
           </button>
-          <span className="font-medium text-slate-700">
+          <span className="font-medium">
             Página <span className="text-[#0B2545] font-extrabold">{currentPage}</span> de {totalPages}
           </span>
           <button
             onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
             disabled={currentPage === totalPages}
-            className="px-3 py-1 bg-white hover:bg-slate-50 disabled:opacity-40 rounded-lg text-slate-700 font-semibold border border-slate-300 shadow-sm"
+            className="px-2.5 py-1 bg-white hover:bg-slate-50 disabled:opacity-40 rounded-lg text-slate-700 font-semibold border border-slate-300 shadow-sm"
           >
-            Siguiente →
+            →
           </button>
 
-          <div className="flex items-center space-x-2 pl-4 border-l border-slate-300">
-            <span>Ir a página:</span>
+          <div className="flex items-center gap-1.5 pl-3 border-l border-slate-300">
+            <span className="text-slate-500">Ir a:</span>
             <input
               type="number"
               min={1}
@@ -174,121 +314,549 @@ export function PaginatedDocumentEditor({
                 const val = parseInt(e.target.value);
                 if (val >= 1 && val <= totalPages) setCurrentPage(val);
               }}
-              className="w-12 px-2 py-0.5 bg-white border border-slate-300 rounded-lg text-slate-900 text-center font-bold"
+              className="w-14 px-2 py-0.5 bg-white border border-slate-300 rounded-lg text-slate-900 text-center font-bold"
             />
+          </div>
+
+          <div className="flex items-center gap-1.5 pl-3 border-l border-slate-300">
+            <span className="text-slate-500">Zoom</span>
+            <button onClick={() => setZoomLevel((z) => Math.max(50, z - 10))} className="px-2 py-0.5 bg-white border border-slate-300 rounded-lg font-bold">−</button>
+            <span className="font-mono font-bold text-[#0B2545] w-10 text-center">{zoomLevel}%</span>
+            <button onClick={() => setZoomLevel((z) => Math.min(150, z + 10))} className="px-2 py-0.5 bg-white border border-slate-300 rounded-lg font-bold">+</button>
           </div>
         </div>
 
-        {/* Search */}
-        <div className="flex items-center space-x-3">
-          <input
-            type="text"
-            placeholder="Buscar en el documento..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-48 px-3 py-1 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-[#0B2545] shadow-sm"
-          />
+        {/* Buscar */}
+        <div className="flex items-center gap-2">
+          <div className="relative">
+            <input
+              type="text"
+              placeholder="Buscar en el documento..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-56 px-3 py-1 pr-16 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-[#0B2545] shadow-sm"
+            />
+            {searchMatches.length > 0 && (
+              <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] font-bold text-[#0B2545] bg-blue-50 border border-blue-200 rounded-full px-1.5 py-0.5">
+                {activeMatch + 1}/{searchMatches.length}
+              </span>
+            )}
+          </div>
+          <button onClick={() => goToNextMatch(1)} disabled={searchMatches.length === 0} className="px-2 py-1 bg-white border border-slate-300 rounded-lg font-bold disabled:opacity-40">↓</button>
+          <button onClick={() => goToNextMatch(-1)} disabled={searchMatches.length === 0} className="px-2 py-1 bg-white border border-slate-300 rounded-lg font-bold disabled:opacity-40">↑</button>
         </div>
       </div>
 
-      {/* ── Page Workstation Canvas (Letter Paper Sheet) ───────────────────────── */}
-      <div className="flex-1 bg-slate-100/90 p-8 overflow-y-auto flex justify-center">
-        <div className="w-full max-w-[816px] bg-white shadow-2xl rounded-sm border border-slate-200/80 p-12 min-h-[1056px] text-slate-900 font-serif leading-relaxed text-sm space-y-8">
-          {/* Header Marker */}
-          <div className="border-b border-slate-200 pb-3 flex justify-between items-center text-[11px] text-slate-400 font-sans tracking-wide">
-            <span>JURÍDICO RADAR — MOTOR DE ELABORACIÓN JURÍDICA</span>
-            <span>EXPEDIENTE: {document.caseRefs.expediente || '800/2024'}</span>
+      {/* ── Cuerpo: 3 paneles ─────────────────────────────────────────────── */}
+      <div className="flex-1 flex overflow-hidden">
+        {/* Panel izquierdo */}
+        <aside className="w-[260px] shrink-0 bg-white border-r border-slate-200 flex flex-col">
+          <div className="flex border-b border-slate-200">
+            {(['documents', 'structure', 'thumbnails'] as const).map((tab) => (
+              <button
+                key={tab}
+                onClick={() => setLeftTab(tab)}
+                className={`flex-1 py-2.5 text-[10px] font-bold uppercase tracking-wider transition ${
+                  leftTab === tab ? 'text-[#0B2545] border-b-2 border-[#0B2545] bg-blue-50/40' : 'text-slate-500 hover:text-[#0B2545]'
+                }`}
+              >
+                {tab === 'documents' ? '📁 Docs' : tab === 'structure' ? '🌳 Estructura' : '🗂 Miniaturas'}
+              </button>
+            ))}
           </div>
 
-          {activePageData?.sections.length === 0 ? (
-            <div className="text-center py-20 text-slate-400 italic font-sans text-xs">
-              No hay contenido redactado en esta página.
-            </div>
-          ) : (
-            activePageData.sections.map(({ section, text }) => {
-              const isEditing = editingSectionId === section.id;
-              const isManuallyEdited = section.isManuallyEdited || section.content.some((b) => b.isManuallyEdited);
-
-              return (
-                <div
-                  key={section.id}
-                  className="group relative p-4 rounded-xl border border-transparent hover:border-slate-200 hover:bg-slate-50/60 transition space-y-3 font-sans"
-                >
-                  <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-                    <div className="flex items-center space-x-2">
-                      <h3 className="font-extrabold text-[#0B2545] text-xs uppercase tracking-wider">
-                        {section.title}
-                      </h3>
-                      {isManuallyEdited && (
-                        <span className="px-2 py-0.5 text-[9px] font-bold uppercase rounded bg-amber-100 text-amber-800 border border-amber-300">
-                          Editado Manualmente
+          <div className="flex-1 overflow-y-auto p-3 space-y-2">
+            {leftTab === 'documents' && (
+              <>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 px-1">
+                  Documentos del Caso ({caseDocuments.length})
+                </p>
+                {caseDocuments.length === 0 ? (
+                  <p className="text-[11px] text-slate-400 italic px-1">Sin documentos cargados.</p>
+                ) : (
+                  caseDocuments.map((doc) => (
+                    <button
+                      key={doc.id}
+                      onClick={() => {
+                        onSelectCaseDocument?.(doc);
+                        setSourcePage(1);
+                      }}
+                      className={`w-full text-left p-2.5 rounded-xl border transition ${
+                        selectedSource?.id === doc.id
+                          ? 'bg-white border-[#0B2545] shadow-sm'
+                          : 'bg-slate-50/60 border-slate-200 hover:border-slate-300'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between gap-1 text-[11px] font-bold text-slate-700">
+                        <span className="truncate">{doc.name}</span>
+                        <span className="text-[9px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded font-mono uppercase shrink-0">{doc.type}</span>
+                      </div>
+                      <div className="flex items-center justify-between mt-1 text-[10px] text-slate-500">
+                        <span>{doc.pageCount} pág(s)</span>
+                        <span
+                          className={`px-1.5 py-0.5 rounded-full text-[9px] font-bold ${
+                            doc.status === 'READY' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-amber-50 text-amber-700 border border-amber-200'
+                          }`}
+                        >
+                          {doc.status === 'READY' ? 'VERIFICADA' : 'PARCIAL/OCR'}
                         </span>
-                      )}
-                    </div>
+                      </div>
+                    </button>
+                  ))
+                )}
 
-                    <div className="opacity-0 group-hover:opacity-100 transition flex items-center space-x-2">
-                      {!isEditing && (
-                        <button
-                          onClick={() => {
-                            setEditingSectionId(section.id);
-                            setEditingText(text);
-                          }}
-                          className="px-2.5 py-1 bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 text-[11px] font-bold rounded-lg shadow-sm"
-                        >
-                          ✏️ Editar
-                        </button>
-                      )}
-                      {onRegenerateSection && (
-                        <button
-                          onClick={() => onRegenerateSection(section.id, sectionInstruction)}
-                          disabled={isGenerating}
-                          className="px-2.5 py-1 bg-blue-50 border border-blue-200 hover:bg-blue-100 text-[#0B2545] text-[11px] font-bold rounded-lg shadow-sm"
-                        >
-                          🔄 Regenerar
-                        </button>
-                      )}
-                    </div>
-                  </div>
-
-                  {isEditing ? (
-                    <div className="space-y-3">
-                      <textarea
-                        rows={8}
-                        value={editingText}
-                        onChange={(e) => setEditingText(e.target.value)}
-                        className="w-full p-3 bg-white border border-[#0B2545] rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-200 font-serif leading-relaxed"
-                      />
-                      <div className="flex justify-end space-x-2">
-                        <button
-                          onClick={() => setEditingSectionId(null)}
-                          className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-lg"
-                        >
-                          Cancelar
-                        </button>
-                        <button
-                          onClick={() => handleSaveSectionEdit(section.id)}
-                          className="machote-jr-button-primary text-xs py-1.5 px-4"
-                        >
-                          Guardar Cambios
-                        </button>
+                {selectedSource && (
+                  <div className="mt-3 border-t border-slate-200 pt-2">
+                    <div className="flex items-center justify-between text-[10px] font-bold text-slate-500 mb-1.5">
+                      <span className="truncate max-w-[140px]">Fuente: {selectedSource.name}</span>
+                      <div className="flex items-center gap-1">
+                        <button onClick={() => setSourcePage((p) => Math.max(1, p - 1))} disabled={sourcePage === 1} className="px-1.5 py-0.5 bg-slate-100 rounded disabled:opacity-40">←</button>
+                        <span className="font-mono">{sourcePage}/{selectedSource.pageCount}</span>
+                        <button onClick={() => setSourcePage((p) => Math.min(selectedSource.pageCount, p + 1))} disabled={sourcePage === selectedSource.pageCount} className="px-1.5 py-0.5 bg-slate-100 rounded disabled:opacity-40">→</button>
                       </div>
                     </div>
-                  ) : (
-                    <div className="font-serif leading-relaxed whitespace-pre-wrap text-slate-800 text-sm">
-                      {text}
+                    <div className="bg-slate-50 border border-slate-200 rounded-lg p-2 text-[10px] font-serif leading-relaxed whitespace-pre-wrap max-h-44 overflow-y-auto text-slate-700">
+                      {selectedSource.pages?.[sourcePage - 1]?.text || 'Sin contenido en esta página.'}
                     </div>
-                  )}
-                </div>
-              );
-            })
-          )}
+                  </div>
+                )}
+              </>
+            )}
 
-          {/* Footer Marker */}
-          <div className="border-t border-slate-200 pt-3 flex justify-between items-center text-[11px] text-slate-400 font-sans tracking-wide">
-            <span>PÁGINA {currentPage} DE {totalPages}</span>
-            <span>PROTESTO LO NECESARIO EN DERECHO</span>
+            {leftTab === 'structure' && (
+              <>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 px-1">
+                  Estructura del escrito ({document.sections.length} apartados)
+                </p>
+                {document.sections.map((sec, idx) => {
+                  const isEmpty = !sec.content.some((b) => b.text.trim());
+                  const isActive = activeSectionId === sec.id;
+                  return (
+                    <button
+                      key={sec.id}
+                      onClick={() => scrollToSection(sec.id)}
+                      className={`w-full text-left p-2 rounded-lg border text-[11px] transition flex items-center gap-2 ${
+                        isActive ? 'bg-[#0B2545] text-white border-[#0B2545]' : 'bg-slate-50/60 border-slate-200 text-slate-600 hover:border-[#0B2545]'
+                      }`}
+                    >
+                      <span className="text-[9px] font-mono opacity-60 w-5 shrink-0">{idx + 1}.</span>
+                      <span className="flex-1 truncate font-semibold">{sec.title}</span>
+                      {isEmpty && <span className="text-[8px] font-bold uppercase text-amber-500 shrink-0">vacía</span>}
+                    </button>
+                  );
+                })}
+              </>
+            )}
+
+            {leftTab === 'thumbnails' && (
+              <>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 px-1">
+                  Páginas ({totalPages})
+                </p>
+                {pageBreakdown.map((p) => {
+                  const preview = p.sections.map((s) => s.text).join(' ').slice(0, 130);
+                  return (
+                    <button
+                      key={p.pageNumber}
+                      onClick={() => setCurrentPage(p.pageNumber)}
+                      className={`w-full text-left p-2.5 rounded-xl border transition ${
+                        currentPage === p.pageNumber ? 'bg-white border-[#0B2545] shadow-sm' : 'bg-slate-50/60 border-slate-200 hover:border-slate-300'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between text-[10px] font-bold text-[#0B2545] mb-1">
+                        <span>Página {p.pageNumber}</span>
+                        <span className="text-slate-400 font-mono">{p.sections.length} sec(s)</span>
+                      </div>
+                      <div className="bg-white border border-slate-200 rounded-md p-2 text-[9px] leading-relaxed text-slate-500 line-clamp-4">
+                        {preview || 'Página en blanco'}
+                      </div>
+                    </button>
+                  );
+                })}
+              </>
+            )}
           </div>
-        </div>
+        </aside>
+
+        {/* Panel central: hoja Carta */}
+        <main className="flex-1 bg-slate-100/90 overflow-y-auto flex justify-center p-6">
+          <div className="self-start" style={{ transform: `scale(${zoomLevel / 100})`, transformOrigin: 'top center' }}>
+            <div className="w-[816px] bg-white shadow-2xl rounded-sm border border-slate-200/80 p-12 min-h-[1056px] text-slate-900 font-serif leading-relaxed text-sm space-y-8">
+              {/* Header Marker */}
+              <div className="border-b border-slate-200 pb-3 flex justify-between items-center text-[11px] text-slate-400 font-sans tracking-wide">
+                <span>JURÍDICO RADAR — MOTOR DE ELABORACIÓN JURÍDICA</span>
+                <span>EXPEDIENTE: {document.caseRefs.expediente || 'DATO PENDIENTE'}</span>
+              </div>
+
+              {activePageData?.sections.length === 0 ? (
+                <div className="text-center py-20 text-slate-400 italic font-sans text-xs">
+                  No hay contenido redactado en esta página.
+                </div>
+              ) : (
+                activePageData.sections.map(({ section }) => {
+                  const isManuallyEdited = section.isManuallyEdited || section.content.some((b) => b.isManuallyEdited);
+                  const isEmpty = !section.content.some((b) => b.text.trim());
+                  return (
+                    <section key={section.id} id={`sec-${section.id}`} className="group relative p-4 rounded-xl border border-transparent hover:border-slate-200 hover:bg-slate-50/60 transition space-y-2.5 font-sans">
+                      <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h3 className="font-extrabold text-[#0B2545] text-xs uppercase tracking-wider">{section.title}</h3>
+                          {isManuallyEdited && (
+                            <span className="px-2 py-0.5 text-[9px] font-bold uppercase rounded bg-amber-100 text-amber-800 border border-amber-300">
+                              Editado
+                            </span>
+                          )}
+                          {isEmpty && (
+                            <span className="px-2 py-0.5 text-[9px] font-bold uppercase rounded bg-red-50 text-red-600 border border-red-200">
+                              Sin contenido
+                            </span>
+                          )}
+                        </div>
+                        <div className="opacity-0 group-hover:opacity-100 transition flex items-center gap-1.5">
+                          {(Object.keys(SECTION_ACTION_LABELS) as SectionAction[]).map((action) => (
+                            <button
+                              key={action}
+                              onClick={() => runSectionAction(action, section)}
+                              disabled={isGenerating || !onRegenerateSection}
+                              title={SECTION_ACTION_LABELS[action].label}
+                              className="px-2 py-1 bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 text-[10px] font-bold rounded-lg shadow-sm disabled:opacity-40"
+                            >
+                              {SECTION_ACTION_LABELS[action].icon} {SECTION_ACTION_LABELS[action].label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {section.content.length === 0 ? (
+                        <p className="text-slate-300 italic text-xs py-3">Apartado sin redactar. Use «Regenerar» para desarrollarlo.</p>
+                      ) : (
+                        <div className="space-y-2">
+                          {section.content.map((block) => {
+                            const isEditing = editingBlock?.blockId === block.id;
+                            return (
+                              <div key={block.id} className="group/block relative rounded-lg border border-transparent hover:border-blue-200 hover:bg-white p-1.5 transition">
+                                {isEditing ? (
+                                  <div className="space-y-2" data-block-editor>
+                                    <textarea
+                                      rows={6}
+                                      defaultValue={editingBlock.text}
+                                      className="w-full p-3 bg-white border border-[#0B2545] rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-200 font-serif leading-relaxed"
+                                    />
+                                    <div className="flex justify-end gap-2">
+                                      <button
+                                        onClick={() => setEditingBlock(null)}
+                                        className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-lg"
+                                      >
+                                        Cancelar
+                                      </button>
+                                      <button
+                                        onClick={(e) => {
+                                          const ta = (e.currentTarget.closest('[data-block-editor]')?.querySelector('textarea')) as HTMLTextAreaElement | null;
+                                          updateBlock(section.id, block.id, ta?.value ?? editingBlock.text);
+                                        }}
+                                        className="machote-jr-button-primary text-xs py-1.5 px-4"
+                                      >
+                                        Guardar
+                                      </button>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <div className="flex items-start gap-2">
+                                    <p className="font-serif leading-relaxed whitespace-pre-wrap text-slate-800 text-sm flex-1">
+                                      {highlight(block.text)}
+                                    </p>
+                                    <button
+                                      onClick={() => setEditingBlock({ sectionId: section.id, blockId: block.id, text: block.text })}
+                                      className="opacity-0 group-hover/block:opacity-100 px-2 py-1 bg-white border border-slate-300 hover:bg-slate-100 text-slate-600 text-[10px] font-bold rounded-lg shrink-0"
+                                      title="Editar bloque"
+                                    >
+                                      ✏️
+                                    </button>
+                                  </div>
+                                )}
+                                {block.sources && block.sources.length > 0 && (
+                                  <p className="text-[9px] text-slate-400 font-sans mt-0.5">
+                                    🔖 {block.sources.length} referencia(s) al expediente
+                                  </p>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </section>
+                  );
+                })
+              )}
+
+              {/* Footer Marker */}
+              <div className="border-t border-slate-200 pt-3 flex justify-between items-center text-[11px] text-slate-400 font-sans tracking-wide">
+                <span>PÁGINA {currentPage} DE {totalPages}</span>
+                <span>PROTESTO LO NECESARIO EN DERECHO</span>
+              </div>
+            </div>
+          </div>
+        </main>
+
+        {/* Panel derecho */}
+        <aside className="w-[300px] shrink-0 bg-white border-l border-slate-200 flex flex-col">
+          <div className="flex border-b border-slate-200">
+            {(['fuentes', 'datos', 'ia', 'herramientas', 'metricas'] as const).map((tab) => (
+              <button
+                key={tab}
+                onClick={() => setRightTab(tab)}
+                className={`flex-1 py-2.5 text-[9px] font-bold uppercase tracking-wider transition ${
+                  rightTab === tab ? 'text-[#0B2545] border-b-2 border-[#0B2545] bg-blue-50/40' : 'text-slate-500 hover:text-[#0B2545]'
+                }`}
+              >
+                {tab === 'fuentes' ? '📚 Fuentes' : tab === 'datos' ? '🧾 Datos' : tab === 'ia' ? '✨ IA' : tab === 'herramientas' ? '🛠 Herramientas' : '📊 Métricas'}
+              </button>
+            ))}
+          </div>
+
+          <div className="flex-1 overflow-y-auto p-4 space-y-3">
+            {/* FUENTES */}
+            {rightTab === 'fuentes' && (
+              <>
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">FUENTE ACTUAL</p>
+                  <p className="text-[11px] text-slate-600 leading-relaxed">
+                    Documentos del expediente usados como base del escrito. Cada bloque del documento enlaza sus referencias.
+                  </p>
+                </div>
+                {sourceDocs.length === 0 ? (
+                  <p className="text-[11px] text-slate-400 italic">No hay documentos fuente cargados.</p>
+                ) : (
+                  sourceDocs.map((s) => (
+                    <div key={s.id} className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-[11px] space-y-1">
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-slate-700 truncate max-w-[150px]">{s.filename || s.name}</span>
+                        <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${s.sourceValidated !== false ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-amber-50 text-amber-700 border border-amber-200'}`}>
+                          {s.sourceValidated !== false ? 'VERIFICADA' : 'PARCIAL'}
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-slate-500">
+                        {s.pages?.length || 1} pág(s) · {(s.extractedText || '').length.toLocaleString()} caracteres
+                      </p>
+                    </div>
+                  ))
+                )}
+
+                {activeSection && (
+                  <div className="border-t border-slate-200 pt-2">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                      Referencias del apartado: {activeSection.title}
+                    </p>
+                    {activeSection.content.flatMap((b) => b.sources || []).length === 0 ? (
+                      <p className="text-[11px] text-slate-400 italic">Este apartado no cita fragmentos del expediente.</p>
+                    ) : (
+                      activeSection.content.flatMap((b) => (b.sources || []).map((src, i) => (
+                        <div key={`${b.id}-${i}`} className="p-2 rounded-lg bg-blue-50/50 border border-blue-100 text-[10px] text-slate-600 mb-1.5">
+                          <span className="font-bold text-[#0B2545]">Doc:</span> {src.documentId} {src.page ? `· pág. ${src.page}` : ''}
+                          {src.textSnippet && <p className="mt-0.5 line-clamp-2 text-slate-500">{src.textSnippet}</p>}
+                        </div>
+                      )))
+                    )}
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* DATOS */}
+            {rightTab === 'datos' && (
+              <>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">DATOS DEL CASO</p>
+                {[
+                  ['Expediente', document.caseRefs.expediente],
+                  ['Amparo', document.caseRefs.amparo],
+                  ['Actor / Quejoso', document.parties.actor || document.parties.quejoso],
+                  ['Demandado', document.parties.demandado],
+                  ['Tercero interesado', document.parties.terceroInteresado],
+                  ['Autoridad responsable', document.parties.autoridadResponsable],
+                  ['Materia', document.matter],
+                  ['Jurisdicción', document.jurisdiction],
+                ].map(([label, value]) => (
+                  <div key={label} className="p-2.5 rounded-xl bg-slate-50 border border-slate-200">
+                    <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">{label}</p>
+                    <p className={`text-[12px] font-bold ${value ? 'text-slate-800' : 'text-amber-600'}`}>
+                      {value || 'DATO PENDIENTE'}
+                    </p>
+                  </div>
+                ))}
+                <p className="text-[10px] text-slate-400 italic">
+                  Los campos faltantes se muestran como «DATO PENDIENTE». Nunca se inventan datos del caso.
+                </p>
+              </>
+            )}
+
+            {/* IA */}
+            {rightTab === 'ia' && (
+              <>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">ASISTENCIA DE REDACCIÓN</p>
+                <p className="text-[11px] text-slate-600 leading-relaxed">
+                  Regenera, amplía, reduce o reformula cualquier apartado. Si edita manualmente, Radar conserva sus cambios y no los sobrescribe.
+                </p>
+                <textarea
+                  rows={3}
+                  value={sectionInstruction}
+                  onChange={(e) => setSectionInstruction(e.target.value)}
+                  placeholder="Instrucción específica para el apartado activo (p. ej. enfatizar violación al debido proceso)..."
+                  className="jr-input font-sans text-xs"
+                />
+                {activeSection ? (
+                  <div className="p-2.5 rounded-xl bg-blue-50/60 border border-blue-200">
+                    <p className="text-[10px] font-bold text-[#0B2545] mb-1">Apartado activo:</p>
+                    <p className="text-[11px] font-semibold text-slate-700">{activeSection.title}</p>
+                  </div>
+                ) : (
+                  <p className="text-[11px] text-slate-400 italic">Seleccione un apartado en el panel de estructura.</p>
+                )}
+                <div className="grid grid-cols-2 gap-2">
+                  {activeSection &&
+                    (Object.keys(SECTION_ACTION_LABELS) as SectionAction[]).map((action) => (
+                      <button
+                        key={action}
+                        onClick={() => runSectionAction(action, activeSection)}
+                        disabled={isGenerating || !onRegenerateSection}
+                        className="machote-jr-button-secondary text-[10px] py-2"
+                      >
+                        {SECTION_ACTION_LABELS[action].icon} {SECTION_ACTION_LABELS[action].label}
+                      </button>
+                    ))}
+                </div>
+                <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-[10px] text-slate-500 leading-relaxed">
+                  <p className="font-bold text-slate-600 mb-0.5">Memoria y RAG</p>
+                  Radar distingue la fuente actual del historial del abogado (estilo, fórmulas y estrategia) sin copiar nombres, hechos ni expedientes ajenos.
+                </div>
+              </>
+            )}
+
+            {/* HERRAMIENTAS */}
+            {rightTab === 'herramientas' && (
+              <>
+                <button
+                  onClick={() => setShowValidation((v) => !v)}
+                  className="machote-jr-button-secondary w-full text-xs py-2.5"
+                >
+                  ✅ Validar escrito
+                </button>
+
+                {showValidation && (
+                  <div className="space-y-2">
+                    <div className={`p-2.5 rounded-xl text-[11px] font-bold border ${qualityGate.canMarkAsFinal ? 'bg-emerald-50 text-emerald-800 border-emerald-200' : 'bg-amber-50 text-amber-800 border-amber-300'}`}>
+                      {qualityGate.canMarkAsFinal
+                        ? `✓ LISTO PARA FIRMA (${qualityGate.qualityScore}/100)`
+                        : `REQUIERE EXPANSIÓN / REVISIÓN (${qualityGate.qualityScore}/100)`}
+                    </div>
+
+                    {qualityGate.metrics.isProportional === false && (
+                      <div className="p-2.5 rounded-xl bg-red-50 border border-red-200 text-[11px] text-red-700 font-bold">
+                        ⚠️ Extensión desproporcionada frente al machote. Ejecute «Ampliar» en los apartados clave.
+                      </div>
+                    )}
+
+                    {qualityGate.criticalErrors.length > 0 && (
+                      <div className="space-y-1.5">
+                        <p className="text-[10px] font-bold uppercase text-red-600">Errores</p>
+                        {qualityGate.criticalErrors.map((e) => (
+                          <p key={e.checkId} className="p-2 rounded-lg bg-red-50 border border-red-200 text-[10px] text-red-700">
+                            {e.message}
+                          </p>
+                        ))}
+                      </div>
+                    )}
+                    {qualityGate.warnings.length > 0 && (
+                      <div className="space-y-1.5">
+                        <p className="text-[10px] font-bold uppercase text-amber-600">Advertencias</p>
+                        {qualityGate.warnings.map((w, i) => (
+                          <p key={i} className="p-2 rounded-lg bg-amber-50 border border-amber-200 text-[10px] text-amber-800">
+                            {w.message}
+                          </p>
+                        ))}
+                      </div>
+                    )}
+                    {qualityGate.suggestions.length > 0 && (
+                      <div className="space-y-1.5">
+                        <p className="text-[10px] font-bold uppercase text-slate-500">Sugerencias</p>
+                        {qualityGate.suggestions.map((s, i) => (
+                          <p key={i} className="p-2 rounded-lg bg-slate-50 border border-slate-200 text-[10px] text-slate-600">
+                            {s}
+                          </p>
+                        ))}
+                      </div>
+                    )}
+                    <div className="grid grid-cols-2 gap-1.5 text-center text-[10px]">
+                      <div className="p-2 rounded-lg bg-slate-50 border border-slate-200"><span className="block text-sm font-extrabold text-[#0B2545]">{qualityGate.metrics.wordCount.toLocaleString()}</span>palabras</div>
+                      <div className="p-2 rounded-lg bg-slate-50 border border-slate-200"><span className="block text-sm font-extrabold text-[#0B2545]">{qualityGate.metrics.characterCount.toLocaleString()}</span>caracteres</div>
+                      <div className="p-2 rounded-lg bg-slate-50 border border-slate-200"><span className="block text-sm font-extrabold text-[#0B2545]">{qualityGate.metrics.pendingFieldsCount}</span>pendientes</div>
+                      <div className="p-2 rounded-lg bg-slate-50 border border-slate-200"><span className="block text-sm font-extrabold text-[#0B2545]">{qualityGate.metrics.manuallyEditedSectionsCount}</span>editados</div>
+                    </div>
+                  </div>
+                )}
+
+                <div className="border-t border-slate-200 pt-3 space-y-2">
+                  <button onClick={handleSave} disabled={!onSaveDraft} className="machote-jr-button-primary w-full text-xs py-2.5">
+                    💾 Guardar borrador
+                  </button>
+                  <div className="grid grid-cols-2 gap-2">
+                    {onExportDocx && (
+                      <button onClick={onExportDocx} className="machote-jr-button-secondary text-[11px] py-2">📄 DOCX</button>
+                    )}
+                    {onExportPdf && (
+                      <button onClick={onExportPdf} className="machote-jr-button-secondary text-[11px] py-2">🖨️ PDF</button>
+                    )}
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* MÉTRICAS */}
+            {rightTab === 'metricas' && (
+              <>
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">FUENTE</p>
+                  <div className="grid grid-cols-3 gap-1.5 text-center text-[10px]">
+                    <div className="p-2 rounded-lg bg-slate-50 border border-slate-200"><span className="block text-sm font-extrabold text-[#0B2545]">{metrics.source.pages}</span>páginas</div>
+                    <div className="p-2 rounded-lg bg-slate-50 border border-slate-200"><span className="block text-sm font-extrabold text-[#0B2545]">{metrics.source.chars.toLocaleString()}</span>caracteres</div>
+                    <div className="p-2 rounded-lg bg-slate-50 border border-slate-200"><span className="block text-sm font-extrabold text-[#0B2545]">{metrics.source.words.toLocaleString()}</span>palabras</div>
+                  </div>
+                </div>
+
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">MACHOTE</p>
+                  <div className="grid grid-cols-3 gap-1.5 text-center text-[10px]">
+                    <div className="p-2 rounded-lg bg-slate-50 border border-slate-200"><span className="block text-sm font-extrabold text-[#0B2545]">{metrics.machote.chars ? Math.ceil(metrics.machote.chars / 1800) : 0}</span>páginas</div>
+                    <div className="p-2 rounded-lg bg-slate-50 border border-slate-200"><span className="block text-sm font-extrabold text-[#0B2545]">{metrics.machote.chars.toLocaleString()}</span>caracteres</div>
+                    <div className="p-2 rounded-lg bg-slate-50 border border-slate-200"><span className="block text-sm font-extrabold text-[#0B2545]">{metrics.machote.words.toLocaleString()}</span>palabras</div>
+                  </div>
+                </div>
+
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">GENERADO</p>
+                  <div className="grid grid-cols-3 gap-1.5 text-center text-[10px]">
+                    <div className="p-2 rounded-lg bg-slate-50 border border-slate-200"><span className="block text-sm font-extrabold text-[#0B2545]">{metrics.generated.pages}</span>páginas</div>
+                    <div className="p-2 rounded-lg bg-slate-50 border border-slate-200"><span className="block text-sm font-extrabold text-[#0B2545]">{metrics.generated.chars.toLocaleString()}</span>caracteres</div>
+                    <div className="p-2 rounded-lg bg-slate-50 border border-slate-200"><span className="block text-sm font-extrabold text-[#0B2545]">{metrics.generated.words.toLocaleString()}</span>palabras</div>
+                    <div className="p-2 rounded-lg bg-slate-50 border border-slate-200"><span className="block text-sm font-extrabold text-[#0B2545]">{metrics.generated.sections}</span>apartados</div>
+                    <div className="p-2 rounded-lg bg-slate-50 border border-slate-200"><span className="block text-sm font-extrabold text-[#0B2545]">{metrics.generated.paragraphs}</span>párrafos</div>
+                    <div className="p-2 rounded-lg bg-slate-50 border border-slate-200"><span className="block text-sm font-extrabold text-[#0B2545]">{metrics.generated.arguments}</span>argumentos</div>
+                  </div>
+                  <p className="text-[10px] text-slate-500 mt-1.5">
+                    🔖 Referencias a fuentes: <strong className="text-[#0B2545]">{metrics.generated.sources}</strong>
+                  </p>
+                </div>
+
+                <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-[10px]">
+                  <p className="font-bold uppercase tracking-wider text-slate-400 mb-1">PROVEEDOR</p>
+                  <p className="text-slate-700 font-semibold">{document.generationMetadata?.modelVersion || 'No registrado en esta generación'}</p>
+                  <p className="text-slate-400 mt-1">
+                    {document.generationMetadata?.tokensUsed ? `${document.generationMetadata.tokensUsed} tokens` : 'Tokens no reportados por el proveedor.'}
+                  </p>
+                </div>
+              </>
+            )}
+          </div>
+        </aside>
       </div>
     </div>
   );

@@ -221,7 +221,7 @@ export const UniversalDocEditor: React.FC<UniversalDocEditorProps> = ({
             {/* Content Blocks */}
             {section.content.length === 0 ? (
               <div style={{ padding: '1rem', background: 'var(--surface-muted)', borderRadius: 'var(--radius-sm)', color: 'var(--text-muted)', fontSize: '0.85rem', fontStyle: 'italic', textAlign: 'center' }}>
-                Sección vacía. Haz clic en "Regenerar Sección" o edita manualmente.
+                Sección vacía. Haz clic en &quot;Regenerar Sección&quot; o edita manualmente.
               </div>
             ) : (
               section.content.map((block) => {
@@ -334,7 +334,7 @@ export const UniversalDocEditor: React.FC<UniversalDocEditorProps> = ({
             </div>
 
             <div style={{ background: 'var(--surface-muted)', padding: '1rem', borderRadius: 'var(--radius-md)', fontSize: '0.85rem', fontStyle: 'italic', color: 'var(--text-main)', maxHeight: '200px', overflowY: 'auto' }}>
-              "{showSourceForBlock.sourceRef.excerpt || 'Extracto no especificado.'}"
+              &quot;{showSourceForBlock.sourceRef.excerpt || 'Extracto no especificado.'}&quot;
             </div>
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '1rem' }}>

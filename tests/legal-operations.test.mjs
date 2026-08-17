@@ -167,15 +167,12 @@ test("machotes expone las 15 plantillas y exportadores reales con revisión prof
   const aiRoute = read("app/api/templates/ai-assist/route.ts");
   const docx = read("lib/templates/exportDocx.ts");
   const pdf = read("lib/templates/exportPdf.ts");
-  assert.match(page, /validateTemplateValues/);
-  assert.match(page, /exportToDocx/);
-  assert.match(page, /generatePrintHtml/);
-  assert.match(page, /navigator\.clipboard\.writeText/);
-  assert.match(page, /ADVERTENCIA PROFESIONAL/);
-  assert.match(page, /Texto propuesto/);
-  assert.match(page, /Fuentes utilizadas/);
-  assert.match(page, /Elementos pendientes/);
-  assert.match(page, /confidenceLevel/);
+  // Flujo profesional nuevo: motor universal + copia de trabajo + generación por API.
+  assert.match(page, /PaginatedDocumentEditor/);
+  assert.match(page, /copia de trabajo/);
+  assert.match(page, /Generar Escrito Completo/);
+  assert.match(page, /\/api\/legal-engine\/generate/);
+  assert.match(page, /jr_last_draft_id/);
   assert.match(aiRoute, /orderBy:\s*\{\s*verifiedAt:\s*['"]desc['"]\s*\}/);
   assert.match(docx, /new Document/);
   assert.match(pdf, /escapeHtml/);
@@ -184,18 +181,22 @@ test("machotes expone las 15 plantillas y exportadores reales con revisión prof
 
 test("machotes conserva workspace profesional y vista de documento tipo hoja", () => {
   const page = read("app/legal-hub/machotes/page.tsx");
+  const editor = read("app/legal-hub/machotes/components/PaginatedDocumentEditor.tsx");
   const css = read("app/globals.css");
 
-  assert.match(page, /machotes-workspace/);
-  assert.match(page, /machote-template-toolbar/);
-  assert.match(page, /machote-preview-panel/);
-  assert.match(page, /machote-document-paper/);
+  assert.match(page, /jr-card/);
+  assert.match(page, /legal-info-box/);
+  assert.match(page, /machote-jr-button-primary/);
   assert.doesNotMatch(page, /legal-two-column/);
 
-  assert.match(css, /\.machotes-workspace/);
-  assert.match(css, /\.machote-document-paper/);
-  assert.match(css, /background:\s*#fbfaf7/);
-  assert.match(css, /\.machote-action-grid/);
+  // Panel central del editor: hoja Carta (816px × min 1056px) sobre fondo.
+  assert.match(editor, /w-\[816px\]/);
+  assert.match(editor, /min-h-\[1056px\]/);
+  assert.match(editor, /shadow-2xl/);
+
+  assert.match(css, /\.machote-jr-button-primary/);
+  assert.match(css, /\.machote-jr-button-secondary/);
+  assert.match(css, /\.legal-info-box/);
 });
 
 test("fallback local del consultor usa lenguaje jurídico, no texto técnico de proveedores", () => {

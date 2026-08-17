@@ -28,13 +28,16 @@ test("la pantalla de alertas usa el helper administrativo central", () => {
   assert.doesNotMatch(page, /fetch\(\"\/api\/watchlist/);
 });
 
-test("expedientes y machotes solicitan el token sin implementar login", () => {
+test("expedientes y machotes exigen autenticación sin token hardcodeado", () => {
   const cases = fs.readFileSync("app/legal-hub/expedientes/page.tsx", "utf8");
   const templates = fs.readFileSync("app/legal-hub/machotes/page.tsx", "utf8");
+  const generateRoute = fs.readFileSync("app/api/legal-engine/generate/route.ts", "utf8");
   assert.match(cases, /adminFetch\(/);
   assert.match(cases, /Ingresa el token administrativo/);
-  assert.match(templates, /adminFetch\(/);
-  assert.match(templates, /Ingresa el token administrativo/);
+  // machotes autentica en servidor (requireLawyerAccess) sin prompt de token de admin.
+  assert.doesNotMatch(templates, /adminFetch\(/);
+  assert.doesNotMatch(templates, /Ingresa el token administrativo/);
+  assert.match(generateRoute, /requireLawyerAccess/);
   assert.doesNotMatch(cases, /dev-admin-token/);
   assert.doesNotMatch(templates, /dev-admin-token/);
 });

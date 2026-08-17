@@ -1,3 +1,4 @@
+import 'server-only';
 import { 
   UniversalLegalDocument, 
   PipelineStage, 
@@ -55,6 +56,8 @@ export interface PipelineInput {
   lawyerProfile?: LawyerProfile;
   referenceDocumentText?: string;
   referenceDocumentId?: string;
+  matter?: string;
+  documentTypeLabel?: string;
   forceAiUnavailable?: boolean;
 }
 
@@ -170,7 +173,7 @@ export async function generateSection(
   customGenerator?: (params: { section: DocumentNode; doc: UniversalLegalDocument }) => Promise<string> | string,
   lawyerProfile: LawyerProfile = DEFAULT_LAWYER_PROFILE,
   sectionPlan?: SectionPlan
-): Promise<{ text: string; warnings: string[]; sources?: GeneratedSourceReference[] }> {
+): Promise<{ text: string; warnings: string[]; sources?: GeneratedSourceReference[]; aiUsed?: boolean; aiProvider?: string; aiModel?: string; aiError?: string }> {
   const sec = doc.sections.find(s => s.id === sectionId);
   if (!sec) return { text: '', warnings: ['Sección no encontrada'] };
 
@@ -190,18 +193,35 @@ export async function generateSection(
   const hasAiKey = Boolean(
     (process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY.trim()) ||
     (process.env.GROQ_API_KEY && process.env.GROQ_API_KEY.trim()) ||
-    (process.env.OPENROUTER_API_KEY && process.env.OPENROUTER_API_KEY.trim())
+    (process.env.OPENROUTER_API_KEY && process.env.OPENROUTER_API_KEY.trim()) ||
+    (process.env.NVIDIA_API_KEY && process.env.NVIDIA_API_KEY.trim())
   );
 
+  const configuredProvider =
+    process.env.LLM_PROVIDER?.trim() ||
+    (process.env.GEMINI_API_KEY?.trim() ? 'gemini' : undefined) ||
+    (process.env.GROQ_API_KEY?.trim() ? 'groq' : undefined) ||
+    (process.env.OPENROUTER_API_KEY?.trim() ? 'openrouter' : undefined) ||
+    (process.env.NVIDIA_API_KEY?.trim() ? 'nvidia' : undefined) ||
+    undefined;
+  const configuredModel =
+    process.env.LLM_MODEL?.trim() ||
+    process.env.GEMINI_MODEL?.trim() ||
+    undefined;
+
   let rawSectionText = '';
+  let aiUsed = false;
+  let aiProvider: string | undefined;
+  let aiModel: string | undefined;
+  let aiError: string | undefined;
 
   if (hasAiKey) {
     try {
       const prompt = `Actúa como abogado litigante experto en ${doc.matter || 'amparo'}.
 Genera el apartado "${sec.title}" para el escrito "${doc.documentTypeLabel}".
-EXPEDIENTE: ${doc.caseRefs.expediente || '800/2024'}
-TRIBUNAL: ${doc.parties.autoridadResponsable || doc.classification.authority || 'Segundo Tribunal Colegiado'}
-QUEJOSO: ${doc.parties.quejoso || doc.parties.actor || 'Promovente'}
+EXPEDIENTE: ${doc.caseRefs.expediente || '[DATO PENDIENTE: Número de Expediente]'}
+TRIBUNAL: ${doc.parties.autoridadResponsable || doc.classification.authority || '[DATO PENDIENTE: Órgano Jurisdiccional]'}
+QUEJOSO: ${doc.parties.quejoso || doc.parties.actor || '[DATO PENDIENTE: Nombre del Promovente]'}
 
 ESTRUCTURA EXIGIDA PARA CADA AGRAVIO:
 1. Planteamiento central
@@ -226,11 +246,29 @@ Escribe la sección completa con argumentos jurídicos extensos sin resúmenes.`
       });
 
       if (aiRes.success && aiRes.content) {
-        rawSectionText = aiRes.content;
+        aiUsed = aiRes.provider !== 'local';
+        aiProvider = aiRes.provider;
+        aiModel = aiRes.model;
+        if (aiUsed) {
+          rawSectionText = aiRes.content;
+        } else {
+          aiProvider = configuredProvider;
+          aiModel = configuredModel;
+          aiError = `Todos los proveedores de IA configurados fallaron; la cadena devolvió el proveedor local (${aiRes.errorCode || 'error desconocido'}).`;
+        }
+      } else {
+        aiProvider = configuredProvider;
+        aiModel = configuredModel;
+        aiError = `Proveedores IA fallaron (${aiRes.errorCode || 'sin respuesta'}).`;
       }
     } catch (e) {
+      aiProvider = configuredProvider;
+      aiModel = configuredModel;
+      aiError = (e as Error)?.message || String(e);
       console.warn('[pipeline] LLM invocation failed, using deterministic legal engine fallback:', e);
     }
+  } else {
+    aiError = 'No hay API key de IA configurada en el entorno.';
   }
 
   // Fallback to structured legal engine section generation
@@ -248,9 +286,9 @@ Escribe la sección completa con argumentos jurídicos extensos sin resúmenes.`
 
       case 'background':
         rawSectionText = `ANTECEDENTES PROCESALES Y HECHOS DE ORIGEN:\n\n` +
-                         `1. Con fecha de sesión de quince de abril de dos mil veintiséis, este H. Tribunal Colegiado pronunció ejecutoria en el juicio de amparo directo ${doc.caseRefs.expediente || '800/2024'} (Magistrado Ponente: LUIS ÁVALOS GARCÍA, Secretaria: JOCELÍN VALERIA GINÉS VILLALOBOS).\n` +
-                         `2. Dicho procedimiento guarda relación directa con el antecedente de amparo directo 226/2024 emitido en la contienda de origen.\n` +
-                         `3. Se sustanció el procedimiento observando los plazos y términos de ley en materia laboral y constitucional.\n` +
+                         `1. De las constancias que integran el expediente de origen se advierten los antecedentes procesales que a continuación se relacionan, en la medida en que obran en autos.\n` +
+                         `2. El procedimiento se sustanció observando los plazos y términos de ley en la materia correspondiente.\n` +
+                         `3. La resolución recurrida fue emitida por la autoridad señalada como responsable en el expediente respectivo (${doc.parties.autoridadResponsable || '[DATO PENDIENTE: Autoridad Responsable]'}).\n` +
                          (genContext.text ? `4. Constancias del expediente recuperadas:\n${genContext.text.slice(0, 900)}` : '4. [DATO PENDIENTE: Detalle exhaustivo de antecedentes procesales]');
         break;
 
@@ -265,7 +303,7 @@ Escribe la sección completa con argumentos jurídicos extensos sin resúmenes.`
                          `1. PLANTEAMIENTO CENTRAL:\n` +
                          `Causa agravio directo e irreparable a esta parte la resolución emitida por la autoridad responsable, toda vez que infringe los principios de exhaustividad, debido proceso y congruencia tutelados en la Ley Suprema.\n\n` +
                          `2. CONTEXTO Y ANTECEDENTE PROCESAL:\n` +
-                         `Al dictar el fallo recurrido, la autoridad desatendió las consideraciones fijadas en el antecedente de amparo directo 226/2024, omitiendo valorar en su integridad las constancias que conforman el sumario.\n\n` +
+                         `Al dictar el fallo recurrido, la autoridad desatendió consideraciones relevantes, omitiendo valorar en su integridad las constancias que conforman el sumario.\n\n` +
                          `3. HECHO Y PRUEBA FUNDANTE:\n` +
                          (genContext.text ? `Evidencia del expediente:\n${genContext.text.slice(0, 800)}\n\n` : '[DATO PENDIENTE: Hecho específico extraído de las constancias del expediente]\n\n') +
                          `4. NORMA Y VIOLACIÓN CONSTITUCIONAL:\n` +
@@ -312,7 +350,11 @@ Escribe la sección completa con argumentos jurídicos extensos sin resúmenes.`
   return {
     text: sanitized,
     warnings: [],
-    sources: genContext.references
+    sources: genContext.references,
+    aiUsed,
+    aiProvider,
+    aiModel,
+    aiError
   };
 }
 
@@ -378,8 +420,11 @@ export async function runGenerationPipeline(
     updateStage('classify', 'running');
     callbacks?.onStageStart?.('classify', doc);
     doc.classification = input.existingClassification || classifyIntent(userPrompt || fullTextFromSources || 'escrito libre');
+    if (input.matter) doc.classification = { ...doc.classification, matter: input.matter };
+    if (input.documentTypeLabel) doc.classification = { ...doc.classification, documentTypeLabel: input.documentTypeLabel };
     doc.documentType = doc.classification.documentType;
     doc.documentTypeLabel = doc.classification.documentTypeLabel;
+    doc.matter = doc.classification.matter;
     if (!input.existingDocument) {
       doc.title = `${doc.documentTypeLabel} - ${new Date().toLocaleDateString('es-MX')}`;
     }
@@ -439,7 +484,12 @@ export async function runGenerationPipeline(
     // Stage 6: Generate Sections
     updateStage('generate_sections', 'running');
     callbacks?.onStageStart?.('generate_sections', doc);
-    
+
+    let pipelineAiUsed = false;
+    let pipelineAiProvider: string | undefined;
+    let pipelineAiModel: string | undefined;
+    let pipelineAiError: string | undefined;
+
     for (let i = 0; i < doc.sections.length; i++) {
       const section = doc.sections[i];
 
@@ -461,7 +511,17 @@ export async function runGenerationPipeline(
         lawyerProfile,
         secPlan
       );
-      
+
+      if (generated.aiUsed) {
+        pipelineAiUsed = true;
+        pipelineAiProvider = generated.aiProvider || pipelineAiProvider;
+        pipelineAiModel = generated.aiModel || pipelineAiModel;
+      } else if (generated.aiError) {
+        pipelineAiError = generated.aiError;
+        pipelineAiProvider = pipelineAiProvider || generated.aiProvider;
+        pipelineAiModel = pipelineAiModel || generated.aiModel;
+      }
+
       const newBlock: ContentBlock = createContentBlock(
         generated.text,
         'GENERATED_ARGUMENT',
@@ -475,6 +535,11 @@ export async function runGenerationPipeline(
       section.isGenerated = true;
       section.validationWarnings = generated.warnings;
     }
+
+    doc.generationMetadata.aiUsed = pipelineAiUsed;
+    doc.generationMetadata.aiProvider = pipelineAiProvider || null;
+    doc.generationMetadata.aiModel = pipelineAiModel || null;
+    doc.generationMetadata.aiError = pipelineAiError || null;
     
     updateStage('generate_sections', 'complete');
     callbacks?.onStageComplete?.('generate_sections', doc);

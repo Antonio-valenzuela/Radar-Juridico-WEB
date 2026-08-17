@@ -1,3 +1,4 @@
+import 'server-only';
 import { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType, Header, Footer, PageNumber } from 'docx';
 import { UniversalLegalDocument } from './types';
 import { stripTrustMarkers } from './trustLayer';

@@ -157,6 +157,10 @@ export interface GenerationMetadata {
   tokensUsed?: number;
   generationTimeMs?: number;
   trace?: PipelineTraceStep[];
+  aiUsed?: boolean;
+  aiProvider?: string | null;
+  aiModel?: string | null;
+  aiError?: string | null;
 }
 
 export interface RequiredInput {

@@ -1,61 +1,32 @@
 import { NextResponse } from "next/server";
-import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { requireAdmin } from "@/lib/security/adminAuth";
-import { isPubliclySearchableQuality } from "@/lib/ingest/quality";
-
 
 export const dynamic = "force-dynamic";
 
-export async function GET(req: Request) {
+/**
+ * GET /api/items
+ * Devuelve los últimos 50 items (más recientes primero)
+ */
+export async function GET() {
   try {
-    const startedAt = Date.now();
-    const url = new URL(req.url);
-    const q = (url.searchParams.get("q") || "").trim();
-    const source = (url.searchParams.get("source") || "").trim();
-    const impacto = (url.searchParams.get("impacto") || "").trim();
-    const tipo = (url.searchParams.get("tipo") || "").trim();
-    const tema = (url.searchParams.get("tema") || "").trim();
-    const includeNoise = url.searchParams.get("includeNoise") === "true";
-    const where: Prisma.ItemWhereInput = {};
-
-    if (source) where.source = source;
-    if (impacto) where.impacto = impacto;
-    if (tipo) where.tipo = tipo;
-    if (tema) where.tema = { has: tema };
-    if (!includeNoise) where.category = { not: "ruido" };
-    if (q) {
-      where.OR = [
-        { title: { contains: q, mode: "insensitive" } },
-        { summary: { contains: q, mode: "insensitive" } },
-      ];
-    }
-
     const items = await prisma.item.findMany({
-      where,
       orderBy: { published: "desc" },
-      take: 150,
+      take: 50,
     });
-    
-    const validItems = items.filter(item => isPubliclySearchableQuality(item.raw)).slice(0, 50);
 
-    return NextResponse.json(validItems, {
-      headers: {
-        "X-Search-Latency-Ms": String(Date.now() - startedAt),
-        "X-Result-Count": String(validItems.length),
-      },
-    });
-  } catch (err: unknown) {
+    return NextResponse.json(items);
+  } catch (err: any) {
     console.error("GET /api/items error:", err);
     return NextResponse.json({ error: "Error al obtener items" }, { status: 500 });
   }
 }
 
+/**
+ * POST /api/items
+ * Crea/actualiza un item basado en url (upsert)
+ */
 export async function POST(req: Request) {
   try {
-    const auth = requireAdmin(req);
-    if (!auth.ok) return auth.response;
-
     const body = await req.json();
     const { source, title, url, published, summary } = body ?? {};
 
@@ -69,20 +40,35 @@ export async function POST(req: Request) {
     const publishedDate = new Date(published);
     if (Number.isNaN(publishedDate.getTime())) {
       return NextResponse.json(
-        { error: "El campo 'published' no es una fecha valida" },
+        { error: "El campo 'published' no es una fecha válida" },
         { status: 400 }
       );
     }
 
     const item = await prisma.item.upsert({
       where: { url },
-      update: { source, title, published: publishedDate, summary: summary ?? null },
-      create: { source, title, url, published: publishedDate, summary: summary ?? null },
+      update: {
+        source,
+        title,
+        published: publishedDate,
+        summary: summary ?? null,
+      },
+      create: {
+        source,
+        title,
+        url,
+        published: publishedDate,
+        summary: summary ?? null,
+      },
     });
 
     return NextResponse.json(item);
-  } catch (err: unknown) {
+  } catch (err: any) {
     console.error("POST /api/items error:", err);
-    return NextResponse.json({ error: "Error al crear/actualizar item" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Error al crear/actualizar item" },
+      { status: 500 }
+    );
   }
 }
+

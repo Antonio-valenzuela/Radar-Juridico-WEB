@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import type { ClassificationResult } from '@/lib/legal-engine/types';
 import { classifyIntent } from '@/lib/legal-engine/classifier';
 
@@ -14,16 +14,8 @@ export const IntentClassifier: React.FC<IntentClassifierProps> = ({
   isProcessing = false,
 }) => {
   const [inputText, setInputText] = useState('');
-  const [classification, setClassification] = useState<ClassificationResult | null>(null);
 
-  useEffect(() => {
-    if (inputText.trim().length > 5) {
-      const result = classifyIntent(inputText);
-      setClassification(result);
-    } else {
-      setClassification(null);
-    }
-  }, [inputText]);
+  const classification: ClassificationResult | null = inputText.trim().length > 5 ? classifyIntent(inputText) : null;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

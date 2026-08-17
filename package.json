@@ -12,7 +12,7 @@
   },
   "scripts": {
     "dev": "next dev --webpack --port 3100",
-    "build": "npx prisma generate && next build",
+    "build": "npx prisma generate && next build --webpack",
     "start": "next start",
     "start:prod": "sh scripts/start-prod.sh",
     "lint": "eslint",
@@ -50,6 +50,7 @@
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "recharts": "^3.8.1",
+    "server-only": "^0.0.1",
     "tesseract.js": "^7.0.0",
     "tsx": "^4.21.0",
     "undici": "^7.29.0",
