@@ -2550,3 +2550,80 @@ textarea:disabled {
     bottom: 16px !important;
   }
 }
+
+/* ============================================================
+   MACHOTES — Sub-identidad "Editorial Cálido" (autorizada 16/08/2026)
+   Uso EXCLUSIVO dentro de /legal-hub/machotes. No sustituye --jr-*.
+   ============================================================ */
+.machotes-shell {
+  --mach-bg:            #F5F1E8;
+  --mach-bg-panel:      #FBF9F5;
+  --mach-surface:       #FFFFFF;
+  --mach-border:        #E8E2D5;
+  --mach-border-strong: #DED8C9;
+
+  --mach-ink:           #0B2545;
+  --mach-ink-soft:      #43301F;
+  --mach-accent:        #3B82F6;
+  --mach-accent-hover:  #2563EB;
+
+  --mach-text:          #0F172A;
+  --mach-text-muted:    #64748B;
+
+  --mach-status-verified: #E05244;
+  --mach-status-pending:  #FBBF24;
+
+  --mach-tag-amparo-bg:    #E2F4EA; --mach-tag-amparo-text:    #1B7A43; --mach-tag-amparo-border:    #BFE4CF;
+  --mach-tag-laboral-bg:   #E6F0FA; --mach-tag-laboral-text:   #1B558F; --mach-tag-laboral-border:   #BED7F3;
+  --mach-tag-civil-bg:     #F4EAF7; --mach-tag-civil-text:     #6D2F8A; --mach-tag-civil-border:     #E2CBE8;
+  --mach-tag-mercantil-bg: #FDF3E2; --mach-tag-mercantil-text: #9C5F11; --mach-tag-mercantil-border: #F5DFB8;
+  --mach-tag-general-bg:   #EEF1F5; --mach-tag-general-text:   #2C3E50; --mach-tag-general-border:   #D8DEE6;
+
+  --mach-radius-card: 14px;
+  --mach-radius-pill: 9999px;
+  --mach-shadow-card:       0 2px 10px rgba(15, 23, 42, 0.06);
+  --mach-shadow-card-hover: 0 8px 24px rgba(15, 23, 42, 0.10);
+
+  background: var(--mach-bg);
+  color: var(--mach-text);
+}
+
+/* Nota: los tokens --mach-tag-* y --mach-status-* se declaran aquí pero se
+   CONSUMEN en la Fase 2 (tarjetas de la Biblioteca). No los uses todavía
+   fuera de la barra de pestañas en esta fase. */
+
+.mach-tab {
+  border-radius: 16px;
+  padding: 8px 16px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--mach-border-strong);
+  background: rgba(255, 255, 255, 0.8);
+  color: #334155;
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+.mach-tab:hover { background: #ffffff; }
+.mach-tab-active {
+  background: var(--mach-ink) !important;
+  color: #ffffff !important;
+  border-color: transparent !important;
+  box-shadow: var(--mach-shadow-card);
+}
+
+.mach-button-primary {
+  border-radius: 16px;
+  padding: 8px 16px;
+  font-size: 0.75rem;
+  font-weight: 800;
+  background: #ffffff;
+  color: var(--mach-ink);
+  border: 1px solid var(--mach-border-strong);
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+.mach-button-primary:hover { background: #f8f7f2; }

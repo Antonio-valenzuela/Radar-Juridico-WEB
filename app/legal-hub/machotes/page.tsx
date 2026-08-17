@@ -569,9 +569,9 @@ export default function MachotesPage() {
   const generatingStage = STAGES[pipelineStageIndex];
 
   return (
-    <div className="h-[calc(100dvh-64px)] bg-[#f5f2eb] flex flex-col font-sans select-none overflow-hidden">
+    <div className="machotes-shell h-[calc(100dvh-64px)] flex flex-col font-sans select-none overflow-hidden">
       {/* ── BARRA DE PESTAÑAS (Pill Style idéntica al Mockup) ────────────── */}
-      <div className="shrink-0 border-b border-[#e8e2d5] bg-[#f5f2eb]">
+      <div className="shrink-0 border-b" style={{ borderColor: 'var(--mach-border)' }}>
         <div className="w-full max-w-[1800px] mx-auto px-5 py-2.5 flex items-center justify-between gap-3 min-w-0">
           <div className="flex items-center gap-2 overflow-x-auto no-scrollbar min-w-0 flex-1">
             {/* ⚙ Motor Universal (Drafts) */}
@@ -580,11 +580,7 @@ export default function MachotesPage() {
                 setActiveNavTab('universal');
                 if (!universalDoc) setIsDraftGeneratorOpen(true);
               }}
-              className={`px-4 py-2 rounded-2xl text-xs font-bold transition flex items-center gap-1.5 shadow-xs whitespace-nowrap shrink-0 jr-tab ${
-                activeNavTab === 'universal'
-                  ? 'bg-[#0B2545] text-white jr-tab-active'
-                  : 'bg-white/80 text-slate-700 hover:bg-white border border-[#ded8c9]'
-              }`}
+              className={`mach-tab ${activeNavTab === 'universal' ? 'mach-tab-active' : ''}`}
             >
               <span>⚙️</span>
               <span>Motor Universal (Drafts)</span>
@@ -596,11 +592,7 @@ export default function MachotesPage() {
                 setActiveNavTab('initial_writings');
                 setIsDraftGeneratorOpen(true);
               }}
-              className={`px-4 py-2 rounded-2xl text-xs font-bold transition flex items-center gap-1.5 shadow-xs whitespace-nowrap shrink-0 jr-tab ${
-                activeNavTab === 'initial_writings'
-                  ? 'bg-[#0B2545] text-white jr-tab-active'
-                  : 'bg-white/80 text-slate-700 hover:bg-white border border-[#ded8c9]'
-              }`}
+              className={`mach-tab ${activeNavTab === 'initial_writings' ? 'mach-tab-active' : ''}`}
             >
               <span>📝</span>
               <span>Escritos Iniciales</span>
@@ -612,11 +604,7 @@ export default function MachotesPage() {
                 setActiveNavTab('responses_resources');
                 setIsDraftGeneratorOpen(true);
               }}
-              className={`px-4 py-2 rounded-2xl text-xs font-bold transition flex items-center gap-1.5 shadow-xs whitespace-nowrap shrink-0 jr-tab ${
-                activeNavTab === 'responses_resources'
-                  ? 'bg-[#0B2545] text-white jr-tab-active'
-                  : 'bg-white/80 text-slate-700 hover:bg-white border border-[#ded8c9]'
-              }`}
+              className={`mach-tab ${activeNavTab === 'responses_resources' ? 'mach-tab-active' : ''}`}
             >
               <span>⚖️</span>
               <span>Contestaciones y Recursos</span>
@@ -625,11 +613,7 @@ export default function MachotesPage() {
             {/* 📁 Mis Plantillas */}
             <button
               onClick={() => setActiveNavTab('my-templates')}
-              className={`px-4 py-2 rounded-2xl text-xs font-bold transition flex items-center gap-1.5 shadow-xs whitespace-nowrap shrink-0 jr-tab ${
-                activeNavTab === 'my-templates'
-                  ? 'bg-[#0B2545] text-white jr-tab-active'
-                  : 'bg-white/80 text-slate-700 hover:bg-white border border-[#ded8c9]'
-              }`}
+              className={`mach-tab ${activeNavTab === 'my-templates' ? 'mach-tab-active' : ''}`}
             >
               <span>📁</span>
               <span>Mis Plantillas ({customTemplates.length})</span>
@@ -640,7 +624,7 @@ export default function MachotesPage() {
           <div className="flex items-center gap-2 shrink-0">
             <button
               onClick={() => setIsSaveCustomOpen(true)}
-              className="px-4 py-2 rounded-2xl bg-white hover:bg-slate-50 border border-[#ded8c9] text-[#0B2545] text-xs font-extrabold shadow-xs transition flex items-center gap-1.5 whitespace-nowrap shrink-0 machote-jr-button-primary"
+              className="mach-button-primary flex items-center gap-1.5"
             >
               <span>➕</span>
               <span>Subir Machote</span>

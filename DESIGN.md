@@ -83,3 +83,17 @@ mínimo. Los estados no deben depender únicamente del color.
 3. Todo nuevo control debe tener etiqueta, foco visible, estado de carga/error
    y soporte de teclado.
 4. Antes de una mejora visual, revisar este documento y `app/globals.css`.
+
+## Sub-identidad de Machotes (autorizada 16/08/2026)
+
+`/legal-hub/machotes` usa una sub-identidad visual "editorial cálido",
+aprobada explícitamente por el propietario del proyecto para este módulo
+únicamente. Vive en tokens `--mach-*` definidos bajo `.machotes-shell` en
+`app/globals.css` y NO sustituye ni modifica `--jr-*`, que sigue siendo la
+fuente de verdad para el resto del sitio (Dashboard, Búsqueda, Documentos,
+Alertas, Centro Jurídico, IA Legal, Vigilancia documental, Cambios por
+artículo, IA Sandbox, Métricas, Admin). La navegación global (`AppShell.tsx`)
+no cambia.
+
+Cualquier ampliación de esta sub-identidad fuera de `/legal-hub/machotes`
+requiere la misma aprobación explícita que exige la regla 2 de este documento.
