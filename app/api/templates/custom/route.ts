@@ -57,19 +57,23 @@ const customTemplateJsonSchema = z.object({
 
 export async function GET(request: NextRequest) {
   try {
-    const access = await requireCaseAccess(request);
-    const orgId = access.ok ? access.context.organizationId : 'demo-legal';
+    const access = await requireCaseAccess(request).catch(() => ({ ok: false, context: {} as any }));
+    const orgId = access.ok ? access.context.organizationId : undefined;
+    const userId = access.ok ? access.context.userId : undefined;
 
     const { searchParams } = new URL(request.url);
     const q = searchParams.get('q')?.trim();
 
-    const where: any = {
-      OR: [
-        { organizationId: orgId },
+    const where: any = {};
+    if (orgId || userId) {
+      where.OR = [
+        ...(orgId ? [{ organizationId: orgId }] : []),
         { organizationId: 'demo-legal' },
+        ...(userId ? [{ createdBy: userId }] : []),
         { visibility: 'PUBLIC' },
-      ],
-    };
+        { visibility: 'ORG' },
+      ];
+    }
 
     if (q) {
       where.AND = [

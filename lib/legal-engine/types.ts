@@ -224,6 +224,7 @@ export interface UniversalLegalDocument {
   status: 'draft' | 'generated' | 'reviewed' | 'final';
   // Style and document formatting preservation
   originalFormat?: 'pdf' | 'docx' | 'doc' | 'txt' | 'rtf' | 'custom';
+  originalFileUrl?: string;
   defaultFontFamily?: string;
   defaultFontSize?: string;
   defaultLineHeight?: string;

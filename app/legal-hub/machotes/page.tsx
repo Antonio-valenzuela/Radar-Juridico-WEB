@@ -115,7 +115,7 @@ function detectCaseFicha(texts: string[]): CaseFicha {
 export default function MachotesPage() {
   const [activeNavTab, setActiveNavTab] = useState<LegalWorkspaceMode>('universal');
 
-  // Documento activo en el visor paginado (Inicializado en null para cargar exclusivamente documentos reales)
+  // Documento activo en el visor paginado
   const [universalDoc, setUniversalDoc] = useState<UniversalLegalDocument | null>(null);
   const [activeSection, setActiveSection] = useState<DocumentNode | null>(null);
   const [, setSelectedTextHighlight] = useState<string | null>(null);
@@ -159,10 +159,14 @@ export default function MachotesPage() {
           id: t.id,
           name: t.title,
           category: t.category || 'General',
-          matterId: t.practiceArea || 'amparo',
+          matterId: t.practiceArea || t.category?.toLowerCase() || 'amparo',
           version: t.version || 1,
           description: t.description || '',
           updatedAt: t.updatedAt,
+          pageCount: t.structureJson?.pageCount || (t.sourceFileName?.toLowerCase().endsWith('.pdf') ? 1 : undefined),
+          fileSize: t.structureJson?.storage?.fileSize,
+          fileType: t.sourceFileName ? t.sourceFileName.split('.').pop()?.toUpperCase() : (t.documentType?.toUpperCase() || 'PDF'),
+          sourceFileName: t.sourceFileName,
         }));
         setCustomTemplates(mapped);
       }
@@ -261,7 +265,7 @@ export default function MachotesPage() {
     }
   };
 
-  /* ── Carga y Procesamiento de Documento Real (PDF/DOCX) CON PRESERVACIÓN DE PÁGINAS REALES ── */
+  /* ── Carga y Procesamiento de Documento Real (PDF/DOCX) CON PRESERVACIÓN DEL DOCUMENTO ORIGINAL ── */
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
     if (!files || files.length === 0) return;
@@ -269,7 +273,7 @@ export default function MachotesPage() {
     const fileList = Array.from(files);
     if (fileInputHiddenRef.current) fileInputHiddenRef.current.value = '';
 
-    notify('warning', `Procesando documento oficial "${fileList[0].name}" con preservación paginada...`);
+    notify('warning', `Cargando documento original "${fileList[0].name}"...`);
 
     const sources: UploadedSourceDocument[] = [];
     const caseDocs: CaseDocument[] = [];
@@ -277,6 +281,8 @@ export default function MachotesPage() {
     for (let i = 0; i < fileList.length; i++) {
       const file = fileList[i];
       const ext = file.name.split('.').pop()?.toLowerCase() || 'pdf';
+      const blobUrl = URL.createObjectURL(file);
+
       const formData = new FormData();
       formData.append('file', file);
 
@@ -305,6 +311,7 @@ export default function MachotesPage() {
           filename: file.name,
           name: file.name,
           type: file.type || ext,
+          fileUrl: blobUrl,
           extractedText: sanitizeClean(data.extractedText || ''),
           pages,
           sourceValidated,
@@ -335,14 +342,11 @@ export default function MachotesPage() {
         if (i === 0) {
           const fileNameWithoutExt = file.name.replace(/\.[^/.]+$/, '');
 
-          // Cada página física del archivo original es una sección paginada exacta
+          // Cada página física del archivo original preserva su texto semántico para RAG
           const sections: DocumentNode[] = pages.map((p, pIdx) => {
             const rawParagraphs = (p.text || '').split(/\n\s*\n/).filter((t) => t.trim().length > 0);
             const blocks: ContentBlock[] = (rawParagraphs.length > 0 ? rawParagraphs : [p.text || 'Sin texto extraído']).map((parText, bIdx) => {
               const trimmed = sanitizeClean(parText);
-              const isAllUpper = trimmed.length > 4 && trimmed === trimmed.toUpperCase() && !/^\d+$/.test(trimmed);
-              const isCenterHeading = isAllUpper || /^(quejoso|autoridad|asunto|hechos|conceptos|petitorios|protesto)/i.test(trimmed);
-
               return {
                 id: `blk-${pIdx + 1}-${bIdx + 1}`,
                 layer: 'USER_POSITION',
@@ -352,10 +356,8 @@ export default function MachotesPage() {
                 style: {
                   fontFamily: 'inherit',
                   fontSize: '13px',
-                  fontWeight: isAllUpper ? 'bold' : 'normal',
-                  textAlign: isCenterHeading && trimmed.length < 120 ? 'center' : 'justify',
+                  textAlign: 'justify',
                   lineHeight: '1.6',
-                  textTransform: isAllUpper ? 'uppercase' : 'none',
                 },
               };
             });
@@ -372,12 +374,6 @@ export default function MachotesPage() {
               variables: [],
               validationErrors: [],
               validationWarnings: [],
-              style: {
-                fontFamily: 'inherit',
-                fontWeight: 'bold',
-                fontSize: '13px',
-                textAlign: 'left',
-              },
               content: blocks,
             };
           });
@@ -398,7 +394,8 @@ export default function MachotesPage() {
             },
             sections,
             sourceDocuments: [newSource],
-            originalFormat: ext as any,
+            originalFormat: ext === 'pdf' ? 'pdf' : (ext === 'docx' ? 'docx' : 'custom'),
+            originalFileUrl: blobUrl,
             defaultFontFamily: 'Times New Roman, Times, "Liberation Serif", serif',
             defaultFontSize: '12pt',
             defaultLineHeight: '1.6',
@@ -426,14 +423,17 @@ export default function MachotesPage() {
     }
 
     setUploadedSourceDocs((prev) => [...prev, ...sources]);
-    setCaseDocuments((prev) => [...prev, ...caseDocs]);
-    if (caseDocs.length > 0) setSelectedCaseDoc(caseDocs[caseDocs.length - 1]);
-
+    setCaseDocsList(caseDocs);
     if (sources.length > 0) {
       const ficha = detectCaseFicha(sources.map((s) => s.extractedText || ''));
       setCaseFicha(ficha);
-      notify('success', `Documento oficial "${fileList[0].name}" cargado en visor paginado (${caseDocs[0]?.pageCount || 1} páginas).`);
+      notify('success', `Documento original "${fileList[0].name}" cargado en visor (${caseDocs[0]?.pageCount || 1} páginas).`);
     }
+  };
+
+  const setCaseDocsList = (docs: CaseDocument[]) => {
+    setCaseDocuments((prev) => [...prev, ...docs]);
+    if (docs.length > 0) setSelectedCaseDoc(docs[docs.length - 1]);
   };
 
   const handleRemoveUploadedSource = (id: string) => {
@@ -443,7 +443,7 @@ export default function MachotesPage() {
 
   /* ── Usar como Machote / Guardar Plantilla Reutilizable ────────────────── */
   const handleSaveAsTemplate = async (doc: UniversalLegalDocument) => {
-    notify('warning', `Guardando "${doc.title}" como machote reutilizable en tu biblioteca...`);
+    notify('warning', `Guardando "${doc.title}" como machote reutilizable...`);
     try {
       const fullContent = doc.sections.map((s) => s.content.map((b) => b.text).join('\n\n')).join('\n\n---\n\n');
       const res = await fetch('/api/templates/custom', {
@@ -491,13 +491,13 @@ export default function MachotesPage() {
       setSelectedTemplate({ ...template, version: version?.version || template.version });
       setSelectedTemplateRefText(refText);
 
-      // Parsear párrafos y páginas del machote real
+      const fileUrl =
+        tpl.structureJson?.storage?.fileUrl ||
+        (tpl.sourceFileName ? `/api/templates/files/${tpl.structureJson?.storage?.savedFileName || tpl.sourceFileName}` : undefined);
+
       const rawParagraphs = refText.split(/\n\s*\n/).filter((t: string) => t.trim().length > 0);
       const blocks: ContentBlock[] = (rawParagraphs.length > 0 ? rawParagraphs : [refText || 'Sin texto']).map((parText: string, bIdx: number) => {
         const trimmed = sanitizeClean(parText);
-        const isAllUpper = trimmed.length > 4 && trimmed === trimmed.toUpperCase() && !/^\d+$/.test(trimmed);
-        const isCenterHeading = isAllUpper || /^(quejoso|autoridad|asunto|hechos|conceptos|petitorios|protesto)/i.test(trimmed);
-
         return {
           id: `blk-tpl-${bIdx + 1}`,
           layer: 'USER_POSITION' as const,
@@ -507,10 +507,8 @@ export default function MachotesPage() {
           style: {
             fontFamily: 'inherit',
             fontSize: '13px',
-            fontWeight: isAllUpper ? 'bold' : 'normal',
-            textAlign: isCenterHeading && trimmed.length < 120 ? 'center' : 'justify',
+            textAlign: 'justify',
             lineHeight: '1.6',
-            textTransform: isAllUpper ? 'uppercase' : 'none',
           },
         };
       });
@@ -523,6 +521,8 @@ export default function MachotesPage() {
         documentTypeLabel: tpl.category || 'Machote',
         matter: tpl.practiceArea || template.matterId || 'Amparo',
         jurisdiction: tpl.jurisdiction || 'Cd. de México',
+        originalFormat: fileUrl ? 'pdf' : 'custom',
+        originalFileUrl: fileUrl,
         sections: [
           {
             id: `sec-tpl-1`,
@@ -578,7 +578,7 @@ export default function MachotesPage() {
     }
   };
 
-  /* ── Generación de Escrito Completo (Con Motor de Reconstrucción de Caso y Teoría Jurídica) ── */
+  /* ── Generación de Escrito Completo (Con Motor Jurídico Real) ─────────── */
   const handleRunPipeline = async (payload: {
     userInstruction: string;
     intentLabel?: string;
@@ -615,6 +615,7 @@ export default function MachotesPage() {
       const data = await res.json();
       if (!data.ok) throw new Error(data.error);
 
+      // El documento generado pasa al editor como estructura editable
       setUniversalDoc(data.document);
       if (data.document.sections && data.document.sections.length > 0) {
         setActiveSection(data.document.sections[0]);
@@ -855,7 +856,7 @@ export default function MachotesPage() {
         </div>
       )}
 
-      {/* ── CUERPO PRINCIPAL DEL WORKSPACE (DOCUMENTO DOMINANTE CON PANEL DE PÁGINAS) ─── */}
+      {/* ── CUERPO PRINCIPAL DEL WORKSPACE ─── */}
       <div className="flex-1 flex overflow-hidden min-h-0 min-w-0">
         {activeNavTab === 'my-templates' ? (
           /* TAB: MIS PLANTILLAS */
@@ -928,7 +929,7 @@ export default function MachotesPage() {
         />
       )}
 
-      {/* MODAL 2: Subir y Analizar Machote */}
+      {/* MODAL 2: Subir y Guardar Machote Reutilizable */}
       {isSaveCustomOpen && (
         <SaveCustomTemplateModal
           isOpen={isSaveCustomOpen}

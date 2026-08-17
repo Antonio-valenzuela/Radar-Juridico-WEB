@@ -78,22 +78,35 @@ export function WorkspaceDocumentEditor({
     return runQualityGateCheck(document);
   }, [document]);
 
-  // Caracteres estimados por página Carta (1750 caracteres por hoja física)
+  // Caracteres estimados por página Carta
   const CHARS_PER_PAGE = 1750;
 
-  // Breakdown de páginas multipágina reales
+  // Breakdown de páginas
   const pageBreakdown = useMemo(() => {
-    if (!document || !document.sections || document.sections.length === 0) {
+    if (!document) {
       return [{ pageNumber: 1, sections: [] as Array<{ section: DocumentNode; text: string }> }];
     }
 
-    // Si el documento tiene secciones por página física (subidas de PDF/DOCX)
+    // Si el documento tiene secciones por página física (PDF de 27 páginas cargado)
     const hasExplicitPages = document.sections.some((s) => s.id.startsWith('sec-page-'));
     if (hasExplicitPages) {
       return document.sections.map((sec, idx) => ({
         pageNumber: idx + 1,
         sections: [{ section: sec, text: sec.content.map((b) => b.text).join('\n\n') }],
       }));
+    }
+
+    // Si tiene conteo explícito de páginas originales
+    if (document.originalPageCount && document.originalPageCount > 1) {
+      const pagesArr: Array<{ pageNumber: number; sections: Array<{ section: DocumentNode; text: string }> }> = [];
+      for (let i = 1; i <= document.originalPageCount; i++) {
+        const matchingSec = document.sections.find((s) => s.id === `sec-page-${i}`) || document.sections[i - 1];
+        pagesArr.push({
+          pageNumber: i,
+          sections: matchingSec ? [{ section: matchingSec, text: matchingSec.content.map((b) => b.text).join('\n\n') }] : [],
+        });
+      }
+      return pagesArr;
     }
 
     // De lo contrario paginar por apartados / caracteres
@@ -124,7 +137,7 @@ export function WorkspaceDocumentEditor({
     return pages.length > 0 ? pages : [{ pageNumber: 1, sections: [] }];
   }, [document]);
 
-  const totalPages = pageBreakdown.length;
+  const totalPages = document?.originalPageCount || pageBreakdown.length || 1;
 
   // Asegurar que currentPage esté dentro del rango válido
   useEffect(() => {
@@ -252,7 +265,7 @@ export function WorkspaceDocumentEditor({
     void onRegenerateSection(section.id, instructions[action]);
   };
 
-  // Variable and search highlight renderer (Preserves block's original font and style)
+  // Variable and search highlight renderer
   const renderFormattedText = (text: string, blockStyle?: BlockStyle) => {
     if (searchQuery.trim()) {
       const q = searchQuery.trim();
@@ -295,10 +308,10 @@ export function WorkspaceDocumentEditor({
     });
   };
 
-  // Typography family for the document canvas (Preserves document's native font)
+  // Tipografía para lienzo de documento
   const documentFontFamily = document?.defaultFontFamily || 'Times New Roman, Times, "Liberation Serif", serif';
 
-  // PÁGINA ÚNICA ACTIVA
+  // Página única activa
   const activePageData = pageBreakdown.find((p) => p.pageNumber === currentPage) || pageBreakdown[0];
 
   /* ──────────────────────────────────────────────────────────────────────────
@@ -336,7 +349,7 @@ export function WorkspaceDocumentEditor({
 
   return (
     <main className="flex-1 min-w-0 bg-[#ede8dd] flex flex-col h-full select-none relative font-sans overflow-hidden">
-      {/* ── BARRA SUPERIOR DEFINITIVA (Páginas | [←] Pág. 1/X [→] | Zoom | Buscar | Acciones) ── */}
+      {/* ── BARRA SUPERIOR PROFESIONAL (Páginas | [←] Pág. 1/X [→] | Zoom | Buscar | Acciones) ── */}
       <div className="shrink-0 bg-[#fbf9f5] border-b border-[#ded8c9] px-4 py-2 flex flex-wrap items-center justify-between gap-2 shadow-xs z-20 font-sans">
         {/* Grupo Izquierdo: Botón Páginas + Nombre del Documento Editable */}
         <div className="flex items-center gap-2 min-w-0 flex-1">
@@ -574,11 +587,11 @@ export function WorkspaceDocumentEditor({
         </div>
       </div>
 
-      {/* ── CUERPO PRINCIPAL DEL VISOR (Panel Retráctil + HOJA ÚNICA ACTIVA) ── */}
+      {/* ── CUERPO PRINCIPAL DEL VISOR (Panel Retráctil + Lienzo Paginado Carta) ── */}
       <div className="flex-1 flex overflow-hidden min-h-0 min-w-0">
         {/* Panel Lateral Retráctil de Miniaturas */}
         {document && showPagesPanel && (
-          <aside className="w-[220px] shrink-0 bg-[#f7f4ec] border-r border-[#ded8c9] flex flex-col p-3 overflow-hidden select-none animate-in slide-in-from-left-2 duration-150 font-sans">
+          <aside className="w-[200px] shrink-0 bg-[#f7f4ec] border-r border-[#ded8c9] flex flex-col p-3 overflow-hidden select-none animate-in slide-in-from-left-2 duration-150 font-sans">
             <div className="flex items-center justify-between text-[11px] font-extrabold text-[#0B2545] pb-2 border-b border-[#e8e2d5] mb-2 px-1">
               <span className="tracking-wider uppercase">PÁGINAS ({totalPages})</span>
               <button
@@ -591,29 +604,30 @@ export function WorkspaceDocumentEditor({
             </div>
 
             <div className="flex-1 overflow-y-auto space-y-2 pr-1">
-              {pageBreakdown.map((p) => {
-                const isSelected = currentPage === p.pageNumber;
-                const snippet = p.sections.map((s) => s.text).join(' ').slice(0, 100);
+              {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNum) => {
+                const isSelected = currentPage === pageNum;
 
                 return (
                   <button
-                    key={`thumb-${p.pageNumber}`}
-                    onClick={() => setCurrentPage(p.pageNumber)}
-                    className={`w-full text-left p-2 rounded-xl border transition flex flex-col space-y-1 ${
+                    key={`thumb-${pageNum}`}
+                    onClick={() => setCurrentPage(pageNum)}
+                    className={`w-full text-left p-2.5 rounded-xl border transition flex flex-col items-center justify-center space-y-1 ${
                       isSelected
                         ? 'bg-white border-[#0B2545] ring-2 ring-[#0B2545]/30 shadow-sm'
                         : 'bg-white/80 border-[#ded8c9] hover:border-slate-400'
                     }`}
                   >
-                    <div className="flex items-center justify-between text-[11px] font-bold text-[#0B2545]">
-                      <span>Pág. {p.pageNumber}</span>
-                    </div>
-
-                    <div
-                      style={{ fontFamily: documentFontFamily }}
-                      className="w-full h-20 bg-white border border-slate-200 rounded p-1.5 text-[7px] text-slate-500 overflow-hidden leading-tight line-clamp-5 select-none pointer-events-none shadow-xs"
-                    >
-                      {snippet || 'Página en blanco'}
+                    <div className="w-full h-16 bg-white border border-slate-200 rounded p-1.5 flex flex-col justify-between shadow-xs select-none">
+                      <div className="flex items-center justify-between text-[9px] font-bold text-[#0B2545]">
+                        <span>Pág. {pageNum}</span>
+                        <span className="text-[7px] text-slate-400 uppercase">Carta</span>
+                      </div>
+                      <div className="space-y-0.5 opacity-40">
+                        <div className="h-1 bg-slate-400 rounded w-full" />
+                        <div className="h-1 bg-slate-300 rounded w-5/6" />
+                        <div className="h-1 bg-slate-300 rounded w-4/6" />
+                      </div>
+                      <span className="text-[7px] text-slate-300 text-right font-mono">816×1056</span>
                     </div>
                   </button>
                 );
@@ -622,7 +636,7 @@ export function WorkspaceDocumentEditor({
           </aside>
         )}
 
-        {/* Lienzo Central: MUESTRA UNA SOLA HOJA VISIBLE A LA VEZ (SIN SCROLL INFINITO) */}
+        {/* Lienzo Central: MUESTRA UNA SOLA HOJA VISIBLE A LA VEZ */}
         <div
           ref={pagesContainerRef}
           className="legal-document-canvas flex-1 overflow-auto p-6 md:p-8 flex items-center justify-center"
@@ -666,7 +680,7 @@ export function WorkspaceDocumentEditor({
               </div>
             </div>
           ) : (
-            /* RENDER DE LA PÁGINA ÚNICA ACTIVA (currentPage) */
+            /* ── RENDER DE HOJA PAGINADA ÚNICA (UNA SOLA HOJA A LA VEZ: Pág. 1 / 27) ── */
             <div
               style={{ transform: `scale(${zoomLevel / 100})`, transformOrigin: 'center center' }}
               className="transition-transform duration-150 my-auto"
