@@ -8,12 +8,25 @@ export interface SourceReference {
   textSnippet?: string;
 }
 
+export interface BlockStyle {
+  fontFamily?: string;
+  fontSize?: string;
+  fontWeight?: string;
+  fontStyle?: string;
+  textAlign?: 'left' | 'center' | 'right' | 'justify';
+  lineHeight?: string;
+  textDecoration?: string;
+  textTransform?: 'none' | 'uppercase' | 'lowercase' | 'capitalize';
+  indent?: string;
+}
+
 export interface ContentBlock {
   id: string;
   layer: ContentLayer;
   trust?: TrustLevel;
   trustLevel?: TrustLevel;
   text: string;
+  style?: BlockStyle;
   sources?: SourceReference[];
   sourceRef?: any;
   isManuallyEdited?: boolean;
@@ -27,6 +40,7 @@ export interface DocumentVariable {
   value: string | null;
   description: string;
   isRequired: boolean;
+  style?: BlockStyle;
 }
 
 export type SectionType = 'header' | 'identity' | 'background' | 'facts' | 'legal_grounds' | 'argument' | 'evidence' | 'petition' | 'closing' | 'signature' | 'annex' | 'custom';
@@ -46,6 +60,7 @@ export interface DocumentNode {
   generationInstruction?: string;
   validationErrors: string[];
   validationWarnings: string[];
+  style?: BlockStyle;
 }
 
 export interface DocumentParties {
@@ -87,6 +102,7 @@ export interface DocumentPage {
   text: string;
   chars: number;
   heading?: string;
+  dataUrl?: string;
 }
 
 export interface DocumentQualityScore {
@@ -206,6 +222,12 @@ export interface UniversalLegalDocument {
   createdAt: string;
   updatedAt: string;
   status: 'draft' | 'generated' | 'reviewed' | 'final';
+  // Style and document formatting preservation
+  originalFormat?: 'pdf' | 'docx' | 'doc' | 'txt' | 'rtf' | 'custom';
+  defaultFontFamily?: string;
+  defaultFontSize?: string;
+  defaultLineHeight?: string;
+  originalPageCount?: number;
 }
 
 export function createEmptyDocument(initial: Partial<UniversalLegalDocument> = {}): UniversalLegalDocument {
@@ -228,30 +250,65 @@ export function createEmptyDocument(initial: Partial<UniversalLegalDocument> = {
       documentTypeLabel: initial.documentTypeLabel || 'Escrito Libre',
       matter: initial.matter || 'general',
       jurisdiction: initial.jurisdiction || 'federal',
-      proceduralStage: 'general',
-      objective: 'Petición judicial',
+      proceduralStage: 'inicial',
+      objective: 'Redacción jurídica formal',
       requiredInputs: [],
-      confidence: 1,
-      isDynamic: true
+      confidence: 100,
+      isDynamic: false,
     },
     validation: initial.validation || {
       isValid: true,
-      canExport: true,
       errors: [],
-      warnings: []
+      warnings: [],
     },
     generationMetadata: initial.generationMetadata || {
       pipelineState: {
         currentStage: null,
-        stages: {} as Record<PipelineStage, PipelineStageResult>,
+        stages: {
+          classify: { stage: 'classify', status: 'pending' },
+          extract: { stage: 'extract', status: 'pending' },
+          analyze: { stage: 'analyze', status: 'pending' },
+          structure: { stage: 'structure', status: 'pending' },
+          identify_issues: { stage: 'identify_issues', status: 'pending' },
+          generate_sections: { stage: 'generate_sections', status: 'pending' },
+          review_coherence: { stage: 'review_coherence', status: 'pending' },
+          validate: { stage: 'validate', status: 'pending' },
+        },
         isComplete: false,
-        hasErrors: false
-      }
+        hasErrors: false,
+      },
+      tokensUsed: 0,
+      generationTimeMs: 0,
+      trace: [],
     },
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
+    createdAt: initial.createdAt || new Date().toISOString(),
+    updatedAt: initial.updatedAt || new Date().toISOString(),
     status: initial.status || 'draft',
-    ...initial
+    originalFormat: initial.originalFormat || 'custom',
+    defaultFontFamily: initial.defaultFontFamily || 'Times New Roman, Times, serif',
+    defaultFontSize: initial.defaultFontSize || '12pt',
+    defaultLineHeight: initial.defaultLineHeight || '1.6',
+    originalPageCount: initial.originalPageCount,
+  };
+}
+
+export function createDocumentNode(initial: Partial<DocumentNode> & { id: string; title: string }): DocumentNode {
+  return {
+    id: initial.id,
+    type: initial.type || 'argument',
+    title: initial.title,
+    order: initial.order ?? 1,
+    content: initial.content || [],
+    children: initial.children,
+    isRepeatable: initial.isRepeatable ?? false,
+    isEditable: initial.isEditable ?? true,
+    isGenerated: initial.isGenerated ?? false,
+    isManuallyEdited: initial.isManuallyEdited ?? false,
+    variables: initial.variables || [],
+    generationInstruction: initial.generationInstruction,
+    validationErrors: initial.validationErrors || [],
+    validationWarnings: initial.validationWarnings || [],
+    style: initial.style,
   };
 }
 
@@ -260,43 +317,14 @@ export interface CaseDocument {
   name: string;
   type: string;
   pageCount: number;
-  pages?: Array<{ page: number; text: string; chars: number; ocrStatus?: string }>;
-  sourceUrl?: string;
-  role: 'demanda_inicial' | 'sentencia' | 'laudo' | 'anexo' | 'amparo_antecedente' | 'foto' | 'fuente_general';
-  status: 'READY' | 'NEEDS_MANUAL_REVIEW' | 'FAILED' | 'PROCESSING';
+  pages: Array<{ page: number; text: string; chars: number; ocrStatus: string }>;
+  role: string;
+  status: 'READY' | 'NEEDS_MANUAL_REVIEW';
   uploadedAt: string;
 }
 
 export interface TemplateVersion {
-  id: string;
-  templateId: string;
   version: number;
-  title: string;
-  structureJson: any;
-  variables: any[];
-  createdBy?: string;
   createdAt: string;
-}
-
-export function createDocumentNode(
-  type: SectionType,
-  title: string,
-  order: number,
-  options: Partial<DocumentNode> = {}
-): DocumentNode {
-  return {
-    id: crypto.randomUUID(),
-    type,
-    title,
-    order,
-    content: [],
-    isRepeatable: false,
-    isEditable: true,
-    isGenerated: false,
-    isManuallyEdited: false,
-    variables: [],
-    validationErrors: [],
-    validationWarnings: [],
-    ...options
-  };
+  title: string;
 }

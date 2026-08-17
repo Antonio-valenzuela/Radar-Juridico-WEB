@@ -1,23 +1,19 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Inter } from "next/font/google";
 import "./globals.css";
 import FloatingLegalChat from "@/components/ai/FloatingLegalChat";
 import AppShell from "@/components/layout/AppShell";
 import { LegalWorkspaceProvider } from "@/context/LegalWorkspaceContext";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const inter = Inter({
   subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
+  variable: "--font-inter",
+  display: "swap",
 });
 
 export const metadata: Metadata = {
-  title: "Radar juridico",
-  description: "Novedades legales oficiales para revisar sin pasos tecnicos.",
+  title: "Radar Jurídico",
+  description: "Novedades legales oficiales para revisar sin pasos técnicos.",
 };
 
 export default function RootLayout({
@@ -26,10 +22,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="es-MX">
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
+    <html lang="es-MX" className={inter.variable}>
+      <body className={`${inter.className} antialiased font-sans`}>
         <LegalWorkspaceProvider>
           <AppShell>
             {children}

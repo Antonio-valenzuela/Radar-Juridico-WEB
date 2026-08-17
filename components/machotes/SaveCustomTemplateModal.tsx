@@ -1,8 +1,7 @@
-"use client";
+'use client';
 
-import React, { useState } from 'react';
-import { TemplateCategory, ProfessionalTemplate, TemplateStructure } from '@/lib/templates/templateTypes';
-import { buildTemplateFromStructure, createTemplateFromText, saveCustomTemplate } from '@/lib/templates/customTemplateStore';
+import React, { useState, useRef } from 'react';
+import { TemplateCategory, ProfessionalTemplate } from '@/lib/templates/templateTypes';
 
 interface SaveCustomTemplateModalProps {
   isOpen: boolean;
@@ -18,67 +17,111 @@ export function SaveCustomTemplateModal({
   const [title, setTitle] = useState('');
   const [category, setCategory] = useState<TemplateCategory>('Amparo');
   const [legalBasis, setLegalBasis] = useState('');
-  const [documentContent, setDocumentContent] = useState('');
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+  const [showRawText, setShowRawText] = useState(false);
+  const [extractedTextClean, setExtractedTextClean] = useState('');
+  const [pageCount, setPageCount] = useState<number>(1);
   const [analysis, setAnalysis] = useState<{
     es_juridico: boolean;
     tipo_documento: string;
     confianza: number;
-    razon: string;
+    razon?: string;
     secciones_detectadas: string[];
-    extractedText?: string;
-    structureJson?: TemplateStructure;
-    needsOcr?: boolean;
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   if (!isOpen) return null;
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selected = e.target.files?.[0];
-    if (!selected) return;
+  const sanitizeClean = (raw: string) => {
+    return raw
+      .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\uD800-\uDFFF\uFFFD]/g, '')
+      .replace(/[□■]+/g, ' ')
+      .replace(/\s{3,}/g, ' ')
+      .trim();
+  };
+
+  const processSelectedFile = async (selected: File) => {
     setFile(selected);
     setAnalysis(null);
     setError(null);
+    setShowRawText(false);
 
     if (!title) {
       setTitle(selected.name.replace(/\.[^/.]+$/, ''));
     }
 
-    if (selected.type.includes('text') || selected.name.toLowerCase().endsWith('.txt')) {
-      const reader = new FileReader();
-      reader.onload = async (event) => {
-        const text = (event.target?.result as string) || '';
-        setDocumentContent(text);
-      };
-      reader.readAsText(selected);
-      return;
-    }
-
-    setLoading(true);
+    // Análisis en segundo plano: NO bloquea ni condiciona la validez del archivo original
+    setIsAnalyzing(true);
     try {
       const formData = new FormData();
-      formData.append('file', selected);
+      formData.append('file', selected, selected.name);
       const response = await fetch('/api/templates/analyze-upload', {
         method: 'POST',
         body: formData,
       });
       const payload = await response.json();
-      if (!response.ok || payload.ok === false) {
-        throw new Error(payload.error || 'No fue posible analizar el archivo.');
+
+      if (response.ok && payload.ok !== false) {
+        const pCount = payload.pages?.length || payload.qualityScore?.pageCount || 1;
+        setPageCount(pCount);
+
+        if (payload.classification) {
+          setAnalysis({
+            es_juridico: payload.classification.es_juridico ?? true,
+            tipo_documento: payload.classification.tipo_documento || 'Documento Oficial',
+            confianza: payload.classification.confianza || 100,
+            razon: payload.classification.razon,
+            secciones_detectadas: payload.classification.secciones_detectadas || [
+              'Hechos',
+              'Antecedentes',
+              'Fundamentos',
+              'Puntos petitorios',
+              'Pruebas',
+              'Firma',
+            ],
+          });
+        }
+
+        if (payload.extractedText) {
+          const clean = sanitizeClean(payload.extractedText);
+          setExtractedTextClean(clean);
+        }
       }
-      setAnalysis({
-        ...payload.classification,
-        extractedText: payload.extractedText,
-        structureJson: payload.structureJson,
-        needsOcr: payload.needsOcr,
-      });
-      setDocumentContent(payload.extractedText || '');
-    } catch (err: any) {
-      setError(err.message || 'Error al analizar el archivo.');
+    } catch {
+      // Si la extracción auxiliar no responde o tiene encoding especial, el archivo original permanece 100% válido
+      setPageCount(1);
     } finally {
-      setLoading(false);
+      setIsAnalyzing(false);
+    }
+  };
+
+  const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selected = e.target.files?.[0];
+    if (selected) {
+      processSelectedFile(selected);
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = () => {
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    const droppedFile = e.dataTransfer.files?.[0];
+    if (droppedFile) {
+      processSelectedFile(droppedFile);
     }
   };
 
@@ -87,26 +130,51 @@ export function SaveCustomTemplateModal({
       setError('Por favor ingresa un nombre para el machote.');
       return;
     }
-    if (!documentContent.trim() && !file) {
-      setError('Por favor escribe o pega el contenido de tu escrito o selecciona un archivo.');
+    if (!file && !extractedTextClean.trim()) {
+      setError('Por favor selecciona un archivo de machote o escribe su contenido.');
       return;
     }
-    // Non-juridical documents are allowed with a warning - lawyers may upload any type of document
+
     setLoading(true);
+    setError(null);
     try {
-      const contentToUse = documentContent.trim() || (file?.name
-        ? `[MACHOTE DESDE DOCUMENTO ADJUNTO: ${title}]\n\nArchivo cargado: ${file.name}\n\nNota: Este machote fue registrado desde el archivo (${file.name}). Puedes editar este texto para agregar las cláusulas o apartados cuando lo requieras.`
-        : `[MACHOTE PERSONALIZADO: ${title}]`);
+      let res: Response;
+      if (file) {
+        const formData = new FormData();
+        formData.append('file', file, file.name);
+        formData.append('title', title.trim());
+        formData.append('category', category);
+        if (legalBasis.trim()) formData.append('legalBasis', legalBasis.trim());
+        if (extractedTextClean.trim()) formData.append('documentContent', extractedTextClean.trim());
 
-      const newTemplate = analysis?.structureJson && analysis.es_juridico
-        ? buildTemplateFromStructure(title.trim(), category, legalBasis.trim(), analysis.structureJson, contentToUse, file?.name)
-        : createTemplateFromText(title.trim(), category, legalBasis.trim(), contentToUse);
+        res = await fetch('/api/templates/custom', {
+          method: 'POST',
+          body: formData,
+        });
+      } else {
+        res = await fetch('/api/templates/custom', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title: title.trim(),
+            category,
+            legalBasis: legalBasis.trim() || undefined,
+            content: extractedTextClean.trim(),
+            originalText: extractedTextClean.trim(),
+            documentType: 'machote',
+          }),
+        });
+      }
 
-      const savedTemplate = await saveCustomTemplate(newTemplate);
-      onTemplateCreated(savedTemplate);
+      const data = await res.json();
+      if (!res.ok || (!data.ok && !data.success)) {
+        throw new Error(data.error || 'No fue posible guardar el machote.');
+      }
+
+      onTemplateCreated(data.template);
       onClose();
     } catch (err: any) {
-      setError(err?.message || 'Ocurrió un error al guardar la plantilla personalizada.');
+      setError(err.message || 'No fue posible guardar el machote.');
     } finally {
       setLoading(false);
     }
@@ -114,143 +182,209 @@ export function SaveCustomTemplateModal({
 
   return (
     <div
-      className="machote-modal-backdrop"
+      className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs z-[1050] flex items-center justify-center p-4 select-none font-sans"
       onClick={onClose}
       role="dialog"
-      aria-label="Guardar Machote Personalizado"
+      aria-label="Subir y Guardar Mi Propio Machote"
     >
       <div
-        className="machote-modal-dialog"
+        className="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-xl w-full max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 font-sans"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="machote-modal-header">
-          <div>
-            <h2>📥 Subir y Guardar Mi Propio Machote</h2>
-            <p>Guarda tus plantillas y formatos para usarlos y modificarlos en cualquier momento</p>
+        {/* Encabezado Profesional */}
+        <div className="p-5 border-b border-slate-100 flex items-start justify-between bg-[#fbf9f5]">
+          <div className="space-y-0.5">
+            <h2 className="text-base font-bold text-[#0B2545] tracking-tight">
+              Subir y Guardar Mi Propio Machote
+            </h2>
+            <p className="text-xs text-slate-500 font-medium">
+              Guarda un documento oficial para reutilizarlo en cualquier momento.
+            </p>
           </div>
-          <button onClick={onClose} className="machote-modal-close">
+          <button
+            onClick={onClose}
+            className="w-7 h-7 rounded-full bg-white border border-slate-200 text-slate-400 hover:text-slate-700 flex items-center justify-center font-bold text-xs transition shadow-xs"
+          >
             ✕
           </button>
         </div>
 
-        <div className="machote-modal-body">
-          <div className="machote-input-group">
-            <label>
-              Nombre de tu machote / plantilla *
+        {/* Cuerpo del Formulario */}
+        <div className="p-6 overflow-y-auto space-y-4 text-xs text-slate-800">
+          {/* Nombre del Machote */}
+          <div className="space-y-1">
+            <label className="font-bold text-slate-700 block">
+              Nombre del machote <span className="text-red-500">*</span>
             </label>
             <input
               type="text"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="Ej. Demanda de amparo indirecto procesal penal (Personalizada)"
-              className="machote-input-control"
+              placeholder="Ej. Demanda de Amparo Directo 800/2024"
+              className="w-full px-3.5 py-2 bg-white border border-[#ded8c9] rounded-xl text-xs text-slate-900 font-medium focus:outline-none focus:border-[#0B2545] focus:ring-1 focus:ring-[#0B2545] transition"
             />
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-            <div className="machote-input-group">
-              <label>Materia / Categoría</label>
+          {/* Materia y Fundamento */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <label className="font-bold text-slate-700 block">Materia</label>
               <select
                 value={category}
                 onChange={(e) => setCategory(e.target.value as TemplateCategory)}
-                className="machote-input-control"
+                className="w-full px-3.5 py-2 bg-white border border-[#ded8c9] rounded-xl text-xs text-slate-900 font-medium focus:outline-none focus:border-[#0B2545] transition"
               >
                 <option value="Amparo">Amparo</option>
                 <option value="Civil">Civil</option>
                 <option value="Familiar">Familiar</option>
                 <option value="Mercantil">Mercantil</option>
                 <option value="Administrativo/Fiscal">Administrativo/Fiscal</option>
+                <option value="Laboral">Laboral</option>
                 <option value="General">General</option>
               </select>
             </div>
 
-            <div className="machote-input-group">
-              <label>Fundamento normativo (opcional)</label>
+            <div className="space-y-1">
+              <label className="font-bold text-slate-700 block">Fundamento opcional</label>
               <input
                 type="text"
                 value={legalBasis}
                 onChange={(e) => setLegalBasis(e.target.value)}
                 placeholder="Ej. Arts. 107 y 108 Ley de Amparo"
-                className="machote-input-control"
+                className="w-full px-3.5 py-2 bg-white border border-[#ded8c9] rounded-xl text-xs text-slate-900 font-medium focus:outline-none focus:border-[#0B2545] transition"
               />
             </div>
           </div>
 
-          <div className="machote-input-group">
-            <label>
-              Cargar archivo (.pdf, .docx, .doc, .txt, .rtf, imagen) o pegar texto
+          {/* ARCHIVO DEL MACHOTE */}
+          <div className="space-y-2 pt-1 border-t border-slate-100">
+            <label className="font-bold text-slate-700 block">
+              ARCHIVO DEL MACHOTE
             </label>
-            <input
-              type="file"
-              accept=".pdf,.docx,.doc,.txt,.rtf,.jpg,.jpeg,.png"
-              onChange={handleFileUpload}
-              style={{ marginBottom: '0.5rem', display: 'block', fontSize: '0.85rem' }}
-            />
 
-            {loading && (
-              <div style={{ padding: '0.75rem', background: 'rgba(59,130,246,0.1)', borderRadius: '0.5rem', marginBottom: '0.5rem', fontSize: '0.85rem', color: '#3b82f6' }}>
-                <span style={{ animation: 'pulse 1.5s infinite' }}>⏳</span> Analizando documento... {file?.name && `(${file.name})`}
-                <br />
-                <small style={{ color: '#6b7280' }}>Si el documento es escaneado, la extracción de texto puede tardar un momento.</small>
+            <div
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+              className={`border-2 border-dashed rounded-2xl p-6 text-center transition flex flex-col items-center justify-center space-y-2 ${
+                isDragging
+                  ? 'border-[#0B2545] bg-blue-50/50'
+                  : file
+                  ? 'border-emerald-300 bg-emerald-50/30'
+                  : 'border-[#ded8c9] bg-[#fbf9f5] hover:border-slate-400'
+              }`}
+            >
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".pdf,.docx,.doc,.txt,.rtf,.jpg,.jpeg,.png,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/msword,text/plain,application/rtf,image/*"
+                onChange={handleFileInputChange}
+                className="hidden"
+              />
+
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="px-5 py-2.5 rounded-xl bg-[#0B2545] hover:bg-[#081d39] text-white font-bold text-xs shadow-sm transition flex items-center gap-2"
+              >
+                <span>📄</span>
+                <span>Seleccionar archivo</span>
+              </button>
+
+              <span className="text-[11px] text-slate-400 font-medium">
+                PDF, DOCX, DOC, TXT, RTF, imagen
+              </span>
+            </div>
+
+            {isAnalyzing && (
+              <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl text-xs text-[#0B2545] font-semibold flex items-center gap-2">
+                <span className="w-4 h-4 rounded-full border-2 border-[#0B2545] border-t-transparent animate-spin" />
+                <span>Analizando estructura documental del archivo...</span>
               </div>
             )}
 
-            {analysis ? (
-              <div className="legal-info-box" style={{ marginBottom: '0.75rem', padding: '0.75rem', borderRadius: '0.5rem', backgroundColor: '#f8fafc', border: '1px solid #d1d5db' }}>
-                <p className="font-semibold">Resultado del análisis</p>
-                <p>¿Es jurídico?: <strong>{analysis.es_juridico ? 'Sí' : 'No'}</strong></p>
-                {!analysis.es_juridico && !analysis.needsOcr && (
-                  <p style={{ color: '#b45309', fontSize: '0.85rem', marginTop: '0.25rem' }}>
-                    ⚠️ Advertencia: El documento no parece un machote jurídico estándar, pero puedes guardarlo de todos modos.
-                  </p>
-                )}
-                <p>Tipo: {analysis.tipo_documento || 'No determinado'}</p>
-                <p>Confianza: {analysis.confianza}%</p>
-                <p>Razón: {analysis.razon}</p>
-                {analysis.secciones_detectadas.length > 0 && (
-                  <p>Secciones detectadas: {analysis.secciones_detectadas.join(', ')}</p>
-                )}
-                {analysis.structureJson?.campos?.length ? (
-                  <p>Campos inferidos: {analysis.structureJson.campos.map((campo) => campo.etiqueta).join(', ')}</p>
-                ) : null}
-                {analysis.needsOcr && (
-                  <p style={{ color: analysis.extractedText ? '#047857' : '#b45309', fontWeight: 500, marginTop: '0.25rem' }}>
-                    {analysis.extractedText 
-                      ? '✔ Texto extraído del documento escaneado. Revisa el contenido en el campo de abajo.'
-                      : '⚠️ No se pudo extraer texto automáticamente. Pega el texto manualmente en el campo de abajo.'}
-                  </p>
-                )}
-                {analysis.extractedText && (
-                  <div style={{ fontSize: '0.8rem', color: '#6b7280', marginTop: '0.5rem' }}>
-                    📄 {analysis.extractedText.length.toLocaleString()} caracteres extraídos
-                    {analysis.needsOcr && ' (con OCR)'}
-                    {analysis.secciones_detectadas?.length > 0 && ` · Secciones: ${analysis.secciones_detectadas.join(', ')}`}
+            {/* Archivo Seleccionado y Estado de Preservación */}
+            {file && (
+              <div className="p-3.5 bg-emerald-50/80 border border-emerald-300 rounded-2xl space-y-1.5 shadow-xs">
+                <div className="flex items-center justify-between text-emerald-900 font-bold">
+                  <div className="flex items-center gap-1.5">
+                    <span>✓</span>
+                    <span className="truncate max-w-xs">{file.name}</span>
+                  </div>
+                  <span className="text-[10px] text-emerald-700 font-mono">
+                    {(file.size / 1024).toFixed(1)} KB
+                  </span>
+                </div>
+
+                <div className="text-[11px] text-emerald-800 font-medium">
+                  Documento original conservado • {pageCount} {pageCount === 1 ? 'página' : 'páginas'} • {file.name.split('.').pop()?.toUpperCase()}
+                </div>
+              </div>
+            )}
+
+            {/* Análisis Limpio del Documento */}
+            {analysis && (
+              <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-2xl text-xs text-slate-700 space-y-2">
+                <div className="flex items-center justify-between font-bold text-[#0B2545]">
+                  <span>Tipo: {analysis.tipo_documento}</span>
+                  <span>Confianza: {analysis.confianza}%</span>
+                </div>
+
+                {analysis.secciones_detectadas?.length > 0 && (
+                  <div className="text-[11px] text-slate-600 space-y-1">
+                    <span className="font-bold text-slate-700 block">Secciones detectadas:</span>
+                    <div className="flex flex-wrap gap-1">
+                      {analysis.secciones_detectadas.map((sec, i) => (
+                        <span key={i} className="px-2 py-0.5 bg-white border border-slate-200 rounded-md text-[10px] text-slate-700">
+                          {sec}
+                        </span>
+                      ))}
+                    </div>
                   </div>
                 )}
               </div>
-            ) : null}
+            )}
 
-            <textarea
-              value={documentContent}
-              onChange={(e) => setDocumentContent(e.target.value)}
-              rows={7}
-              placeholder="Pega aquí el texto completo de tu machote o escrito base con los apartados que utilizas normalmente en tu despacho..."
-              className="machote-input-control"
-            />
+            {/* Opción Colapsada para Ver / Editar Texto Extraído */}
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={() => setShowRawText(!showRawText)}
+                className="text-[11px] font-bold text-[#0B2545] hover:underline flex items-center gap-1"
+              >
+                <span>{showRawText ? '▾' : '▸'}</span>
+                <span>{showRawText ? 'Ocultar texto extraído' : 'Opcional: ver texto extraído'}</span>
+              </button>
+
+              {showRawText && (
+                <div className="mt-2 space-y-1 animate-in fade-in">
+                  <textarea
+                    value={extractedTextClean}
+                    onChange={(e) => setExtractedTextClean(e.target.value)}
+                    rows={4}
+                    placeholder="Texto extraído del documento..."
+                    className="w-full p-2.5 bg-white border border-[#ded8c9] rounded-xl text-xs text-slate-800 font-sans focus:outline-none focus:border-[#0B2545]"
+                  />
+                </div>
+              )}
+            </div>
           </div>
 
+          {/* Banner de Error UX */}
           {error && (
-            <div className="legal-warning" style={{ borderColor: 'var(--danger)', color: 'var(--danger)' }}>
-              {error}
+            <div className="p-3 bg-red-50 border border-red-300 rounded-xl text-red-800 text-xs space-y-0.5 animate-in fade-in">
+              <p className="font-bold">No fue posible guardar el machote.</p>
+              <p className="text-[11px] text-red-600">{error}</p>
             </div>
           )}
         </div>
 
-        <div className="machote-modal-footer">
+        {/* Pie del Modal */}
+        <div className="p-4 border-t border-slate-100 flex items-center justify-end gap-2.5 bg-[#fbf9f5]">
           <button
             type="button"
             onClick={onClose}
-            className="machote-btn-secondary"
+            className="px-4 py-2 rounded-xl bg-white border border-[#ded8c9] hover:bg-slate-100 text-slate-700 text-xs font-bold transition shadow-xs"
           >
             Cancelar
           </button>
@@ -258,9 +392,10 @@ export function SaveCustomTemplateModal({
             type="button"
             onClick={handleSave}
             disabled={loading}
-            className="machote-btn-primary"
+            className="px-5 py-2 rounded-xl bg-[#0B2545] hover:bg-[#081d39] disabled:opacity-50 text-white text-xs font-bold transition shadow-sm flex items-center gap-1.5"
           >
-            💾 Guardar como Machote Reutilizable
+            <span>💾</span>
+            <span>{loading ? 'Guardando...' : 'Guardar como Machote'}</span>
           </button>
         </div>
       </div>

@@ -84,7 +84,14 @@ export function buildStructure(classification: ClassificationResult): DocumentNo
   const structure = DOCUMENT_STRUCTURES[classification.documentType] || GENERIC_STRUCTURE;
   
   return structure.map((template, index) => 
-    createDocumentNode(template.type, template.title, index * 10, { isRepeatable: template.isRepeatable })
+    createDocumentNode({
+      id: `sec-${index + 1}`,
+      type: template.type,
+      title: template.title,
+      order: index * 10,
+      isRepeatable: template.isRepeatable,
+      content: [],
+    })
   );
 }
 
@@ -126,7 +133,16 @@ export function extractMachoteStructure(machoteText: string): DocumentNode[] {
       // Avoid duplicate consecutive identical titles
       if (nodes.length === 0 || nodes[nodes.length - 1].title !== line) {
         currentOrder += 10;
-        nodes.push(createDocumentNode(nodeType, line, currentOrder, { isRepeatable: nodeType === 'argument' }));
+        nodes.push(
+          createDocumentNode({
+            id: `sec-machote-${nodes.length + 1}`,
+            type: nodeType,
+            title: line,
+            order: currentOrder,
+            isRepeatable: nodeType === 'argument',
+            content: [],
+          })
+        );
       }
     }
   });
@@ -142,7 +158,14 @@ export function addRepeatableSection(sections: DocumentNode[], templateId: strin
   const templateSection = sections.find(s => s.id === templateId && s.isRepeatable);
   if (!templateSection) return sections;
   
-  const newSection = createDocumentNode(templateSection.type, `${templateSection.title} (Adicional)`, templateSection.order + 5, { isRepeatable: true });
+  const newSection = createDocumentNode({
+    id: `sec-repeat-${Date.now()}`,
+    type: templateSection.type,
+    title: `${templateSection.title} (Adicional)`,
+    order: templateSection.order + 5,
+    isRepeatable: true,
+    content: [],
+  });
   
   const result = [...sections];
   const insertIndex = result.findIndex(s => s.id === templateId) + 1;

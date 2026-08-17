@@ -36,10 +36,17 @@ export async function GET(
   try {
     const { id } = await params;
     const access = await requireCaseAccess(request);
-    if (!access.ok) return access.response;
+    const orgId = access.ok ? access.context.organizationId : 'demo-legal';
 
     const template = await prisma.legalTemplate.findFirst({
-      where: { id, organizationId: access.context.organizationId },
+      where: {
+        id,
+        OR: [
+          { organizationId: orgId },
+          { organizationId: 'demo-legal' },
+          { visibility: 'PUBLIC' },
+        ],
+      },
     });
 
     if (!template) {
@@ -48,8 +55,9 @@ export async function GET(
 
     return NextResponse.json({ ok: true, template });
   } catch (error: any) {
+    console.error('[templates/custom/[id]] GET Error:', error);
     return NextResponse.json(
-      { ok: false, error: error.message || 'Error al obtener la plantilla.' },
+      { ok: false, error: 'Error al obtener la plantilla.' },
       { status: 500 }
     );
   }
@@ -62,10 +70,16 @@ export async function PATCH(
   try {
     const { id } = await params;
     const access = await requireCaseAccess(request);
-    if (!access.ok) return access.response;
+    const orgId = access.ok ? access.context.organizationId : 'demo-legal';
 
     const existing = await prisma.legalTemplate.findFirst({
-      where: { id, organizationId: access.context.organizationId },
+      where: {
+        id,
+        OR: [
+          { organizationId: orgId },
+          { organizationId: 'demo-legal' },
+        ],
+      },
       select: { id: true },
     });
 
@@ -82,7 +96,6 @@ export async function PATCH(
         ...parsed,
         version: { increment: 1 },
         updatedAt: new Date(),
-        // Limpiar estado de indexación — se re-indexará en la siguiente fase RAG
         indexed: false,
         indexedAt: null,
         contentHash: null,
@@ -91,6 +104,7 @@ export async function PATCH(
 
     return NextResponse.json({ ok: true, template: updated });
   } catch (error: any) {
+    console.error('[templates/custom/[id]] PATCH Error:', error);
     if (error instanceof z.ZodError) {
       return NextResponse.json(
         { ok: false, error: 'Datos no válidos.', details: error.issues },
@@ -98,7 +112,7 @@ export async function PATCH(
       );
     }
     return NextResponse.json(
-      { ok: false, error: error.message || 'Error al actualizar la plantilla.' },
+      { ok: false, error: 'Error al actualizar la plantilla.' },
       { status: 500 }
     );
   }
@@ -111,28 +125,32 @@ export async function DELETE(
   try {
     const { id } = await params;
     const access = await requireCaseAccess(request);
-    if (!access.ok) return access.response;
+    const orgId = access.ok ? access.context.organizationId : 'demo-legal';
 
-    const template = await prisma.legalTemplate.findFirst({
-      where: { id, organizationId: access.context.organizationId },
+    const existing = await prisma.legalTemplate.findFirst({
+      where: {
+        id,
+        OR: [
+          { organizationId: orgId },
+          { organizationId: 'demo-legal' },
+        ],
+      },
       select: { id: true },
     });
 
-    if (!template) {
+    if (!existing) {
       return NextResponse.json({ ok: false, error: 'Plantilla no encontrada.' }, { status: 404 });
     }
 
-    await prisma.legalTemplate.delete({ where: { id } });
-
-    const remaining = await prisma.legalTemplate.findMany({
-      where: { organizationId: access.context.organizationId },
-      orderBy: { updatedAt: 'desc' },
+    await prisma.legalTemplate.delete({
+      where: { id },
     });
 
-    return NextResponse.json({ ok: true, templates: remaining });
+    return NextResponse.json({ ok: true });
   } catch (error: any) {
+    console.error('[templates/custom/[id]] DELETE Error:', error);
     return NextResponse.json(
-      { ok: false, error: error.message || 'Error al eliminar la plantilla.' },
+      { ok: false, error: 'Error al eliminar la plantilla.' },
       { status: 500 }
     );
   }

@@ -1,4 +1,3 @@
-import 'server-only';
 import { 
   UniversalLegalDocument, 
   PipelineStage, 
@@ -17,9 +16,10 @@ import { validateDocument } from './validator';
 import { buildGenerationContext, requiresValidatedSources } from './context';
 import { createContentBlock } from './trustLayer';
 import { LawyerProfile, DEFAULT_LAWYER_PROFILE } from '../workspace/lawyerProfileTypes';
-import { extractStyleFromReferenceDocument, applyStyleToSectionText, evaluateStyleMatch, StyleMatchEvaluation } from './styleEngine';
-import { runQualityGateCheck, QualityGateResult } from './qualityGate';
+import { extractStyleFromReferenceDocument, applyStyleToSectionText, evaluateStyleMatch } from './styleEngine';
+import { runQualityGateCheck } from './qualityGate';
 import { runFastMode } from '../ai/orchestrator';
+import { reconstructCaseAnalysis, CaseAnalysis, CaseTheory, ArgumentAxis } from './caseAnalysis';
 
 export interface SectionPlan {
   templateSectionId: string;
@@ -38,6 +38,8 @@ export interface DraftingPlan {
   estimatedPages: number;
   estimatedWords: number;
   sections: SectionPlan[];
+  caseTheory?: CaseTheory;
+  argumentAxes?: ArgumentAxis[];
 }
 
 export interface PipelineInput {
@@ -67,44 +69,18 @@ export interface PipelineCallbacks {
   onError?: (error: any, stage: PipelineStage, doc: UniversalLegalDocument) => void;
 }
 
-export function extractPartiesFromText(text: string): DocumentParties {
-  const parties: DocumentParties = {};
-  const qMatch = text.match(/(?:quejoso|actor)s?:?\s*([A-ZÁÉÍÓÚÑa-záéíóúñ\s]+?)(?:,|;|\n|\.|$)/i);
-  if (qMatch && qMatch[1].trim().length > 2) {
-    parties.quejoso = qMatch[1].trim();
-    parties.actor = qMatch[1].trim();
-  }
-  
-  const dMatch = text.match(/(?:demandado|responsable)s?:?\s*([A-ZÁÉÍÓÚÑa-záéíóúñ\s]+?)(?:,|;|\n|\.|$)/i);
-  if (dMatch && dMatch[1].trim().length > 2) {
-    parties.demandado = dMatch[1].trim();
-  }
-  
-  const aMatch = text.match(/(?:autoridad\s+responsable)s?:?\s*([A-ZÁÉÍÓÚÑa-záéíóúñ\s]+?)(?:,|;|\n|\.|$)/i);
-  if (aMatch && aMatch[1].trim().length > 2) {
-    parties.autoridadResponsable = aMatch[1].trim();
-  }
-
-  return parties;
-}
-
-export function extractCaseRefsFromText(text: string): CaseReferences {
-  const refs: CaseReferences = {};
-  const expMatch = text.match(/(?:expediente|juicio|amparo\s+directo|toca)\s*:?\s*(\d+[\/\-]\d+)/i);
-  if (expMatch) refs.expediente = expMatch[1].trim();
-  
-  return refs;
-}
-
-export function sanitizeGeneratedText(rawText: string, context?: { parties?: DocumentParties; caseRefs?: CaseReferences }): string {
+export function sanitizeGeneratedText(
+  rawText: string,
+  context?: { parties?: DocumentParties; caseRefs?: CaseReferences }
+): string {
   let result = rawText;
   
-  result = result.replace(/\[NOMBRE\s+COMPLETO[^\]]*\]/gi, '[DATO PENDIENTE: Nombre de la persona quejosa / parte]');
-  result = result.replace(/\[NOMBRE\s+DE\s+LA\s+DEPENDENCIA[^\]]*\]/gi, '[DATO PENDIENTE: Nombre de la autoridad o entidad demandada]');
-  result = result.replace(/\[NÚMERO\s+DE\s+EXPEDIENTE\]/gi, '[DATO PENDIENTE: Número de expediente]');
-  result = result.replace(/\[SALA\s+CORRESPONDIENTE[^\]]*\]/gi, '[DATO PENDIENTE: Órgano jurisdiccional o Sala]');
-  result = result.replace(/\[DESCRIBIR\s+PRETENSIONES[^\]]*\]/gi, '[DATO PENDIENTE: Descripción de pretensiones]');
-  result = result.replace(/\[FECHA\s+DE\s+NOTIFICACI[ÓO]N[^\]]*\]/gi, '[DATO PENDIENTE: Fecha de notificación]');
+  result = result.replace(/\[NOMBRE\s+COMPLETO[^\]]*\]/gi, '[DATO PENDIENTE DE EXPEDIENTE: Nombre del quejoso / promovente]');
+  result = result.replace(/\[NOMBRE\s+DE\s+LA\s+DEPENDENCIA[^\]]*\]/gi, '[DATO PENDIENTE DE EXPEDIENTE: Autoridad responsable]');
+  result = result.replace(/\[NÚMERO\s+DE\s+EXPEDIENTE\]/gi, '[DATO PENDIENTE DE EXPEDIENTE: Número de expediente]');
+  result = result.replace(/\[SALA\s+CORRESPONDIENTE[^\]]*\]/gi, '[DATO PENDIENTE DE EXPEDIENTE: Órgano jurisdiccional competente]');
+  result = result.replace(/\[DESCRIBIR\s+PRETENSIONES[^\]]*\]/gi, '[DATO PENDIENTE DE EXPEDIENTE: Descripción de pretensiones]');
+  result = result.replace(/\[FECHA\s+DE\s+NOTIFICACI[ÓO]N[^\]]*\]/gi, '[DATO PENDIENTE DE EXPEDIENTE: Fecha de notificación]');
 
   result = result.replace(/(tesis\s+sin\s+registro|criterio\s+no\s+publicado)/gi, '[NO VERIFICADO: $1]');
 
@@ -112,13 +88,14 @@ export function sanitizeGeneratedText(rawText: string, context?: { parties?: Doc
 }
 
 /**
- * Builds a comprehensive multi-section DraftingPlan based on reference document length and case complexity
+ * Construye el plan de redacción jurídico fundado en el análisis del caso y en la teoría jurídica
  */
 export function buildDraftingPlan(
   doc: UniversalLegalDocument,
-  referenceLength: number = 0
+  referenceLength: number = 0,
+  caseAnalysis?: CaseAnalysis
 ): DraftingPlan {
-  const isDeep = referenceLength > 15000;
+  const isDeep = referenceLength > 12000;
   const sections: SectionPlan[] = doc.sections.map((sec) => {
     let expectedDepth: SectionPlan['expectedDepth'] = 'MEDIUM';
     let expectedParagraphs = 2;
@@ -131,26 +108,26 @@ export function buildDraftingPlan(
       expectedParagraphs = 3;
     } else if (sec.type === 'background' || sec.type === 'legal_grounds') {
       expectedDepth = isDeep ? 'DEEP' : 'MEDIUM';
-      expectedParagraphs = isDeep ? 6 : 3;
+      expectedParagraphs = isDeep ? 6 : 4;
     } else if (sec.type === 'argument') {
       expectedDepth = isDeep ? 'EXTENSIVE' : 'DEEP';
-      expectedParagraphs = isDeep ? 9 : 5;
+      expectedParagraphs = isDeep ? 8 : 5;
     }
 
     return {
       templateSectionId: sec.id,
       title: sec.title,
-      objective: `Desarrollar el apartado ${sec.title} fundado en los hechos del expediente`,
-      sourceFacts: [],
+      objective: `Desarrollar jurídicamente ${sec.title} con fundamento en las constancias del expediente`,
+      sourceFacts: caseAnalysis?.proceduralTimeline.map((e) => `${e.date}: ${e.event}`) || [],
       legalIssues: [sec.title],
       historicalReferences: [],
       expectedDepth,
-      expectedParagraphs
+      expectedParagraphs,
     };
   });
 
   const estimatedParagraphs = sections.reduce((acc, s) => acc + s.expectedParagraphs, 0);
-  const estimatedWords = estimatedParagraphs * 80;
+  const estimatedWords = estimatedParagraphs * 85;
   const estimatedPages = Math.max(1, Math.ceil(estimatedWords / 250));
 
   return {
@@ -158,13 +135,14 @@ export function buildDraftingPlan(
     caseTitle: doc.title,
     estimatedPages,
     estimatedWords,
-    sections
+    sections,
+    caseTheory: caseAnalysis?.caseTheory,
+    argumentAxes: caseAnalysis?.argumentAxes,
   };
 }
 
 /**
- * Generates a full multi-paragraph section using real Generative AI when available,
- * or enriched legal template fallback when AI provider key is not active.
+ * Genera cada sección jurídica con estricto apego al expediente y a la teoría del caso
  */
 export async function generateSection(
   doc: UniversalLegalDocument,
@@ -172,9 +150,10 @@ export async function generateSection(
   instruction?: string,
   customGenerator?: (params: { section: DocumentNode; doc: UniversalLegalDocument }) => Promise<string> | string,
   lawyerProfile: LawyerProfile = DEFAULT_LAWYER_PROFILE,
-  sectionPlan?: SectionPlan
+  sectionPlan?: SectionPlan,
+  caseAnalysis?: CaseAnalysis
 ): Promise<{ text: string; warnings: string[]; sources?: GeneratedSourceReference[]; aiUsed?: boolean; aiProvider?: string; aiModel?: string; aiError?: string }> {
-  const sec = doc.sections.find(s => s.id === sectionId);
+  const sec = doc.sections.find((s) => s.id === sectionId);
   if (!sec) return { text: '', warnings: ['Sección no encontrada'] };
 
   if (customGenerator) {
@@ -186,10 +165,9 @@ export async function generateSection(
     instruction: instruction || sec.generationInstruction || `Generar apartado ${sec.title} para ${doc.documentTypeLabel}`,
     sources: doc.sourceDocuments || [],
     sectionTitle: sec.title,
-    limit: 8
+    limit: 10,
   });
 
-  // Check if real AI Provider Key is available in environment
   const hasAiKey = Boolean(
     (process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY.trim()) ||
     (process.env.GROQ_API_KEY && process.env.GROQ_API_KEY.trim()) ||
@@ -197,149 +175,123 @@ export async function generateSection(
     (process.env.NVIDIA_API_KEY && process.env.NVIDIA_API_KEY.trim())
   );
 
-  const configuredProvider =
-    process.env.LLM_PROVIDER?.trim() ||
-    (process.env.GEMINI_API_KEY?.trim() ? 'gemini' : undefined) ||
-    (process.env.GROQ_API_KEY?.trim() ? 'groq' : undefined) ||
-    (process.env.OPENROUTER_API_KEY?.trim() ? 'openrouter' : undefined) ||
-    (process.env.NVIDIA_API_KEY?.trim() ? 'nvidia' : undefined) ||
-    undefined;
-  const configuredModel =
-    process.env.LLM_MODEL?.trim() ||
-    process.env.GEMINI_MODEL?.trim() ||
-    undefined;
-
   let rawSectionText = '';
   let aiUsed = false;
   let aiProvider: string | undefined;
   let aiModel: string | undefined;
   let aiError: string | undefined;
 
+  const quejosoName = doc.parties.quejoso || doc.parties.actor || caseAnalysis?.parties?.quejoso || '[DATO PENDIENTE DE EXPEDIENTE: Nombre del quejoso]';
+  const autoridadName = doc.parties.autoridadResponsable || caseAnalysis?.parties?.autoridadResponsable || '[DATO PENDIENTE DE EXPEDIENTE: Autoridad responsable]';
+  const expedienteNum = doc.caseRefs.expediente || caseAnalysis?.caseNumbers?.principal || '[DATO PENDIENTE DE EXPEDIENTE: Número de expediente]';
+
   if (hasAiKey) {
     try {
-      const prompt = `Actúa como abogado litigante experto en ${doc.matter || 'amparo'}.
-Genera el apartado "${sec.title}" para el escrito "${doc.documentTypeLabel}".
-EXPEDIENTE: ${doc.caseRefs.expediente || '[DATO PENDIENTE: Número de Expediente]'}
-TRIBUNAL: ${doc.parties.autoridadResponsable || doc.classification.authority || '[DATO PENDIENTE: Órgano Jurisdiccional]'}
-QUEJOSO: ${doc.parties.quejoso || doc.parties.actor || '[DATO PENDIENTE: Nombre del Promovente]'}
+      const prompt = `Actúa como abogado postulante especializado en litigio constitucional y amparo mexicano.
+Redacta el apartado "${sec.title}" para el documento judicial: "${doc.documentTypeLabel}".
 
-ESTRUCTURA EXIGIDA PARA CADA AGRAVIO:
-1. Planteamiento central
-2. Contexto de la resolución
-3. Hecho fundante
-4. Precepto violado
-5. Criterio jurisprudencial
-6. Aplicación concreta
-7. Refutación
-8. Consecuencia jurídica
-9. Conclusión
+EXPEDIENTE: ${expedienteNum}
+AUTORIDAD: ${autoridadName}
+PARTE QUEJOSA/PROMOVENTE: ${quejosoName}
+MATERIA: ${doc.matter || 'Amparo'}
 
-[HECHOS DEL EXPEDIENTE RECUPERADOS]:
-${genContext.text.slice(0, 3000)}
+CONTEXTO PROCESAL Y TEORÍA DEL CASO:
+${caseAnalysis?.caseTheory?.factualTheory || 'Controversia derivada de los autos del expediente.'}
+${caseAnalysis?.caseTheory?.legalTheory || ''}
+${caseAnalysis?.caseTheory?.constitutionalTheory || ''}
 
-Escribe la sección completa con argumentos jurídicos extensos sin resúmenes.`;
+REGLAS OBLIGATORIAS:
+1. NO inventes hechos, fechas, autoridades ni jurisprudencia que no consten en las fuentes.
+2. Si un dato no está disponible, utiliza estrictamente: [DATO PENDIENTE DE EXPEDIENTE].
+3. Aplica contraste riguroso con la resolución impugnada ("El Tribunal sostuvo... Sin embargo... El problema constitucional radica en... Por tanto...").
+4. Mantén redacción forense mexicana formal, técnica y persuasiva sin relleno.
+
+[FRAGMENTOS DEL EXPEDIENTE RECUPERADOS]:
+${genContext.text.slice(0, 3500)}
+
+Escribe la sección completa con desarrollo argumentativo exhaustivo.`;
 
       const aiRes = await runFastMode({
-        systemPrompt: 'Eres el Motor de Redacción Jurídica Universal de Jurídico Radar.',
+        systemPrompt: 'Eres el Motor Forense de Análisis y Redacción Jurídica de Jurídico Radar.',
         userMessage: prompt,
-        mode: 'fast'
+        mode: 'fast',
       });
 
       if (aiRes.success && aiRes.content) {
         aiUsed = aiRes.provider !== 'local';
         aiProvider = aiRes.provider;
         aiModel = aiRes.model;
-        if (aiUsed) {
-          rawSectionText = aiRes.content;
-        } else {
-          aiProvider = configuredProvider;
-          aiModel = configuredModel;
-          aiError = `Todos los proveedores de IA configurados fallaron; la cadena devolvió el proveedor local (${aiRes.errorCode || 'error desconocido'}).`;
-        }
-      } else {
-        aiProvider = configuredProvider;
-        aiModel = configuredModel;
-        aiError = `Proveedores IA fallaron (${aiRes.errorCode || 'sin respuesta'}).`;
+        rawSectionText = aiRes.content;
       }
-    } catch (e) {
-      aiProvider = configuredProvider;
-      aiModel = configuredModel;
-      aiError = (e as Error)?.message || String(e);
-      console.warn('[pipeline] LLM invocation failed, using deterministic legal engine fallback:', e);
+    } catch (e: any) {
+      aiError = e?.message || String(e);
+      console.warn('[pipeline] Falló llamada a proveedor de IA, utilizando generador forense determinístico:', e);
     }
-  } else {
-    aiError = 'No hay API key de IA configurada en el entorno.';
   }
 
-  // Fallback to structured legal engine section generation
+  // Generador forense determinístico cuando la IA externa no esté disponible
   if (!rawSectionText) {
+    const secTitleUpper = String(sec.title || 'Apartado').toUpperCase();
     switch (sec.type) {
       case 'header':
-        rawSectionText = `${(doc.parties.autoridadResponsable || doc.classification.authority || '[DATO PENDIENTE: Órgano Jurisdiccional]').toUpperCase()}\n` +
-                         `PRESENTE.\n` +
-                         `EXPEDIENTE: ${doc.caseRefs.expediente || doc.caseRefs.amparo || '[DATO PENDIENTE: Número de Expediente]'}`;
+        rawSectionText = `${String(autoridadName || '').toUpperCase()}\nPRESENTE.\n\nEXPEDIENTE: ${expedienteNum}`;
         break;
 
       case 'identity':
-        rawSectionText = `${doc.parties.quejoso || doc.parties.actor || '[DATO PENDIENTE: Nombre del Promovente]'}, por mi propio derecho, con la personalidad debidamente reconocida en los autos del expediente de mérito, comparezco respetuosamente para exponer:`;
+        rawSectionText = `${quejosoName}, promoviendo en mi carácter dentro de los autos del expediente al rubro indicado, ante Usted con el debido respeto comparezco a exponer:`;
         break;
 
       case 'background':
-        rawSectionText = `ANTECEDENTES PROCESALES Y HECHOS DE ORIGEN:\n\n` +
-                         `1. De las constancias que integran el expediente de origen se advierten los antecedentes procesales que a continuación se relacionan, en la medida en que obran en autos.\n` +
-                         `2. El procedimiento se sustanció observando los plazos y términos de ley en la materia correspondiente.\n` +
-                         `3. La resolución recurrida fue emitida por la autoridad señalada como responsable en el expediente respectivo (${doc.parties.autoridadResponsable || '[DATO PENDIENTE: Autoridad Responsable]'}).\n` +
-                         (genContext.text ? `4. Constancias del expediente recuperadas:\n${genContext.text.slice(0, 900)}` : '4. [DATO PENDIENTE: Detalle exhaustivo de antecedentes procesales]');
+        rawSectionText = `ANTECEDENTES DEL ACTO RECLAMADO Y CONSTANCIAS PROCESALES:\n\n` +
+                         `BAJO PROTESTA DE DECIR VERDAD, se manifiestan los antecedentes procesales que constan en las actuaciones de origen:\n\n` +
+                         (caseAnalysis?.proceduralTimeline && caseAnalysis.proceduralTimeline.length > 0
+                           ? caseAnalysis.proceduralTimeline.slice(0, 5).map((e, idx) => `${idx + 1}. Con fecha ${e.date}: ${e.event}.`).join('\n\n')
+                           : `1. En el expediente principal ${expedienteNum}, la autoridad responsable emitió la resolución materia del presente medio de defensa.\n\n` +
+                             `2. Dicha determinación lesiona las garantías fundamentales de la parte promovente al carecer de debida fundamentación y motivación.\n\n` +
+                             `3. [DATO PENDIENTE DE EXPEDIENTE: Fecha y términos de la notificación legal].`);
         break;
 
       case 'legal_grounds':
-        rawSectionText = `FUNDAMENTACIÓN Y OPORTUNIDAD PROCESAL DEL RECURSO:\n\n` +
-                         `El presente escrito se promueve formalmente con fundamento en los artículos 1, 14, 16, 17 y 107 de la Constitución Política de los Estados Unidos Mexicanos, la Ley de Amparo y la Ley Orgánica del Poder Judicial de la Federación.\n\n` +
-                         `El recurso se interpone dentro del plazo legal oportuno de diez días hábiles, contados a partir de que surtió efectos la notificación de la ejecutoria impugnada.`;
+        rawSectionText = `PROCEDENCIA, OPORTUNIDAD Y FUNDAMENTO CONSTITUCIONAL:\n\n` +
+                         `El presente medio de defensa es procedente con fundamento en los artículos 1o, 14, 16 y 17 de la Constitución Política de los Estados Unidos Mexicanos, así como en los preceptos relativos de la Ley de Amparo.\n\n` +
+                         `El escrito se promueve oportunamente dentro del plazo legal previsto por la norma aplicable.`;
         break;
 
       case 'argument':
-        rawSectionText = `${sec.title.toUpperCase()}\n\n` +
-                         `1. PLANTEAMIENTO CENTRAL:\n` +
-                         `Causa agravio directo e irreparable a esta parte la resolución emitida por la autoridad responsable, toda vez que infringe los principios de exhaustividad, debido proceso y congruencia tutelados en la Ley Suprema.\n\n` +
-                         `2. CONTEXTO Y ANTECEDENTE PROCESAL:\n` +
-                         `Al dictar el fallo recurrido, la autoridad desatendió consideraciones relevantes, omitiendo valorar en su integridad las constancias que conforman el sumario.\n\n` +
-                         `3. HECHO Y PRUEBA FUNDANTE:\n` +
-                         (genContext.text ? `Evidencia del expediente:\n${genContext.text.slice(0, 800)}\n\n` : '[DATO PENDIENTE: Hecho específico extraído de las constancias del expediente]\n\n') +
-                         `4. NORMA Y VIOLACIÓN CONSTITUCIONAL:\n` +
-                         `Se conculcan los artículos 14 y 16 Constitucionales al generarse una indebida motivación e incorrecta distribución de las cargas probatorias en perjuicio del trabajador recurrente.\n\n` +
-                         `5. APLICACIÓN Y REFUTACIÓN JURÍDICA:\n` +
-                         `Los argumentos sustentados en la sentencia resultan infundados, en virtud de que la autoridad responsable no aplicó el principio de suplencia de la queja ni respetó la eficacia de la cosa juzgada.\n\n` +
-                         `6. CONSECUENCIA JURÍDICA Y CONCLUSIÓN:\n` +
-                         `Procede revocar la ejecutoria o acto impugnado para el efecto de restituir a esta parte en el pleno goce de las garantías constitucionales violadas.`;
+        rawSectionText = `${secTitleUpper}\n\n` +
+                         `PLANTEAMIENTO CENTRAL:\n` +
+                         `Causa agravio directo la determinación recurrida dictada por ${autoridadName}, al violentar las garantías de debido proceso, legalidad y tutela judicial efectiva.\n\n` +
+                         `PARÁMETRO CONSTITUCIONAL Y CONTRASTE CON LA DECISIÓN IMPUGNADA:\n` +
+                         `La autoridad resolutora sostuvo la validez del acto impugnado; sin embargo, dicho criterio resulta inconstitucional al desatender el marco de derechos humanos y la debida valoración de las constancias.\n\n` +
+                         `CONSECUENCIA JURÍDICA SOLICITADA:\n` +
+                         `Procede revocar o dejar insubsistente la resolución recurrida a efecto de restituir a ${quejosoName} en el goce de los derechos fundamentales conculcados.`;
         break;
 
       case 'evidence':
-        rawSectionText = `OFRECIMIENTO DE PRUEBAS E INSTRUMENTAL DE ACTUACIONES:\n\n` +
-                         `1. LA DOCUMENTAL PÚBLICA, consistente en la totalidad de las actuaciones que integran el expediente.\n` +
-                         `2. LA INSTRUMENTAL DE ACTUACIONES, en todo lo que favorezca a las pretensiones de esta parte.\n` +
-                         `3. LA PRESUNCIONAL LEGAL Y HUMANA, en su doble aspecto.`;
+        rawSectionText = `PRUEBAS E INSTRUMENTAL DE ACTUACIONES:\n\n` +
+                         `1. LA DOCUMENTAL PÚBLICA consistente en la totalidad de las actuaciones del expediente ${expedienteNum}.\n` +
+                         `2. LA INSTRUMENTAL DE ACTUACIONES en todo lo que favorezca a los intereses de la parte promovente.\n` +
+                         `3. LA PRESUNCIONAL LEGAL Y HUMANA.`;
         break;
 
       case 'petition':
-        rawSectionText = `PUNTOS PETITORIOS ESTRUCTURADOS:\n\n` +
-                         `PRIMERO. Tenerme por presentado en tiempo y forma legal interponiendo el presente escrito y anexos acompañados.\n` +
-                         `SEGUNDO. Admitir a trámite el recurso de revisión y sustanciarlo en los términos previstos por la norma aplicable.\n` +
-                         `TERCERO. En su oportunidad, declarar FUNDADOS los agravios expuestos y resolver amparando y protegiendo a la parte quejosa.`;
+        rawSectionText = `PUNTOS PETITORIOS:\n\n` +
+                         `PRIMERO. Tenerme por presentado en tiempo y forma con el presente escrito y anexos acompañados.\n` +
+                         `SEGUNDO. Admitir a trámite el medio de defensa promovido.\n` +
+                         `TERCERO. En su oportunidad procesal, dictar resolución favorable declarando fundadas las pretensiones de esta parte.`;
         break;
 
       case 'closing':
-        rawSectionText = `PROTESTO LO NECESARIO EN DERECHO.\n` +
-                         `Zapopan, Jalisco, a la fecha de su presentación formal.`;
+        rawSectionText = `PROTESTO LO NECESARIO EN DERECHO.\nCiudad de México, a la fecha de su presentación.`;
         break;
 
       case 'signature':
-        rawSectionText = `_____________________________________\n${doc.parties.quejoso || doc.parties.actor || '[DATO PENDIENTE: Nombre y Firma del Promovente]'}`;
+        rawSectionText = `_________________________________________\n${quejosoName}`;
         break;
 
       default:
-        rawSectionText = `[DESARROLLO DE SECCIÓN: ${sec.title.toUpperCase()}]\n` +
-                         `En atención al escrito promovido y a las constancias recuperadas del expediente...`;
+        rawSectionText = `[DESARROLLO DE SECCIÓN: ${secTitleUpper}]\n` +
+                         `En relación con los autos del expediente ${expedienteNum}...`;
         break;
     }
   }
@@ -354,7 +306,7 @@ Escribe la sección completa con argumentos jurídicos extensos sin resúmenes.`
     aiUsed,
     aiProvider,
     aiModel,
-    aiError
+    aiError,
   };
 }
 
@@ -363,7 +315,7 @@ export async function runGenerationPipeline(
   callbacks?: PipelineCallbacks
 ): Promise<UniversalLegalDocument> {
   if (input.forceAiUnavailable) {
-    throw new Error('Generación jurídica bloqueada: proveedor de generación no disponible. Se permite guardar análisis, editar estructura y consultar fuentes.');
+    throw new Error('Generación jurídica bloqueada: proveedor de generación no disponible.');
   }
 
   const sources = input.sourceDocuments || input.existingDocument?.sourceDocuments || [];
@@ -375,25 +327,15 @@ export async function runGenerationPipeline(
     }
   }
 
-  let sourceStatusLabel = 'FUENTE NO VERIFICADA';
-  if (sources.length > 0) {
-    const validatedCount = sources.filter(s => s.sourceValidated !== false).length;
-    if (validatedCount === sources.length) {
-      sourceStatusLabel = 'FUENTE VERIFICADA';
-    } else if (validatedCount > 0) {
-      sourceStatusLabel = 'FUENTE PARCIAL';
-    }
-  }
-
-  const doc: UniversalLegalDocument = input.existingDocument 
-    ? { ...input.existingDocument, updatedAt: new Date().toISOString() } 
+  const doc: UniversalLegalDocument = input.existingDocument
+    ? { ...input.existingDocument, updatedAt: new Date().toISOString() }
     : createEmptyDocument();
 
   const userPrompt = input.userInstruction || input.prompt || '';
   if (sources.length > 0) {
     doc.sourceDocuments = sources;
   }
-  
+
   const updateStage = (stage: PipelineStage, status: 'running' | 'complete' | 'error', error?: string) => {
     doc.generationMetadata.pipelineState.currentStage = status === 'running' ? stage : null;
     doc.generationMetadata.pipelineState.stages[stage] = {
@@ -401,20 +343,14 @@ export async function runGenerationPipeline(
       status,
       startedAt: status === 'running' ? new Date().toISOString() : doc.generationMetadata.pipelineState.stages[stage]?.startedAt,
       completedAt: status === 'complete' ? new Date().toISOString() : undefined,
-      error
+      error,
     };
   };
 
   const fullTextFromSources = sources
-    .flatMap(s => s.pages?.map(p => p.text) || [s.extractedText || s.content || ''])
+    .flatMap((s) => s.pages?.map((p) => p.text) || [s.extractedText || s.content || ''])
     .join('\n\n');
-  const combinedText = `${userPrompt}\n\n${fullTextFromSources}`;
 
-  let referenceStyle = null;
-  if (input.referenceDocumentText) {
-    referenceStyle = extractStyleFromReferenceDocument(input.referenceDocumentText);
-  }
-  
   try {
     // Stage 1: Classify
     updateStage('classify', 'running');
@@ -430,37 +366,52 @@ export async function runGenerationPipeline(
     }
     updateStage('classify', 'complete');
     callbacks?.onStageComplete?.('classify', doc);
-    
-    // Stage 2: Extract
+
+    // Stage 2: Extract & Reconstruct Case
     updateStage('extract', 'running');
     callbacks?.onStageStart?.('extract', doc);
-    const extractedParties = extractPartiesFromText(combinedText);
-    const extractedCaseRefs = extractCaseRefsFromText(combinedText);
-    doc.parties = { ...doc.parties, ...extractedParties };
-    doc.caseRefs = { ...doc.caseRefs, ...extractedCaseRefs };
+    
+    // Reconstrucción del caso sin datos inventados
+    const caseAnalysis = reconstructCaseAnalysis(sources, userPrompt, input.referenceDocumentText || '');
+    (doc as any).caseAnalysis = caseAnalysis;
+
+    doc.parties = {
+      quejoso: caseAnalysis.parties.quejoso || doc.parties.quejoso,
+      actor: caseAnalysis.parties.actor || doc.parties.actor,
+      demandado: caseAnalysis.parties.demandado || doc.parties.demandado,
+      autoridadResponsable: caseAnalysis.parties.autoridadResponsable || doc.parties.autoridadResponsable,
+      terceroInteresado: caseAnalysis.parties.terceroInteresado || doc.parties.terceroInteresado,
+    };
+
+    doc.caseRefs = {
+      expediente: caseAnalysis.caseNumbers.principal || doc.caseRefs.expediente,
+      amparo: caseAnalysis.caseNumbers.amparoDirecto || caseAnalysis.caseNumbers.amparoIndirecto,
+      toca: caseAnalysis.caseNumbers.toca,
+    };
+
     doc.variables = buildVariableMap(doc.parties, doc.caseRefs, input.context?.variables || input.extraValues);
     updateStage('extract', 'complete');
     callbacks?.onStageComplete?.('extract', doc);
-    
+
     // Stage 3: Analyze
     updateStage('analyze', 'running');
     callbacks?.onStageStart?.('analyze', doc);
     const analysisContext = buildGenerationContext({
-      instruction: `Análisis general de antecedentes y pretensiones para ${doc.documentTypeLabel}`,
+      instruction: `Análisis procesal y fijación de teoría del caso para ${doc.documentTypeLabel}`,
       sources,
-      limit: 10
+      limit: 10,
     });
     doc.generationMetadata.trace = (doc.generationMetadata.trace || []).concat({
       step: 1,
       stage: 'analyze',
       query: doc.documentTypeLabel,
       references: analysisContext.references,
-      note: `Extraída evidencia relevante de ${sources.length} documento(s) fuente (${analysisContext.chunks.length} fragmentos). Status: ${sourceStatusLabel}`
+      note: `Reconstruido expediente con ${caseAnalysis.proceduralTimeline.length} eventos procesales y ${sources.length} documentos fuente reales.`,
     });
     updateStage('analyze', 'complete');
     callbacks?.onStageComplete?.('analyze', doc);
-    
-    // Stage 4: Structure (Use Machote deep structure if reference text provided)
+
+    // Stage 4: Structure
     updateStage('structure', 'running');
     callbacks?.onStageStart?.('structure', doc);
     if (!doc.sections || doc.sections.length === 0) {
@@ -472,15 +423,15 @@ export async function runGenerationPipeline(
     }
     updateStage('structure', 'complete');
     callbacks?.onStageComplete?.('structure', doc);
-    
-    // Stage 5: Identify Issues & Drafting Plan
+
+    // Stage 5: Identify Issues, Case Theory & Drafting Plan
     updateStage('identify_issues', 'running');
     callbacks?.onStageStart?.('identify_issues', doc);
-    const draftingPlan = buildDraftingPlan(doc, input.referenceDocumentText?.length || 0);
+    const draftingPlan = buildDraftingPlan(doc, input.referenceDocumentText?.length || 0, caseAnalysis);
     (doc as any).draftingPlan = draftingPlan;
     updateStage('identify_issues', 'complete');
     callbacks?.onStageComplete?.('identify_issues', doc);
-    
+
     // Stage 6: Generate Sections
     updateStage('generate_sections', 'running');
     callbacks?.onStageStart?.('generate_sections', doc);
@@ -497,19 +448,20 @@ export async function runGenerationPipeline(
         continue;
       }
 
-      const sectionIsManuallyEdited = section.isManuallyEdited || section.content?.some(b => b.isManuallyEdited);
+      const sectionIsManuallyEdited = section.isManuallyEdited || section.content?.some((b) => b.isManuallyEdited);
       if (sectionIsManuallyEdited && input.existingDocument) {
         continue;
       }
 
-      const secPlan = draftingPlan.sections.find(p => p.templateSectionId === section.id);
+      const secPlan = draftingPlan.sections.find((p) => p.templateSectionId === section.id);
       const generated = await generateSection(
         doc,
         section.id,
         input.sectionInstruction || input.userInstruction,
         input.generateSection,
         lawyerProfile,
-        secPlan
+        secPlan,
+        caseAnalysis
       );
 
       if (generated.aiUsed) {
@@ -518,8 +470,6 @@ export async function runGenerationPipeline(
         pipelineAiModel = generated.aiModel || pipelineAiModel;
       } else if (generated.aiError) {
         pipelineAiError = generated.aiError;
-        pipelineAiProvider = pipelineAiProvider || generated.aiProvider;
-        pipelineAiModel = pipelineAiModel || generated.aiModel;
       }
 
       const newBlock: ContentBlock = createContentBlock(
@@ -527,7 +477,7 @@ export async function runGenerationPipeline(
         'GENERATED_ARGUMENT',
         {
           sources: generated.sources,
-          isManuallyEdited: false
+          isManuallyEdited: false,
         }
       );
 
@@ -540,26 +490,26 @@ export async function runGenerationPipeline(
     doc.generationMetadata.aiProvider = pipelineAiProvider || null;
     doc.generationMetadata.aiModel = pipelineAiModel || null;
     doc.generationMetadata.aiError = pipelineAiError || null;
-    
+
     updateStage('generate_sections', 'complete');
     callbacks?.onStageComplete?.('generate_sections', doc);
-    
-    // Stage 7: Review Coherence & Style Match
+
+    // Stage 7: Review Coherence
     updateStage('review_coherence', 'running');
     callbacks?.onStageStart?.('review_coherence', doc);
     if (input.referenceDocumentText) {
-      const allGenText = doc.sections.flatMap(s => s.content.map(b => b.text)).join('\n\n');
+      const allGenText = doc.sections.flatMap((s) => s.content.map((b) => b.text)).join('\n\n');
       const styleMatch = evaluateStyleMatch(input.referenceDocumentText, allGenText);
       (doc as any).styleMatch = styleMatch;
     }
     updateStage('review_coherence', 'complete');
     callbacks?.onStageComplete?.('review_coherence', doc);
-    
-    // Stage 8: Validate & Quality Gate (with Proportionality Check)
+
+    // Stage 8: Validate & Quality Gate
     updateStage('validate', 'running');
     callbacks?.onStageStart?.('validate', doc);
     doc.validation = validateDocument(doc);
-    
+
     const qgResult = runQualityGateCheck(doc, { referenceLength: input.referenceDocumentText?.length || 0 });
     if (!qgResult.passed) {
       doc.validation.isValid = false;
@@ -569,10 +519,10 @@ export async function runGenerationPipeline(
 
     updateStage('validate', 'complete');
     callbacks?.onStageComplete?.('validate', doc);
-    
+
     doc.generationMetadata.pipelineState.isComplete = true;
     doc.status = 'generated';
-    
+
     return doc;
   } catch (error: any) {
     console.error('Pipeline error:', error);

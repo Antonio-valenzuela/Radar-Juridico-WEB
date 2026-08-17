@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState, useMemo, useEffect } from 'react';
-import type { UniversalLegalDocument, DocumentNode } from '@/lib/legal-engine/types';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
+import type { UniversalLegalDocument, DocumentNode, ContentBlock, BlockStyle } from '@/lib/legal-engine/types';
 import { runQualityGateCheck, QualityGateResult } from '@/lib/legal-engine/qualityGate';
 
 interface WorkspaceDocumentEditorProps {
@@ -11,6 +11,8 @@ interface WorkspaceDocumentEditorProps {
   onExportDocx?: () => void;
   onExportPdf?: () => void;
   onSaveDraft?: () => Promise<boolean>;
+  onSaveAsTemplate?: (doc: UniversalLegalDocument) => Promise<void>;
+  onGenerateFromMachote?: (doc: UniversalLegalDocument) => void;
   activeSectionId?: string | null;
   onSelectSection?: (section: DocumentNode) => void;
   onSelectTextHighlight?: (text: string) => void;
@@ -18,8 +20,6 @@ interface WorkspaceDocumentEditorProps {
   pipelineStageLabel?: string;
   onTriggerNewDraftModal?: () => void;
   onTriggerUpload?: () => void;
-  onToggleLibrary?: () => void;
-  onToggleAI?: () => void;
 }
 
 type SectionAction = 'regenerate' | 'expand' | 'reduce' | 'reformulate';
@@ -38,39 +38,65 @@ export function WorkspaceDocumentEditor({
   onExportDocx,
   onExportPdf,
   onSaveDraft,
+  onSaveAsTemplate,
+  onGenerateFromMachote,
   activeSectionId,
   onSelectSection,
   onSelectTextHighlight,
   isGenerating = false,
   pipelineStageLabel,
-  onTriggerNewDraftModal,
   onTriggerUpload,
-  onToggleLibrary,
-  onToggleAI,
 }: WorkspaceDocumentEditorProps) {
   const [currentPage, setCurrentPage] = useState(1);
   const [zoomLevel, setZoomLevel] = useState(100);
+  const [showPagesPanel, setShowPagesPanel] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeMatch, setActiveMatch] = useState(0);
   const [searchMatches, setSearchMatches] = useState<Array<{ page: number; sectionId: string }>>([]);
   const [editingBlock, setEditingBlock] = useState<{ sectionId: string; blockId: string; text: string } | null>(null);
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved'>('idle');
+  const [isTemplateSaving, setIsTemplateSaving] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [showReviewModal, setShowReviewModal] = useState(false);
+  const [docTitle, setDocTitle] = useState(document?.title || '');
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const pagesContainerRef = useRef<HTMLDivElement>(null);
 
+  // History stack for Undo/Redo
+  const [history, setHistory] = useState<UniversalLegalDocument[]>([]);
+  const [historyIndex, setHistoryIndex] = useState(-1);
+
+  useEffect(() => {
+    if (document) {
+      setDocTitle(document.title || 'Documento Jurídico');
+    }
+  }, [document]);
+
+  // Quality gate
   const qualityGate: QualityGateResult | null = useMemo(() => {
     if (!document) return null;
     return runQualityGateCheck(document);
   }, [document]);
 
-  // División realista por páginas Carta (1800 caracteres por hoja Carta)
-  const CHARS_PER_PAGE = 1800;
+  // Caracteres estimados por página Carta (1750 caracteres por hoja física)
+  const CHARS_PER_PAGE = 1750;
 
+  // Breakdown de páginas multipágina reales
   const pageBreakdown = useMemo(() => {
     if (!document || !document.sections || document.sections.length === 0) {
       return [{ pageNumber: 1, sections: [] as Array<{ section: DocumentNode; text: string }> }];
     }
 
+    // Si el documento tiene secciones por página física (subidas de PDF/DOCX)
+    const hasExplicitPages = document.sections.some((s) => s.id.startsWith('sec-page-'));
+    if (hasExplicitPages) {
+      return document.sections.map((sec, idx) => ({
+        pageNumber: idx + 1,
+        sections: [{ section: sec, text: sec.content.map((b) => b.text).join('\n\n') }],
+      }));
+    }
+
+    // De lo contrario paginar por apartados / caracteres
     const pages: Array<{ pageNumber: number; sections: Array<{ section: DocumentNode; text: string }> }> = [];
     let currentPageNum = 1;
     let currentChars = 0;
@@ -78,7 +104,7 @@ export function WorkspaceDocumentEditor({
 
     document.sections.forEach((sec) => {
       const secText = sec.content.map((b) => b.text).join('\n\n');
-      const secLength = secText.length || 200;
+      const secLength = Math.max(secText.length, 220);
 
       if (currentChars + secLength > CHARS_PER_PAGE && currentSections.length > 0) {
         pages.push({ pageNumber: currentPageNum, sections: currentSections });
@@ -99,16 +125,29 @@ export function WorkspaceDocumentEditor({
   }, [document]);
 
   const totalPages = pageBreakdown.length;
-  const activePageData = pageBreakdown.find((p) => p.pageNumber === currentPage) || pageBreakdown[0];
 
-  // Map de página por sección
-  const sectionPageMap = useMemo(() => {
-    const map: Record<string, number> = {};
-    pageBreakdown.forEach((p) => p.sections.forEach(({ section }) => (map[section.id] = p.pageNumber)));
-    return map;
-  }, [pageBreakdown]);
+  // Asegurar que currentPage esté dentro del rango válido
+  useEffect(() => {
+    if (currentPage > totalPages && totalPages > 0) {
+      setCurrentPage(totalPages);
+    }
+  }, [totalPages, currentPage]);
 
-  // Actualizar búsqueda
+  // Navegación por teclado (Flechas ← → y RePág/AvPág)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      if (e.key === 'ArrowRight' || e.key === 'PageDown') {
+        setCurrentPage((p) => Math.min(totalPages, p + 1));
+      } else if (e.key === 'ArrowLeft' || e.key === 'PageUp') {
+        setCurrentPage((p) => Math.max(1, p - 1));
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [totalPages]);
+
+  // Search in document
   useEffect(() => {
     if (!searchQuery.trim()) {
       setSearchMatches([]);
@@ -136,14 +175,24 @@ export function WorkspaceDocumentEditor({
     setCurrentPage(searchMatches[next].page);
   };
 
-  const handleSave = async () => {
-    if (!onSaveDraft) return;
-    setSaveState('saving');
-    const ok = await onSaveDraft();
-    setSaveState(ok ? 'saved' : 'idle');
-    if (ok) window.setTimeout(() => setSaveState('idle'), 3000);
+  // Undo / Redo
+  const handleUndo = () => {
+    if (historyIndex > 0) {
+      const prev = history[historyIndex - 1];
+      setHistoryIndex((i) => i - 1);
+      onUpdateDocument(prev);
+    }
   };
 
+  const handleRedo = () => {
+    if (historyIndex < history.length - 1) {
+      const next = history[historyIndex + 1];
+      setHistoryIndex((i) => i + 1);
+      onUpdateDocument(next);
+    }
+  };
+
+  // Update block content with history
   const updateBlock = (sectionId: string, blockId: string, newText: string) => {
     if (!document) return;
     const updatedSections = document.sections.map((sec) => {
@@ -155,160 +204,129 @@ export function WorkspaceDocumentEditor({
       );
       return { ...sec, content, isManuallyEdited: true };
     });
-    onUpdateDocument({ ...document, sections: updatedSections, updatedAt: new Date().toISOString() });
+    const updatedDoc: UniversalLegalDocument = {
+      ...document,
+      sections: updatedSections,
+      updatedAt: new Date().toISOString(),
+    };
+    setHistory((prev) => [...prev.slice(0, historyIndex + 1), updatedDoc]);
+    setHistoryIndex((i) => i + 1);
+    onUpdateDocument(updatedDoc);
     setEditingBlock(null);
+  };
+
+  const handleSaveTitle = () => {
+    if (document && docTitle.trim()) {
+      onUpdateDocument({ ...document, title: docTitle.trim(), updatedAt: new Date().toISOString() });
+    }
+    setIsEditingTitle(false);
+  };
+
+  const handleSave = async () => {
+    if (!onSaveDraft) return;
+    setSaveState('saving');
+    const ok = await onSaveDraft();
+    setSaveState(ok ? 'saved' : 'idle');
+    if (ok) window.setTimeout(() => setSaveState('idle'), 3000);
+  };
+
+  const handleSaveMachoteTemplate = async () => {
+    if (!document || !onSaveAsTemplate) return;
+    setIsTemplateSaving(true);
+    try {
+      await onSaveAsTemplate(document);
+    } finally {
+      setIsTemplateSaving(false);
+    }
   };
 
   const runSectionAction = (action: SectionAction, section: DocumentNode) => {
     if (!onRegenerateSection) return;
     const title = section.title;
     const instructions: Record<SectionAction, string> = {
-      regenerate: `Regenera por completo el apartado "${title}" con argumentos jurídicos extensos (hecho, norma, criterio, aplicación y conclusión).`,
-      expand: `Amplía y desarrolla con mayor profundidad el apartado "${title}", incorporando fundamentos legales, doctrina y precedentes aplicables sin inventar datos.`,
-      reduce: `Sintetiza el apartado "${title}" conservando los argumentos esenciales y la fundamentación jurídica.`,
-      reformulate: `Reformula el apartado "${title}" con una redacción distinta, manteniendo íntegro el contenido jurídico y estilo del escrito.`,
+      regenerate: `Regenera por completo el apartado "${title}" con fundamentación legal y antecedentes pertinentes.`,
+      expand: `Amplía y desarrolla con mayor profundidad el apartado "${title}", agregando precedentes y doctrina.`,
+      reduce: `Sintetiza el apartado "${title}" conservando los argumentos esenciales.`,
+      reformulate: `Reformula el apartado "${title}" manteniendo el rigor jurídico.`,
     };
     void onRegenerateSection(section.id, instructions[action]);
   };
 
-  const highlight = (text: string) => {
-    if (!searchQuery.trim()) return text;
-    const q = searchQuery.trim();
-    const parts = text.split(new RegExp(`(${q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi'));
-    return parts.map((part, i) =>
-      part.toLowerCase() === q.toLowerCase() ? (
-        <mark key={i} className="bg-[#ffe4a0] text-slate-900 rounded-sm px-0.5 font-semibold">
-          {part}
-        </mark>
-      ) : (
-        part
-      )
-    );
+  // Variable and search highlight renderer (Preserves block's original font and style)
+  const renderFormattedText = (text: string, blockStyle?: BlockStyle) => {
+    if (searchQuery.trim()) {
+      const q = searchQuery.trim();
+      const parts = text.split(new RegExp(`(${q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi'));
+      return parts.map((part, i) =>
+        part.toLowerCase() === q.toLowerCase() ? (
+          <mark key={i} className="bg-[#ffe4a0] text-slate-900 px-0.5 rounded-xs font-bold">
+            {part}
+          </mark>
+        ) : (
+          renderVariables(part, i, blockStyle)
+        )
+      );
+    }
+    return renderVariables(text, 0, blockStyle);
   };
 
-  /* ──────────────────────────────────────────────────────────────────────────
-     ESTADO VACÍO (Sin documento generado)
-  ────────────────────────────────────────────────────────────────────────── */
-  if (!document && !isGenerating) {
-    return (
-      <main className="flex-1 min-w-0 bg-[#ede8dd] overflow-y-auto flex flex-col h-full select-none">
-        {/* Barra superior vacía */}
-        <div className="p-3.5 border-b border-[#ded8c9] bg-[#fbf9f5] flex items-center justify-between">
-          <div className="flex items-center gap-2 min-w-0">
-            <h2 className="text-[13px] font-extrabold text-[#0B2545]">Documento</h2>
-            <span className="text-[11px] text-slate-400">· Sin borrador activo</span>
-          </div>
+  const renderVariables = (text: string, baseKey: number, blockStyle?: BlockStyle) => {
+    const varRegex = /(\[[A-ZÁÉÍÓÚÑ0-9_\-\s]{2,40}\])/g;
+    const parts = text.split(varRegex);
 
-          <div className="flex items-center gap-2 shrink-0">
-            {onToggleLibrary && (
-              <button
-                onClick={onToggleLibrary}
-                title="Biblioteca de Documentos"
-                className="hidden max-[900px]:inline-flex w-7 h-7 items-center justify-center rounded-lg bg-white border border-[#ded8c9] text-slate-600 hover:bg-[#ede8dd] text-sm transition shrink-0"
-              >
-                📁
-              </button>
-            )}
-            {onToggleAI && (
-              <button
-                onClick={onToggleAI}
-                title="Panel Contextual IA"
-                className="hidden max-[1199px]:inline-flex w-7 h-7 items-center justify-center rounded-lg bg-white border border-[#ded8c9] text-slate-600 hover:bg-[#ede8dd] text-sm transition shrink-0"
-              >
-                ✨
-              </button>
-            )}
-            <button
-              onClick={onTriggerNewDraftModal}
-              className="py-1.5 px-3 rounded-xl bg-[#0B2545] text-white text-xs font-bold shadow-sm hover:bg-[#081d39] transition flex items-center gap-1"
-            >
-              <span>⚡ Redactar Nuevo Escrito</span>
-            </button>
-          </div>
-        </div>
+    return parts.map((part, idx) => {
+      if (part.startsWith('[') && part.endsWith(']')) {
+        return (
+          <span
+            key={`var-${baseKey}-${idx}`}
+            style={{
+              fontFamily: 'inherit',
+              fontWeight: blockStyle?.fontWeight || 'bold',
+              fontSize: 'inherit',
+            }}
+            className="bg-amber-100/90 text-amber-950 border-b border-amber-500 px-0.5"
+            title="Campo variable de plantilla"
+          >
+            {part}
+          </span>
+        );
+      }
+      return part;
+    });
+  };
 
-        {/* Centro: Card compacta de estado vacío */}
-        <div className="flex-1 flex items-center justify-center p-6">
-          <div className="w-full max-w-md bg-white rounded-2xl border border-[#ded8c9] shadow-xl p-8 text-center space-y-4">
-            <div className="w-14 h-14 rounded-3xl bg-[#f5f2eb] text-[#0B2545] text-2xl flex items-center justify-center mx-auto shadow-inner">
-              📄
-            </div>
+  // Typography family for the document canvas (Preserves document's native font)
+  const documentFontFamily = document?.defaultFontFamily || 'Times New Roman, Times, "Liberation Serif", serif';
 
-            <div className="space-y-1.5">
-              <h3 className="text-sm font-extrabold text-[#0B2545]">
-                Sin documento en redacción
-              </h3>
-              <p className="text-xs text-slate-500 leading-relaxed">
-                Selecciona una plantilla de la biblioteca o sube el expediente del caso para redactar la contestación, amparo o recurso con la estructura formal del abogado.
-              </p>
-            </div>
-
-            <div className="flex items-center justify-center gap-3 pt-1">
-              <button
-                onClick={onTriggerUpload}
-                className="py-2 px-3.5 rounded-xl bg-white border border-[#ded8c9] text-[#0B2545] hover:bg-[#f5f2eb] text-xs font-bold shadow-sm transition flex items-center gap-1.5"
-              >
-                <span>📥 Subir Expediente</span>
-              </button>
-
-              <button
-                onClick={onTriggerNewDraftModal}
-                className="py-2 px-4 rounded-xl bg-[#0B2545] text-white hover:bg-[#081d39] text-xs font-bold shadow-md transition flex items-center gap-1.5"
-              >
-                <span>⚡ Generar Estructura</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      </main>
-    );
-  }
+  // PÁGINA ÚNICA ACTIVA
+  const activePageData = pageBreakdown.find((p) => p.pageNumber === currentPage) || pageBreakdown[0];
 
   /* ──────────────────────────────────────────────────────────────────────────
-     ESTADO EN GENERACIÓN (Pipeline en tiempo real)
+     ESTADO EN GENERACIÓN (Pipeline activo)
   ────────────────────────────────────────────────────────────────────────── */
   if (isGenerating && !document) {
     return (
-      <main className="flex-1 min-w-0 bg-[#ede8dd] overflow-y-auto flex flex-col h-full select-none">
+      <main className="flex-1 min-w-0 bg-[#ede8dd] overflow-y-auto flex flex-col h-full select-none font-sans">
         <div className="p-3.5 border-b border-[#ded8c9] bg-[#fbf9f5] flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <span className="w-3.5 h-3.5 rounded-full border-2 border-[#0B2545] border-t-transparent animate-spin" />
+            <span className="w-4 h-4 rounded-full border-2 border-[#0B2545] border-t-transparent animate-spin" />
             <h2 className="text-[13px] font-extrabold text-[#0B2545]">Redactando Documento Jurídico...</h2>
           </div>
         </div>
 
         <div className="flex-1 flex items-center justify-center p-6">
-          <div className="w-full max-w-lg bg-white rounded-2xl border border-[#ded8c9] shadow-xl p-8 space-y-6 text-center">
+          <div className="w-full max-w-lg bg-white rounded-3xl border border-[#ded8c9] shadow-2xl p-8 space-y-6 text-center">
             <div className="w-14 h-14 rounded-2xl bg-blue-50 text-[#0B2545] text-2xl flex items-center justify-center mx-auto animate-pulse">
               ⚖️
             </div>
 
             <div className="space-y-2">
               <h3 className="text-base font-extrabold text-[#0B2545]">
-                {pipelineStageLabel || 'Analizando expediente y redactando apartados...'}
+                {pipelineStageLabel || 'Analizando machote y redactando versión adaptada...'}
               </h3>
               <p className="text-xs text-slate-500">
-                Extrayendo hechos, fundamentación legal y criterios jurisprudenciales aplicables.
+                Conservando estructura original, membretes, sellos y jerarquía de apartados.
               </p>
-            </div>
-
-            <div className="grid grid-cols-2 gap-2 text-left text-xs text-slate-700">
-              <div className="p-3 rounded-xl bg-[#fbf9f5] border border-[#ded8c9] flex items-center gap-2">
-                <span className="text-emerald-600 font-bold">✓</span>
-                <span>Extracción de texto & OCR</span>
-              </div>
-              <div className="p-3 rounded-xl bg-[#fbf9f5] border border-[#ded8c9] flex items-center gap-2">
-                <span className="text-emerald-600 font-bold">✓</span>
-                <span>Identificación de partes & autoridad</span>
-              </div>
-              <div className="p-3 rounded-xl bg-[#fbf9f5] border border-[#ded8c9] flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-[#0B2545] animate-ping" />
-                <span className="font-bold text-[#0B2545]">Redacción por apartados</span>
-              </div>
-              <div className="p-3 rounded-xl bg-[#fbf9f5] border border-[#ded8c9] flex items-center gap-2 text-slate-400">
-                <span>○</span>
-                <span>Validación de coherencia & firma</span>
-              </div>
             </div>
           </div>
         </div>
@@ -316,338 +334,553 @@ export function WorkspaceDocumentEditor({
     );
   }
 
-  /* ──────────────────────────────────────────────────────────────────────────
-     ESTADO NORMAL: HOJA CARTA COMPLETA
-  ────────────────────────────────────────────────────────────────────────── */
   return (
-    <main className="flex-1 min-w-0 bg-[#ede8dd] overflow-y-auto flex flex-col h-full select-none relative">
-      {/* ── TOOLBAR SUPERIOR DEL DOCUMENTO (Estilo Mockup) ────────────────── */}
-      <div className="p-3 border-b border-[#ded8c9] bg-[#fbf9f5] flex flex-wrap items-center justify-between gap-3 shadow-xs shrink-0">
-        <div className="flex flex-wrap items-center gap-3 min-w-0">
-          <h2 className="text-[13px] font-extrabold text-[#0B2545]">Documento</h2>
+    <main className="flex-1 min-w-0 bg-[#ede8dd] flex flex-col h-full select-none relative font-sans overflow-hidden">
+      {/* ── BARRA SUPERIOR DEFINITIVA (Páginas | [←] Pág. 1/X [→] | Zoom | Buscar | Acciones) ── */}
+      <div className="shrink-0 bg-[#fbf9f5] border-b border-[#ded8c9] px-4 py-2 flex flex-wrap items-center justify-between gap-2 shadow-xs z-20 font-sans">
+        {/* Grupo Izquierdo: Botón Páginas + Nombre del Documento Editable */}
+        <div className="flex items-center gap-2 min-w-0 flex-1">
+          <button
+            onClick={() => setShowPagesPanel(!showPagesPanel)}
+            title={showPagesPanel ? 'Ocultar panel de páginas' : 'Mostrar panel de páginas'}
+            className={`py-1.5 px-2.5 rounded-xl border text-xs font-bold transition flex items-center gap-1.5 shadow-xs ${
+              showPagesPanel
+                ? 'bg-[#0B2545] text-white border-[#0B2545]'
+                : 'bg-white text-slate-700 border-[#ded8c9] hover:bg-[#ede8dd]'
+            }`}
+          >
+            <span>▤</span>
+            <span>Páginas</span>
+          </button>
 
-          {onToggleLibrary && (
-            <button
-              onClick={onToggleLibrary}
-              title="Biblioteca de Documentos"
-              className="hidden max-[900px]:inline-flex w-7 h-7 items-center justify-center rounded-lg bg-white border border-[#ded8c9] text-slate-600 hover:bg-[#ede8dd] text-sm transition shrink-0"
-            >
-              📁
-            </button>
+          {/* Nombre / Título del Documento Editable */}
+          {document ? (
+            <div className="flex items-center gap-1.5 min-w-0 max-w-xs md:max-w-md">
+              {isEditingTitle ? (
+                <div className="flex items-center gap-1">
+                  <input
+                    type="text"
+                    value={docTitle}
+                    onChange={(e) => setDocTitle(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleSaveTitle()}
+                    className="px-2 py-1 bg-white border-2 border-[#0B2545] rounded-lg text-xs font-bold text-slate-900 focus:outline-none font-sans"
+                    autoFocus
+                  />
+                  <button
+                    onClick={handleSaveTitle}
+                    className="p-1 rounded bg-[#0B2545] text-white text-xs font-bold font-sans"
+                  >
+                    ✓
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setIsEditingTitle(true)}
+                  title="Clic para renombrar documento"
+                  className="flex items-center gap-1 text-xs font-extrabold text-[#0B2545] hover:bg-slate-100 px-2 py-1 rounded-lg truncate text-left font-sans"
+                >
+                  <span className="truncate">{docTitle || document.title}</span>
+                  <span className="text-[10px] text-slate-400">✏️</span>
+                </button>
+              )}
+            </div>
+          ) : (
+            <span className="text-xs font-extrabold text-slate-500 font-sans">Hoja en Blanco</span>
           )}
-          {onToggleAI && (
-            <button
-              onClick={onToggleAI}
-              title="Panel Contextual IA"
-              className="hidden max-[1199px]:inline-flex w-7 h-7 items-center justify-center rounded-lg bg-white border border-[#ded8c9] text-slate-600 hover:bg-[#ede8dd] text-sm transition shrink-0"
-            >
-              ✨
-            </button>
-          )}
 
-          {onTriggerNewDraftModal && (
-            <button
-              onClick={onTriggerNewDraftModal}
-              className="py-1.5 px-3 rounded-xl bg-[#0B2545] text-white hover:bg-[#081d39] text-xs font-bold shadow-xs transition flex items-center gap-1.5"
-            >
-              <span>⚡</span>
-              <span>Redactar Nuevo Escrito</span>
-            </button>
-          )}
-
-          {/* Botones estilo mockup: Salvar, Revisar, Texto Final */}
-          <div className="flex items-center gap-1.5">
-            <button
-              onClick={handleSave}
-              disabled={saveState === 'saving' || !onSaveDraft}
-              className="py-1.5 px-3 rounded-xl bg-white border border-[#ded8c9] hover:bg-[#ede8dd] text-[#0B2545] text-xs font-bold shadow-xs transition flex items-center gap-1.5"
-            >
-              <span>💾</span>
-              <span>{saveState === 'saving' ? 'Salvando...' : saveState === 'saved' ? '✓ Salvado' : 'Salvar'}</span>
-            </button>
-
-            <button
-              onClick={() => setShowReviewModal(true)}
-              className="py-1.5 px-3 rounded-xl bg-white border border-[#ded8c9] hover:bg-[#ede8dd] text-[#0B2545] text-xs font-bold shadow-xs transition flex items-center gap-1.5"
-            >
-              <span>✓</span>
-              <span>Revisar {qualityGate ? `(${qualityGate.qualityScore}/100)` : ''}</span>
-            </button>
-
-            <div className="relative">
+          {/* Deshacer / Rehacer */}
+          {document && (
+            <div className="hidden sm:flex items-center gap-1 pl-2 border-l border-[#ded8c9]">
               <button
-                onClick={() => setShowExportMenu(!showExportMenu)}
-                className="py-1.5 px-3 rounded-xl bg-white border border-[#ded8c9] hover:bg-[#ede8dd] text-[#0B2545] text-xs font-bold shadow-xs transition flex items-center gap-1.5"
+                onClick={handleUndo}
+                disabled={historyIndex <= 0}
+                title="Deshacer (Ctrl+Z)"
+                className="w-7 h-7 bg-white hover:bg-slate-50 disabled:opacity-30 rounded-lg border border-[#ded8c9] flex items-center justify-center text-xs font-bold text-slate-700 shadow-xs"
               >
-                <span>📄</span>
-                <span>Texto Final</span>
-                <span className="text-[10px]">▼</span>
+                ↩
+              </button>
+              <button
+                onClick={handleRedo}
+                disabled={historyIndex >= history.length - 1}
+                title="Rehacer (Ctrl+Y)"
+                className="w-7 h-7 bg-white hover:bg-slate-50 disabled:opacity-30 rounded-lg border border-[#ded8c9] flex items-center justify-center text-xs font-bold text-slate-700 shadow-xs"
+              >
+                ↪
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Grupo Central: NAVEGACIÓN PAGINADA EXACTA [←] Pág. 1 / X [→] + Zoom + Búsqueda */}
+        {document && (
+          <div className="flex items-center gap-2.5 text-xs text-slate-700 font-sans">
+            {/* Control Paginado Central */}
+            <div className="flex items-center gap-1.5 bg-white border border-[#ded8c9] px-2.5 py-1 rounded-xl shadow-xs">
+              <button
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+                className="w-6 h-6 hover:bg-slate-100 disabled:opacity-30 disabled:pointer-events-none rounded flex items-center justify-center font-bold text-sm text-[#0B2545] transition"
+                title="Página anterior (Flecha izquierda ←)"
+              >
+                ←
               </button>
 
-              {showExportMenu && (
-                <div className="absolute left-0 top-9 w-44 bg-white border border-[#ded8c9] rounded-xl shadow-xl z-50 py-1.5 text-xs text-slate-800 font-semibold animate-in fade-in zoom-in-95">
-                  {onExportDocx && (
-                    <button
-                      onClick={() => {
-                        onExportDocx();
-                        setShowExportMenu(false);
-                      }}
-                      className="w-full text-left px-3.5 py-2 hover:bg-slate-50 flex items-center gap-2 text-slate-800"
-                    >
-                      <span>📄</span> Exportar DOCX
-                    </button>
-                  )}
-                  {onExportPdf && (
-                    <button
-                      onClick={() => {
-                        onExportPdf();
-                        setShowExportMenu(false);
-                      }}
-                      className="w-full text-left px-3.5 py-2 hover:bg-slate-50 flex items-center gap-2 text-slate-800"
-                    >
-                      <span>🖨️</span> Exportar PDF Real
-                    </button>
-                  )}
+              <span className="font-semibold text-slate-700 px-2 font-mono text-xs select-none">
+                Pág. <span className="text-[#0B2545] font-extrabold text-sm">{currentPage}</span> / {totalPages}
+              </span>
+
+              <button
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages}
+                className="w-6 h-6 hover:bg-slate-100 disabled:opacity-30 disabled:pointer-events-none rounded flex items-center justify-center font-bold text-sm text-[#0B2545] transition"
+                title="Página siguiente (Flecha derecha →)"
+              >
+                →
+              </button>
+            </div>
+
+            {/* Zoom */}
+            <div className="hidden md:flex items-center gap-1 pl-2 border-l border-[#ded8c9]">
+              <button
+                onClick={() => setZoomLevel((z) => Math.max(50, z - 10))}
+                className="w-6 h-6 bg-white border border-[#ded8c9] hover:bg-slate-50 rounded-md font-bold text-xs"
+                title="Alejar"
+              >
+                −
+              </button>
+              <span className="font-mono text-[11px] font-bold text-[#0B2545] w-9 text-center">
+                {zoomLevel}%
+              </span>
+              <button
+                onClick={() => setZoomLevel((z) => Math.min(150, z + 10))}
+                className="w-6 h-6 bg-white border border-[#ded8c9] hover:bg-slate-50 rounded-md font-bold text-xs"
+                title="Acercar"
+              >
+                +
+              </button>
+            </div>
+
+            {/* Búsqueda en documento */}
+            <div className="relative hidden lg:block">
+              <input
+                type="text"
+                placeholder="Buscar..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-32 bg-white border border-[#ded8c9] rounded-xl pl-2.5 pr-14 py-1 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-[#0B2545] font-sans"
+              />
+              {searchMatches.length > 0 && (
+                <div className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center text-[10px]">
+                  <span className="text-[#0B2545] font-bold bg-blue-50 px-1 rounded mr-1">
+                    {activeMatch + 1}/{searchMatches.length}
+                  </span>
+                  <button onClick={() => goToNextMatch(-1)} className="text-slate-500 hover:text-slate-900 px-0.5">↑</button>
+                  <button onClick={() => goToNextMatch(1)} className="text-slate-500 hover:text-slate-900 px-0.5">↓</button>
                 </div>
               )}
             </div>
           </div>
-        </div>
+        )}
 
-        {/* Controles de Navegación, Zoom y Búsqueda */}
-        <div className="flex items-center gap-3 text-xs text-slate-600">
-          {/* Paginación */}
-          <div className="flex items-center gap-1.5">
-            <button
-              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-              disabled={currentPage === 1}
-              className="w-7 h-7 bg-white hover:bg-slate-50 disabled:opacity-35 rounded-lg border border-[#ded8c9] flex items-center justify-center font-bold text-slate-700 shadow-xs"
-            >
-              ←
-            </button>
-            <span className="font-semibold text-slate-700 px-1">
-              Página <span className="text-[#0B2545] font-extrabold">{currentPage}</span> de {totalPages}
-            </span>
-            <button
-              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-              disabled={currentPage === totalPages}
-              className="w-7 h-7 bg-white hover:bg-slate-50 disabled:opacity-35 rounded-lg border border-[#ded8c9] flex items-center justify-center font-bold text-slate-700 shadow-xs"
-            >
-              →
-            </button>
-          </div>
+        {/* Grupo Derecho: Acciones Principales */}
+        <div className="flex items-center gap-1.5 font-sans">
+          {/* Botón Subir Machote */}
+          <button
+            onClick={onTriggerUpload}
+            className="py-1.5 px-3 rounded-xl bg-white border border-[#ded8c9] hover:bg-[#ede8dd] text-[#0B2545] text-xs font-bold shadow-xs transition flex items-center gap-1"
+            title="Subir documento real PDF o DOCX"
+          >
+            <span>📥</span>
+            <span>Subir Machote</span>
+          </button>
 
-          {/* Zoom */}
-          <div className="hidden sm:flex items-center gap-1 pl-2 border-l border-[#ded8c9]">
-            <button
-              onClick={() => setZoomLevel((z) => Math.max(50, z - 10))}
-              className="w-6 h-6 bg-white border border-[#ded8c9] rounded-md font-bold text-xs"
-            >
-              −
-            </button>
-            <span className="font-mono text-[11px] font-bold text-[#0B2545] w-9 text-center">
-              {zoomLevel}%
-            </span>
-            <button
-              onClick={() => setZoomLevel((z) => Math.min(150, z + 10))}
-              className="w-6 h-6 bg-white border border-[#ded8c9] rounded-md font-bold text-xs"
-            >
-              +
-            </button>
-          </div>
+          {document && (
+            <>
+              {/* Botón Guardar Borrador */}
+              <button
+                onClick={handleSave}
+                disabled={saveState === 'saving' || !onSaveDraft}
+                className="py-1.5 px-3 rounded-xl bg-white border border-[#ded8c9] hover:bg-[#ede8dd] text-[#0B2545] text-xs font-bold shadow-xs transition flex items-center gap-1"
+              >
+                <span>💾</span>
+                <span>{saveState === 'saving' ? 'Guardando...' : saveState === 'saved' ? '✓ Guardado' : 'Guardar'}</span>
+              </button>
 
-          {/* Búsqueda en el documento */}
-          <div className="relative">
-            <input
-              type="text"
-              placeholder="Buscar..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-36 sm:w-44 bg-white border border-[#ded8c9] rounded-xl pl-2.5 pr-14 py-1 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-[#0B2545]"
-            />
-            {searchMatches.length > 0 && (
-              <span className="absolute right-7 top-1/2 -translate-y-1/2 text-[9px] font-bold text-[#0B2545] bg-blue-50 px-1 rounded">
-                {activeMatch + 1}/{searchMatches.length}
-              </span>
-            )}
-            {searchMatches.length > 0 && (
-              <div className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center">
-                <button onClick={() => goToNextMatch(1)} className="px-1 text-slate-500 hover:text-slate-800 text-[10px]">↓</button>
-                <button onClick={() => goToNextMatch(-1)} className="px-1 text-slate-500 hover:text-slate-800 text-[10px]">↑</button>
+              {/* Botón Usar como Machote / Guardar Plantilla */}
+              {onSaveAsTemplate && (
+                <button
+                  onClick={handleSaveMachoteTemplate}
+                  disabled={isTemplateSaving}
+                  className="py-1.5 px-3 rounded-xl bg-white border border-emerald-300 hover:bg-emerald-50 text-emerald-800 text-xs font-bold shadow-xs transition flex items-center gap-1"
+                  title="Guardar este archivo como plantilla reutilizable"
+                >
+                  <span>📋</span>
+                  <span>{isTemplateSaving ? 'Guardando...' : 'Usar como Machote'}</span>
+                </button>
+              )}
+
+              {/* Botón Generar a partir del Machote */}
+              {onGenerateFromMachote && (
+                <button
+                  onClick={() => onGenerateFromMachote(document)}
+                  className="py-1.5 px-3.5 rounded-xl bg-[#0B2545] hover:bg-[#081d39] text-white text-xs font-extrabold shadow-sm transition flex items-center gap-1.5"
+                  title="Redactar un nuevo escrito basado en la estructura de este machote"
+                >
+                  <span>⚡</span>
+                  <span>Generar con Machote</span>
+                </button>
+              )}
+
+              {/* Menú Exportar */}
+              <div className="relative">
+                <button
+                  onClick={() => setShowExportMenu(!showExportMenu)}
+                  className="py-1.5 px-3 rounded-xl bg-white border border-[#ded8c9] hover:bg-[#ede8dd] text-[#0B2545] text-xs font-bold shadow-xs transition flex items-center gap-1"
+                >
+                  <span>📄</span>
+                  <span>Exportar</span>
+                  <span className="text-[9px]">▼</span>
+                </button>
+
+                {showExportMenu && (
+                  <div className="absolute right-0 top-9 w-44 bg-white border border-[#ded8c9] rounded-xl shadow-xl z-50 py-1.5 text-xs text-slate-800 font-semibold animate-in fade-in zoom-in-95">
+                    {onExportDocx && (
+                      <button
+                        onClick={() => {
+                          onExportDocx();
+                          setShowExportMenu(false);
+                        }}
+                        className="w-full text-left px-3.5 py-2 hover:bg-slate-50 flex items-center gap-2 text-slate-800"
+                      >
+                        <span>📄</span> Exportar DOCX Word
+                      </button>
+                    )}
+                    {onExportPdf && (
+                      <button
+                        onClick={() => {
+                          onExportPdf();
+                          setShowExportMenu(false);
+                        }}
+                        className="w-full text-left px-3.5 py-2 hover:bg-slate-50 flex items-center gap-2 text-slate-800"
+                      >
+                        <span>🖨️</span> Exportar PDF Real
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
-            )}
-          </div>
+            </>
+          )}
         </div>
       </div>
 
-      {/* ── CUERPO: HOJA CARTA REAL ───────────────────────────────────────── */}
-      <div className="flex-1 overflow-y-auto p-6 md:p-8 flex justify-center items-start">
+      {/* ── CUERPO PRINCIPAL DEL VISOR (Panel Retráctil + HOJA ÚNICA ACTIVA) ── */}
+      <div className="flex-1 flex overflow-hidden min-h-0 min-w-0">
+        {/* Panel Lateral Retráctil de Miniaturas */}
+        {document && showPagesPanel && (
+          <aside className="w-[220px] shrink-0 bg-[#f7f4ec] border-r border-[#ded8c9] flex flex-col p-3 overflow-hidden select-none animate-in slide-in-from-left-2 duration-150 font-sans">
+            <div className="flex items-center justify-between text-[11px] font-extrabold text-[#0B2545] pb-2 border-b border-[#e8e2d5] mb-2 px-1">
+              <span className="tracking-wider uppercase">PÁGINAS ({totalPages})</span>
+              <button
+                onClick={() => setShowPagesPanel(false)}
+                className="w-5 h-5 rounded hover:bg-slate-200 text-slate-400 hover:text-slate-700 flex items-center justify-center text-xs font-bold"
+                title="Cerrar panel"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto space-y-2 pr-1">
+              {pageBreakdown.map((p) => {
+                const isSelected = currentPage === p.pageNumber;
+                const snippet = p.sections.map((s) => s.text).join(' ').slice(0, 100);
+
+                return (
+                  <button
+                    key={`thumb-${p.pageNumber}`}
+                    onClick={() => setCurrentPage(p.pageNumber)}
+                    className={`w-full text-left p-2 rounded-xl border transition flex flex-col space-y-1 ${
+                      isSelected
+                        ? 'bg-white border-[#0B2545] ring-2 ring-[#0B2545]/30 shadow-sm'
+                        : 'bg-white/80 border-[#ded8c9] hover:border-slate-400'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between text-[11px] font-bold text-[#0B2545]">
+                      <span>Pág. {p.pageNumber}</span>
+                    </div>
+
+                    <div
+                      style={{ fontFamily: documentFontFamily }}
+                      className="w-full h-20 bg-white border border-slate-200 rounded p-1.5 text-[7px] text-slate-500 overflow-hidden leading-tight line-clamp-5 select-none pointer-events-none shadow-xs"
+                    >
+                      {snippet || 'Página en blanco'}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </aside>
+        )}
+
+        {/* Lienzo Central: MUESTRA UNA SOLA HOJA VISIBLE A LA VEZ (SIN SCROLL INFINITO) */}
         <div
-          style={{ transform: `scale(${zoomLevel / 100})`, transformOrigin: 'top center' }}
-          className="transition-transform duration-150"
+          ref={pagesContainerRef}
+          className="legal-document-canvas flex-1 overflow-auto p-6 md:p-8 flex items-center justify-center"
         >
-          {/* Hoja de papel Carta realista (816×1056px contenida) */}
-          <div className="w-[816px] min-h-[1056px] max-w-full bg-white rounded shadow-2xl border border-slate-200/90 p-12 md:p-14 text-slate-900 font-serif leading-relaxed text-sm space-y-8 flex flex-col justify-between select-text">
-            {/* Encabezado del documento */}
-            <div className="space-y-6">
-              {currentPage === 1 && (
-                <div className="text-center space-y-3 pb-6 border-b border-slate-200">
-                  <h1 className="text-lg font-bold text-[#0B2545] tracking-tight uppercase font-sans">
-                    {document?.documentTypeLabel || 'ESCRITO JURÍDICO'}
-                  </h1>
-                  <p className="text-xs font-semibold text-slate-600 font-sans tracking-wide">
-                    {document?.title || ''}
+          {/* Si NO hay documento: Hoja en Blanco limpia */}
+          {!document ? (
+            <div
+              style={{ transform: `scale(${zoomLevel / 100})`, transformOrigin: 'center center' }}
+              className="transition-transform duration-150"
+            >
+              <div
+                onClick={onTriggerUpload}
+                className="w-[816px] min-h-[1056px] max-w-full bg-white rounded shadow-2xl border border-slate-200/90 p-14 md:p-16 flex flex-col justify-between cursor-pointer hover:border-slate-300 transition select-none group box-border overflow-hidden"
+              >
+                <div className="flex items-center justify-between border-b border-slate-100 pb-4 text-xs text-slate-300 font-mono">
+                  <span>JURÍDICO RADAR · VISOR PAGINADO LEGAL</span>
+                  <span>HOJA EN BLANCO</span>
+                </div>
+
+                <div className="text-center py-24 space-y-4 max-w-md mx-auto font-sans">
+                  <div className="w-14 h-14 rounded-2xl bg-slate-50 text-slate-400 text-2xl flex items-center justify-center mx-auto border border-slate-200 shadow-inner group-hover:scale-105 transition">
+                    📄
+                  </div>
+                  <h3 className="text-sm font-extrabold text-slate-700">
+                    Cargar Documento Oficial
+                  </h3>
+                  <p className="text-xs text-slate-400 leading-relaxed font-sans">
+                    Sube un documento real (PDF de 27 páginas o DOCX) para navegarlo hoja por hoja de forma paginada.
                   </p>
-                  <div className="flex items-center justify-between text-xs text-slate-600 font-sans pt-2">
-                    <span className="font-bold">PRESENTE</span>
-                    <span>
-                      {document?.jurisdiction || 'Cd. de México'}, a {new Date().toLocaleDateString('es-MX', { day: 'numeric', month: 'long', year: 'numeric' })}
+                  <div className="pt-2 flex items-center justify-center gap-3">
+                    <span className="py-2 px-4 rounded-xl bg-[#0B2545] text-white text-xs font-bold shadow-md inline-flex items-center gap-1.5 font-sans">
+                      <span>📥</span> Subir Archivo Real
                     </span>
                   </div>
                 </div>
-              )}
 
-              {/* Apartados de la página activa */}
-              <div className="space-y-6">
-                {activePageData?.sections.length === 0 ? (
-                  <div className="py-24 text-center text-slate-400 italic text-xs font-sans">
-                    Sin contenido en esta página.
-                  </div>
-                ) : (
-                  activePageData.sections.map(({ section }) => {
-                    const isActive = activeSectionId === section.id;
-                    const isManuallyEdited = section.isManuallyEdited || section.content.some((b) => b.isManuallyEdited);
-
-                    return (
-                      <section
-                        key={section.id}
-                        onClick={() => onSelectSection?.(section)}
-                        className={`group relative p-4 rounded-xl border transition space-y-2 ${
-                          isActive
-                            ? 'border-[#0B2545] bg-blue-50/20 shadow-xs'
-                            : 'border-transparent hover:border-slate-200 hover:bg-slate-50/40'
-                        }`}
-                      >
-                        {/* Cabecera del apartado con acciones en hover */}
-                        <div className="flex items-center justify-between border-b border-slate-100 pb-1.5 font-sans">
-                          <div className="flex items-center gap-2">
-                            <h3 className="font-extrabold text-[#0B2545] text-xs uppercase tracking-wider">
-                              {section.title}
-                            </h3>
-                            {isManuallyEdited && (
-                              <span className="px-1.5 py-0.5 text-[8px] font-extrabold uppercase rounded bg-amber-100 text-amber-800 border border-amber-300">
-                                Modificado
-                              </span>
-                            )}
-                          </div>
-
-                          {/* Botones de acción granular */}
-                          <div className="opacity-0 group-hover:opacity-100 transition flex items-center gap-1">
-                            {(Object.keys(SECTION_ACTION_LABELS) as SectionAction[]).map((action) => (
-                              <button
-                                key={action}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  runSectionAction(action, section);
-                                }}
-                                disabled={isGenerating || !onRegenerateSection}
-                                title={SECTION_ACTION_LABELS[action].label}
-                                className="px-2 py-0.5 bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 text-[10px] font-bold rounded-lg shadow-xs disabled:opacity-40"
-                              >
-                                {SECTION_ACTION_LABELS[action].icon} {SECTION_ACTION_LABELS[action].label}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-
-                        {/* Bloques de texto */}
-                        <div className="space-y-3">
-                          {section.content.map((block) => {
-                            const isEditing = editingBlock?.blockId === block.id;
-
-                            return (
-                              <div
-                                key={block.id}
-                                className="group/block relative p-1.5 rounded-lg transition hover:bg-white"
-                              >
-                                {isEditing ? (
-                                  <div className="space-y-2 font-sans" data-block-editor>
-                                    <textarea
-                                      rows={6}
-                                      defaultValue={editingBlock.text}
-                                      className="w-full p-3 bg-white border-2 border-[#0B2545] rounded-xl text-xs text-slate-900 focus:outline-none font-serif leading-relaxed"
-                                    />
-                                    <div className="flex justify-end gap-2">
-                                      <button
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          setEditingBlock(null);
-                                        }}
-                                        className="px-3 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-lg"
-                                      >
-                                        Cancelar
-                                      </button>
-                                      <button
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          const ta = (e.currentTarget.closest('[data-block-editor]')?.querySelector('textarea')) as HTMLTextAreaElement | null;
-                                          updateBlock(section.id, block.id, ta?.value ?? editingBlock.text);
-                                        }}
-                                        className="px-3 py-1 bg-[#0B2545] text-white hover:bg-[#081d39] text-xs font-bold rounded-lg shadow-sm"
-                                      >
-                                        Guardar cambios
-                                      </button>
-                                    </div>
-                                  </div>
-                                ) : (
-                                  <div
-                                    onMouseUp={() => {
-                                      const sel = window.getSelection()?.toString().trim();
-                                      if (sel && sel.length > 5 && onSelectTextHighlight) {
-                                        onSelectTextHighlight(sel);
-                                      }
-                                    }}
-                                    className="flex items-start justify-between gap-2"
-                                  >
-                                    <p className="font-serif leading-relaxed text-slate-800 text-[13px] whitespace-pre-wrap flex-1 text-justify">
-                                      {highlight(block.text)}
-                                    </p>
-                                    <button
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        setEditingBlock({ sectionId: section.id, blockId: block.id, text: block.text });
-                                      }}
-                                      className="opacity-0 group-hover/block:opacity-100 p-1 bg-white border border-slate-300 hover:bg-slate-100 text-slate-600 text-xs rounded shadow-xs shrink-0"
-                                      title="Editar este párrafo"
-                                    >
-                                      ✏️
-                                    </button>
-                                  </div>
-                                )}
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </section>
-                    );
-                  })
-                )}
+                <div className="border-t border-slate-100 pt-4 flex items-center justify-between text-[11px] text-slate-300 font-mono">
+                  <span>PÁGINA 1 DE 1</span>
+                  <span>FORMATO CARTA (816 × 1056 PX)</span>
+                </div>
               </div>
             </div>
+          ) : (
+            /* RENDER DE LA PÁGINA ÚNICA ACTIVA (currentPage) */
+            <div
+              style={{ transform: `scale(${zoomLevel / 100})`, transformOrigin: 'center center' }}
+              className="transition-transform duration-150 my-auto"
+            >
+              <div
+                key={`sheet-page-${currentPage}`}
+                id={`page-sheet-${currentPage}`}
+                style={{
+                  fontFamily: documentFontFamily,
+                  lineHeight: document.defaultLineHeight || '1.6',
+                }}
+                className="legal-document-sheet w-[816px] min-h-[1056px] max-w-full bg-white shadow-2xl p-12 md:p-16 text-slate-900 text-[13px] flex flex-col justify-between select-text relative overflow-hidden box-border"
+              >
+                {/* Encabezado de la página física */}
+                <div className="legal-document-content space-y-6 w-full max-w-full overflow-hidden break-words">
+                  {currentPage === 1 ? (
+                    <div className="space-y-4 pb-4 border-b border-slate-200/80 w-full max-w-full">
+                      {/* Membrete / Sello Superior Institucional */}
+                      <div className="flex items-center justify-between text-[11px] text-slate-500 font-mono pb-2">
+                        <span className="font-bold tracking-wider">
+                          {document.matter?.toUpperCase() || 'AMPARO'} · {document.documentTypeLabel?.toUpperCase() || 'DOCUMENTO JURÍDICO'}
+                        </span>
+                        <span>EXP: {document.caseRefs?.expediente || 'EN TRÁMITE'}</span>
+                      </div>
 
-            {/* Pie de página Carta */}
-            <div className="border-t border-slate-200 pt-4 flex items-center justify-between text-[11px] text-slate-400 font-sans tracking-wide">
-              <span>PÁGINA {currentPage} DE {totalPages}</span>
-              <span>PROTESTO LO NECESARIO EN DERECHO</span>
+                      {/* Título Centrado */}
+                      <div className="text-center space-y-1">
+                        <h1 className="text-base md:text-lg font-bold tracking-tight break-words text-slate-900 uppercase">
+                          {document.documentTypeLabel || 'ESCRITO JURÍDICO'}
+                        </h1>
+                        <p className="text-xs font-semibold text-slate-600 break-words">
+                          {document.title}
+                        </p>
+                      </div>
+
+                      {/* Proemio / Autoridad */}
+                      <div className="flex items-center justify-between text-xs text-slate-800 pt-2">
+                        <span className="font-bold uppercase tracking-wider">C. JUEZ / H. TRIBUNAL</span>
+                        <span className="text-slate-700">
+                          {document.jurisdiction || 'Cd. de México'}, a {new Date().toLocaleDateString('es-MX', { day: 'numeric', month: 'long', year: 'numeric' })}
+                        </span>
+                      </div>
+                    </div>
+                  ) : (
+                    /* Encabezado de continuación formal */
+                    <div className="flex items-center justify-between text-[10px] text-slate-400 font-mono border-b border-slate-200/80 pb-2 w-full">
+                      <span className="truncate max-w-sm">{document.title}</span>
+                      <span>EXP: {document.caseRefs?.expediente || 'EN TRÁMITE'} · PÁG. {currentPage} DE {totalPages}</span>
+                    </div>
+                  )}
+
+                  {/* Contenido de la página única activa */}
+                  <div className="space-y-4 w-full max-w-full overflow-hidden break-words">
+                    {activePageData?.sections?.map(({ section }) => {
+                      const isManuallyEdited = section.isManuallyEdited || section.content.some((b) => b.isManuallyEdited);
+
+                      return (
+                        <section
+                          key={section.id}
+                          id={`sec-${section.id}`}
+                          onClick={() => onSelectSection?.(section)}
+                          className="group relative py-1 space-y-1.5 w-full max-w-full overflow-hidden break-words"
+                        >
+                          {/* Título del apartado */}
+                          {!section.id.startsWith('sec-page-') && (
+                            <div className="flex items-center justify-between border-b border-slate-100 pb-0.5">
+                              <div className="flex items-center gap-2">
+                                <h3
+                                  style={{
+                                    fontFamily: section.style?.fontFamily || 'inherit',
+                                    fontWeight: section.style?.fontWeight || 'bold',
+                                    fontSize: section.style?.fontSize || '13px',
+                                    textAlign: section.style?.textAlign || 'left',
+                                  }}
+                                  className="text-slate-900 tracking-wide"
+                                >
+                                  {section.title}
+                                </h3>
+                                {isManuallyEdited && (
+                                  <span className="font-sans px-1.5 py-0.2 text-[8px] font-extrabold uppercase rounded bg-amber-100 text-amber-800 border border-amber-300">
+                                    Modificado
+                                  </span>
+                                )}
+                              </div>
+
+                              {/* Acciones en Hover */}
+                              <div className="font-sans opacity-0 group-hover:opacity-100 transition flex items-center gap-1">
+                                {(Object.keys(SECTION_ACTION_LABELS) as SectionAction[]).map((action) => (
+                                  <button
+                                    key={action}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      runSectionAction(action, section);
+                                    }}
+                                    disabled={isGenerating || !onRegenerateSection}
+                                    title={SECTION_ACTION_LABELS[action].label}
+                                    className="px-2 py-0.5 bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 text-[10px] font-bold rounded-lg shadow-xs disabled:opacity-40"
+                                  >
+                                    {SECTION_ACTION_LABELS[action].icon} {SECTION_ACTION_LABELS[action].label}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Párrafos del documento */}
+                          <div className="space-y-2.5 w-full max-w-full overflow-hidden break-words">
+                            {section.content.map((block) => {
+                              const isEditing = editingBlock?.blockId === block.id;
+
+                              const blockInlineStyle: React.CSSProperties = {
+                                fontFamily: block.style?.fontFamily || 'inherit',
+                                fontSize: block.style?.fontSize || 'inherit',
+                                fontWeight: block.style?.fontWeight || 'normal',
+                                fontStyle: (block.style?.fontStyle as any) || 'normal',
+                                textAlign: block.style?.textAlign || 'justify',
+                                lineHeight: block.style?.lineHeight || 'inherit',
+                                textTransform: (block.style?.textTransform as any) || 'none',
+                                textDecoration: block.style?.textDecoration || 'none',
+                                textIndent: block.style?.indent || '0',
+                              };
+
+                              return (
+                                <div
+                                  key={block.id}
+                                  className="group/block relative p-0.5 rounded-xs transition hover:bg-slate-50/40 w-full max-w-full overflow-hidden break-words"
+                                >
+                                  {isEditing ? (
+                                    <div className="space-y-2 font-sans w-full" data-block-editor>
+                                      <textarea
+                                        rows={6}
+                                        defaultValue={editingBlock.text}
+                                        style={blockInlineStyle}
+                                        className="w-full p-3 bg-white border-2 border-[#0B2545] rounded-lg text-xs text-slate-900 focus:outline-none leading-relaxed"
+                                      />
+                                      <div className="flex justify-end gap-2 font-sans">
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setEditingBlock(null);
+                                          }}
+                                          className="px-3 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-lg"
+                                        >
+                                          Cancelar
+                                        </button>
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            const ta = (e.currentTarget.closest('[data-block-editor]')?.querySelector('textarea')) as HTMLTextAreaElement | null;
+                                            updateBlock(section.id, block.id, ta?.value ?? editingBlock.text);
+                                          }}
+                                          className="px-3 py-1 bg-[#0B2545] text-white hover:bg-[#081d39] text-xs font-bold rounded-lg shadow-sm"
+                                        >
+                                          Guardar cambios
+                                        </button>
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <div
+                                      onMouseUp={() => {
+                                        const sel = window.getSelection()?.toString().trim();
+                                        if (sel && sel.length > 5 && onSelectTextHighlight) {
+                                          onSelectTextHighlight(sel);
+                                        }
+                                      }}
+                                      className="flex items-start justify-between gap-2 w-full max-w-full overflow-hidden"
+                                    >
+                                      <div
+                                        style={blockInlineStyle}
+                                        className="leading-relaxed text-slate-900 whitespace-pre-wrap break-words overflow-hidden flex-1 [overflow-wrap:anywhere]"
+                                      >
+                                        {renderFormattedText(block.text, block.style)}
+                                      </div>
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setEditingBlock({ sectionId: section.id, blockId: block.id, text: block.text });
+                                        }}
+                                        className="font-sans opacity-0 group-hover/block:opacity-100 p-1 bg-white border border-slate-300 hover:bg-slate-100 text-slate-600 text-xs rounded shadow-xs shrink-0"
+                                        title="Editar texto directamente"
+                                      >
+                                        ✏️
+                                      </button>
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </section>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Pie de Página Físico */}
+                <div className="border-t border-slate-200 pt-4 flex items-center justify-between text-[11px] text-slate-500 font-sans w-full">
+                  <span className="font-semibold text-slate-700 truncate max-w-md">
+                    {currentPage === totalPages ? 'PROTESTO LO NECESARIO EN DERECHO' : document.caseRefs?.expediente || 'EXPEDIENTE EN TRÁMITE'}
+                  </span>
+                  <span className="font-mono shrink-0 font-bold text-[#0B2545]">
+                    PÁGINA {currentPage} DE {totalPages}
+                  </span>
+                </div>
+              </div>
             </div>
-          </div>
+          )}
         </div>
       </div>
 
-      {/* Modal de Validación / Calidad (Quality Gate) */}
+      {/* Modal de Calidad / Quality Gate */}
       {showReviewModal && qualityGate && (
-        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[1001] flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-lg w-full p-6 space-y-4 text-xs font-sans">
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-[1001] flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-lg w-full p-6 space-y-4 text-xs font-sans animate-in fade-in zoom-in-95">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <h3 className="text-sm font-extrabold text-[#0B2545]">
                 Revisión de Calidad Jurídica
@@ -677,23 +910,12 @@ export function WorkspaceDocumentEditor({
               </div>
             </div>
 
-            {qualityGate.warnings.length > 0 && (
-              <div className="space-y-1 max-h-32 overflow-y-auto">
-                <p className="font-bold text-amber-700 uppercase text-[9px]">Advertencias:</p>
-                {qualityGate.warnings.map((w, i) => (
-                  <p key={i} className="p-1.5 rounded bg-amber-50 text-amber-900 text-[10px]">
-                    • {w.message}
-                  </p>
-                ))}
-              </div>
-            )}
-
             <div className="flex justify-end gap-2 pt-2">
               <button
                 onClick={() => setShowReviewModal(false)}
-                className="py-1.5 px-4 rounded-xl bg-[#0B2545] text-white font-bold text-xs"
+                className="py-1.5 px-4 rounded-xl bg-[#0B2545] text-white font-bold text-xs shadow-sm"
               >
-                Entendido
+                Aceptar
               </button>
             </div>
           </div>

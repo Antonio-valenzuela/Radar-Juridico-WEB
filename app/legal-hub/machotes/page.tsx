@@ -1,12 +1,9 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { WorkspaceLibraryPanel } from './components/WorkspaceLibraryPanel';
 import { WorkspaceDocumentEditor } from './components/WorkspaceDocumentEditor';
-import { WorkspaceContextualAIPanel } from './components/WorkspaceContextualAIPanel';
 import { WorkspaceDraftGeneratorModal } from './components/WorkspaceDraftGeneratorModal';
 import { TemplateLibraryManager, TemplateItem } from './components/TemplateLibraryManager';
-import { PaginatedDocumentEditor } from './components/PaginatedDocumentEditor';
 import { SaveCustomTemplateModal } from '@/components/machotes/SaveCustomTemplateModal';
 import { EditCustomTemplateModal } from '@/components/machotes/EditCustomTemplateModal';
 
@@ -17,12 +14,17 @@ import type {
   TemplateVersion,
   DocumentPage,
   DocumentNode,
+  ContentBlock,
 } from '@/lib/legal-engine/types';
+import { createEmptyDocument } from '@/lib/legal-engine/types';
 import { createSourceDocument } from '@/lib/legal-engine/context';
 
-/* ────────────────────────────────────────────────────────────────────────────
-   Ficha de caso y utilidades deterministas
-──────────────────────────────────────────────────────────────────────────── */
+export type LegalWorkspaceMode =
+  | 'universal'
+  | 'initial_writings'
+  | 'responses_resources'
+  | 'my-templates';
+
 interface CaseFicha {
   expediente: string;
   actor: string;
@@ -45,6 +47,15 @@ const STAGES = [
   { id: 'review_coherence', label: 'Revisión de coherencia' },
   { id: 'validate', label: 'Validación y calidad' },
 ];
+
+function sanitizeClean(raw: string): string {
+  if (!raw) return '';
+  return raw
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\uD800-\uDFFF\uFFFD]/g, '')
+    .replace(/[□■]+/g, ' ')
+    .replace(/\s{3,}/g, ' ')
+    .trim();
+}
 
 function firstMatch(text: string, patterns: RegExp[]): string {
   for (const re of patterns) {
@@ -87,8 +98,6 @@ function detectCaseFicha(texts: string[]): CaseFicha {
   else if (/amparo|constitucional/i.test(full)) materia = 'Amparo';
   else if (/mercantil|comercio|cheque|pagar[ée]|t[ií]tulos\s+de\s+cr[ée]dito/i.test(full)) materia = 'Mercantil';
   else if (/civil|herencia|sucesi[oó]n|obligaciones|contrato/i.test(full)) materia = 'Civil';
-  else if (/familiar|divorcio|alimentos|patria\s+potestad/i.test(full)) materia = 'Familiar';
-  else if (/administrativ|fiscal|multa|procedimiento\s+administrativo/i.test(full)) materia = 'Administrativo';
 
   let tipo = 'Amparo Directo';
   if (/recurso\s+de\s+revisi[oó]n/i.test(full)) tipo = 'Recurso de Revisión';
@@ -96,7 +105,6 @@ function detectCaseFicha(texts: string[]): CaseFicha {
   else if (/contestaci[oó]n/i.test(full) && /demanda/i.test(full)) tipo = 'Contestación de Demanda';
   else if (/amparo\s+directo/i.test(full)) tipo = 'Amparo Directo';
   else if (/amparo\s+indirecto/i.test(full)) tipo = 'Amparo Indirecto';
-  else if (/agravios/i.test(full)) tipo = 'Expresión de Agravios';
 
   const foundCount = [expediente, actor, demandado, abogado, autoridad, fechas].filter(Boolean).length;
   const confianza = Math.min(100, Math.round(35 + foundCount * 11));
@@ -105,25 +113,21 @@ function detectCaseFicha(texts: string[]): CaseFicha {
 }
 
 export default function MachotesPage() {
-  const [activeNavTab, setActiveNavTab] = useState<'universal' | 'initial_writings' | 'responses_resources' | 'my-templates'>('universal');
+  const [activeNavTab, setActiveNavTab] = useState<LegalWorkspaceMode>('universal');
 
-  // Paneles retráctiles independientes
-  const [isLibraryCollapsed, setIsLibraryCollapsed] = useState(true);
-  const [isContextualAiCollapsed, setIsContextualAiCollapsed] = useState(false);
-
-  // Estados Documentales
+  // Documento activo en el visor paginado (Inicializado en null para cargar exclusivamente documentos reales)
   const [universalDoc, setUniversalDoc] = useState<UniversalLegalDocument | null>(null);
   const [activeSection, setActiveSection] = useState<DocumentNode | null>(null);
-  const [selectedTextHighlight, setSelectedTextHighlight] = useState<string | null>(null);
+  const [, setSelectedTextHighlight] = useState<string | null>(null);
 
   const [uploadedSourceDocs, setUploadedSourceDocs] = useState<UploadedSourceDocument[]>([]);
-  const [caseDocuments, setCaseDocuments] = useState<CaseDocument[]>([]);
-  const [selectedCaseDoc, setSelectedCaseDoc] = useState<CaseDocument | null>(null);
+  const [, setCaseDocuments] = useState<CaseDocument[]>([]);
+  const [, setSelectedCaseDoc] = useState<CaseDocument | null>(null);
   const [caseFicha, setCaseFicha] = useState<CaseFicha | null>(null);
 
   // Plantillas
   const [customTemplates, setCustomTemplates] = useState<TemplateItem[]>([]);
-  const [selectedTemplate, setSelectedTemplate] = useState<TemplateItem | null>(null);
+  const [, setSelectedTemplate] = useState<TemplateItem | null>(null);
   const [selectedTemplateRefText, setSelectedTemplateRefText] = useState<string>('');
 
   // Modales
@@ -142,39 +146,11 @@ export default function MachotesPage() {
 
   const notify = useCallback((tone: 'success' | 'error' | 'warning', message: string) => {
     setFeedback({ tone, message });
-    window.setTimeout(() => setFeedback(null), 8000);
+    window.setTimeout(() => setFeedback(null), 7000);
   }, []);
 
-  // Cargar plantillas y último borrador
-  useEffect(() => {
-    loadTemplates();
-    let lastId: string | null = null;
-    try {
-      lastId = localStorage.getItem('jr_last_draft_id');
-    } catch { /* sin localStorage */ }
-    if (lastId) {
-      handleLoadLastDraft(lastId);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // En pantallas pequeñas los paneles laterales inician como drawers cerrados
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    if (window.innerWidth < 900) setIsLibraryCollapsed(true);
-    if (window.innerWidth < 1199) setIsContextualAiCollapsed(true);
-  }, []);
-
-  // Seleccionar primer apartado activo cuando cambie el documento
-  useEffect(() => {
-    if (universalDoc && universalDoc.sections && universalDoc.sections.length > 0) {
-      if (!activeSection || !universalDoc.sections.some((s) => s.id === activeSection.id)) {
-        setActiveSection(universalDoc.sections[0]);
-      }
-    }
-  }, [universalDoc, activeSection]);
-
-  const loadTemplates = async () => {
+  // Cargar plantillas de la base de datos
+  const loadTemplates = useCallback(async () => {
     try {
       const res = await fetch('/api/templates/custom');
       const data = await res.json();
@@ -182,7 +158,7 @@ export default function MachotesPage() {
         const mapped: TemplateItem[] = data.templates.map((t: any) => ({
           id: t.id,
           name: t.title,
-          category: t.category,
+          category: t.category || 'General',
           matterId: t.practiceArea || 'amparo',
           version: t.version || 1,
           description: t.description || '',
@@ -191,11 +167,101 @@ export default function MachotesPage() {
         setCustomTemplates(mapped);
       }
     } catch {
-      // Fallback silencioso
+      // Silencioso
+    }
+  }, []);
+
+  useEffect(() => {
+    loadTemplates();
+  }, [loadTemplates]);
+
+  /* ── Cambio de Modo de Redacción ───────────────────────────────────────── */
+  const handleSwitchMode = (mode: LegalWorkspaceMode) => {
+    setActiveNavTab(mode);
+    if (mode === 'universal') {
+      // Mantiene el documento real actual
+    } else if (mode === 'initial_writings') {
+      if (!universalDoc) {
+        const initialDoc: UniversalLegalDocument = createEmptyDocument({
+          id: `doc-${Date.now()}`,
+          title: 'Demanda de Amparo Indirecto',
+          documentType: 'amparo_indirecto',
+          documentTypeLabel: 'Amparo Indirecto',
+          matter: 'Amparo',
+          jurisdiction: 'Cd. de México',
+          sections: [
+            {
+              id: 'sec-proemio',
+              type: 'header',
+              title: 'I. Quejoso y Acreditación de Personalidad',
+              order: 1,
+              isRepeatable: false,
+              isEditable: true,
+              isGenerated: false,
+              isManuallyEdited: false,
+              variables: [],
+              validationErrors: [],
+              validationWarnings: [],
+              content: [
+                {
+                  id: 'blk-init-1',
+                  layer: 'USER_POSITION',
+                  trustLevel: 'VERIFIED',
+                  text: 'C. JUEZ DE DISTRITO EN MATERIA DE AMPARO EN TURNO.\n\n[DATO PENDIENTE DE EXPEDIENTE: Nombre del quejoso], promoviendo por mi propio derecho...',
+                  isManuallyEdited: false,
+                  style: { fontFamily: 'inherit', fontSize: '13px', textAlign: 'justify', lineHeight: '1.6' },
+                },
+              ],
+            },
+          ],
+        });
+        setUniversalDoc(initialDoc);
+        setActiveSection(initialDoc.sections[0]);
+      }
+      notify('success', 'Modo Escritos Iniciales.');
+    } else if (mode === 'responses_resources') {
+      if (!universalDoc) {
+        const responseDoc: UniversalLegalDocument = createEmptyDocument({
+          id: `doc-${Date.now()}`,
+          title: 'Recurso de Revisión',
+          documentType: 'recurso_revision',
+          documentTypeLabel: 'Recurso de Revisión',
+          matter: 'Amparo',
+          jurisdiction: 'Cd. de México',
+          sections: [
+            {
+              id: 'sec-proemio-resp',
+              type: 'header',
+              title: 'I. Proemio y Objeto del Recurso',
+              order: 1,
+              isRepeatable: false,
+              isEditable: true,
+              isGenerated: false,
+              isManuallyEdited: false,
+              variables: [],
+              validationErrors: [],
+              validationWarnings: [],
+              content: [
+                {
+                  id: 'blk-resp-1',
+                  layer: 'USER_POSITION',
+                  trustLevel: 'VERIFIED',
+                  text: 'H. TRIBUNAL COLEGIADO DE CIRCUITO EN TURNO.\n\n[DATO PENDIENTE DE EXPEDIENTE: Nombre del recurrente], comparezco a interponer formal Recurso de Revisión...',
+                  isManuallyEdited: false,
+                  style: { fontFamily: 'inherit', fontSize: '13px', textAlign: 'justify', lineHeight: '1.6' },
+                },
+              ],
+            },
+          ],
+        });
+        setUniversalDoc(responseDoc);
+        setActiveSection(responseDoc.sections[0]);
+      }
+      notify('success', 'Modo Contestaciones y Recursos.');
     }
   };
 
-  /* ── Carga y Procesamiento Multi-archivo con OCR Real ────────────────── */
+  /* ── Carga y Procesamiento de Documento Real (PDF/DOCX) CON PRESERVACIÓN DE PÁGINAS REALES ── */
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
     if (!files || files.length === 0) return;
@@ -203,13 +269,14 @@ export default function MachotesPage() {
     const fileList = Array.from(files);
     if (fileInputHiddenRef.current) fileInputHiddenRef.current.value = '';
 
-    notify('warning', `Procesando ${fileList.length} documento(s) con OCR y análisis jurídico local...`);
+    notify('warning', `Procesando documento oficial "${fileList[0].name}" con preservación paginada...`);
 
     const sources: UploadedSourceDocument[] = [];
     const caseDocs: CaseDocument[] = [];
 
     for (let i = 0; i < fileList.length; i++) {
       const file = fileList[i];
+      const ext = file.name.split('.').pop()?.toLowerCase() || 'pdf';
       const formData = new FormData();
       formData.append('file', file);
 
@@ -221,20 +288,24 @@ export default function MachotesPage() {
         const data = await res.json();
 
         if (!data.ok) {
-          throw new Error(data.error || 'El servidor no pudo procesar el archivo.');
+          throw new Error(data.error || 'No se pudo procesar el archivo.');
         }
 
         const sourceValidated = data.sourceValidated !== false;
         const pages: DocumentPage[] = data.pages?.length
-          ? data.pages
-          : [{ page: 1, text: data.extractedText || '', chars: data.extractedText?.length || 0 }];
+          ? data.pages.map((p: any) => ({
+              page: p.page,
+              text: sanitizeClean(p.text || ''),
+              chars: p.chars || 0,
+            }))
+          : [{ page: 1, text: sanitizeClean(data.extractedText || ''), chars: data.extractedText?.length || 0 }];
 
         const newSource: UploadedSourceDocument = createSourceDocument({
           id: data.fileId || `doc-${Date.now()}-${i}`,
           filename: file.name,
           name: file.name,
-          type: file.type,
-          extractedText: data.extractedText,
+          type: file.type || ext,
+          extractedText: sanitizeClean(data.extractedText || ''),
           pages,
           sourceValidated,
           sourceValidationMethod: data.sourceValidationMethod,
@@ -245,7 +316,7 @@ export default function MachotesPage() {
         const newCaseDoc: CaseDocument = {
           id: newSource.id,
           name: file.name,
-          type: file.name.split('.').pop() || 'pdf',
+          type: ext,
           pageCount: pages.length,
           pages: pages.map((p) => ({
             page: p.page,
@@ -260,6 +331,95 @@ export default function MachotesPage() {
 
         sources.push(newSource);
         caseDocs.push(newCaseDoc);
+
+        if (i === 0) {
+          const fileNameWithoutExt = file.name.replace(/\.[^/.]+$/, '');
+
+          // Cada página física del archivo original es una sección paginada exacta
+          const sections: DocumentNode[] = pages.map((p, pIdx) => {
+            const rawParagraphs = (p.text || '').split(/\n\s*\n/).filter((t) => t.trim().length > 0);
+            const blocks: ContentBlock[] = (rawParagraphs.length > 0 ? rawParagraphs : [p.text || 'Sin texto extraído']).map((parText, bIdx) => {
+              const trimmed = sanitizeClean(parText);
+              const isAllUpper = trimmed.length > 4 && trimmed === trimmed.toUpperCase() && !/^\d+$/.test(trimmed);
+              const isCenterHeading = isAllUpper || /^(quejoso|autoridad|asunto|hechos|conceptos|petitorios|protesto)/i.test(trimmed);
+
+              return {
+                id: `blk-${pIdx + 1}-${bIdx + 1}`,
+                layer: 'USER_POSITION',
+                trustLevel: 'VERIFIED',
+                text: trimmed,
+                isManuallyEdited: false,
+                style: {
+                  fontFamily: 'inherit',
+                  fontSize: '13px',
+                  fontWeight: isAllUpper ? 'bold' : 'normal',
+                  textAlign: isCenterHeading && trimmed.length < 120 ? 'center' : 'justify',
+                  lineHeight: '1.6',
+                  textTransform: isAllUpper ? 'uppercase' : 'none',
+                },
+              };
+            });
+
+            return {
+              id: `sec-page-${pIdx + 1}`,
+              type: pIdx === 0 ? 'header' : pIdx === pages.length - 1 ? 'closing' : 'argument',
+              title: `Página ${p.page || pIdx + 1}`,
+              order: pIdx + 1,
+              isRepeatable: true,
+              isEditable: true,
+              isGenerated: false,
+              isManuallyEdited: false,
+              variables: [],
+              validationErrors: [],
+              validationWarnings: [],
+              style: {
+                fontFamily: 'inherit',
+                fontWeight: 'bold',
+                fontSize: '13px',
+                textAlign: 'left',
+              },
+              content: blocks,
+            };
+          });
+
+          const uploadedUniversalDoc: UniversalLegalDocument = createEmptyDocument({
+            id: `doc-${Date.now()}`,
+            title: fileNameWithoutExt,
+            documentType: data.classification?.tipo_documento || 'machote_real',
+            documentTypeLabel: data.classification?.tipo_documento || 'Documento Oficial',
+            matter: data.classification?.materia || 'Amparo',
+            jurisdiction: 'Cd. de México',
+            parties: {
+              actor: 'Parte promovente',
+              demandado: 'Autoridad o contraparte',
+            },
+            caseRefs: {
+              expediente: file.name,
+            },
+            sections,
+            sourceDocuments: [newSource],
+            originalFormat: ext as any,
+            defaultFontFamily: 'Times New Roman, Times, "Liberation Serif", serif',
+            defaultFontSize: '12pt',
+            defaultLineHeight: '1.6',
+            originalPageCount: pages.length,
+            generationMetadata: {
+              pipelineState: {
+                currentStage: null,
+                stages: {} as any,
+                isComplete: true,
+                hasErrors: false,
+              },
+              aiModel: 'gemini-legal-engine',
+              aiUsed: false,
+            },
+            status: 'draft',
+          });
+
+          setUniversalDoc(uploadedUniversalDoc);
+          setActiveSection(sections[0]);
+          setSelectedTemplateRefText(sanitizeClean(data.extractedText || ''));
+        }
       } catch (err: any) {
         notify('error', `Error en "${file.name}": ${err.message}`);
       }
@@ -272,30 +432,120 @@ export default function MachotesPage() {
     if (sources.length > 0) {
       const ficha = detectCaseFicha(sources.map((s) => s.extractedText || ''));
       setCaseFicha(ficha);
-      notify('success', `${sources.length} documento(s) procesado(s). Caso identificado: ${ficha.materia} · ${ficha.tipo}.`);
+      notify('success', `Documento oficial "${fileList[0].name}" cargado en visor paginado (${caseDocs[0]?.pageCount || 1} páginas).`);
     }
   };
 
   const handleRemoveUploadedSource = (id: string) => {
     setUploadedSourceDocs((prev) => prev.filter((s) => s.id !== id));
     setCaseDocuments((prev) => prev.filter((d) => d.id !== id));
-    if (selectedCaseDoc?.id === id) setSelectedCaseDoc(null);
   };
 
-  /* ── Seleccionar Plantilla (Copia de Trabajo) ─────────────────────────── */
+  /* ── Usar como Machote / Guardar Plantilla Reutilizable ────────────────── */
+  const handleSaveAsTemplate = async (doc: UniversalLegalDocument) => {
+    notify('warning', `Guardando "${doc.title}" como machote reutilizable en tu biblioteca...`);
+    try {
+      const fullContent = doc.sections.map((s) => s.content.map((b) => b.text).join('\n\n')).join('\n\n---\n\n');
+      const res = await fetch('/api/templates/custom', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: doc.title,
+          description: `Machote oficial (${doc.documentTypeLabel || 'Legal'})`,
+          category: doc.documentTypeLabel || 'Machote',
+          practiceArea: doc.matter?.toLowerCase() || 'amparo',
+          originalText: fullContent,
+          content: fullContent,
+          sourceFileName: doc.caseRefs?.expediente || `${doc.title}.pdf`,
+          variables: { QUEJOSO: '', EXPEDIENTE: '', AUTORIDAD: '', FECHA: '' },
+        }),
+      });
+
+      const data = await res.json();
+      if (!data.ok) throw new Error(data.error || 'No se pudo guardar la plantilla.');
+
+      await loadTemplates();
+      notify('success', `¡Machote "${doc.title}" guardado exitosamente como plantilla reutilizable!`);
+    } catch (err: any) {
+      notify('error', `Error al guardar como machote: ${err.message}`);
+    }
+  };
+
+  /* ── Generar Escrito Basado en este Machote ────────────────────────────── */
+  const handleGenerateFromMachote = (doc: UniversalLegalDocument) => {
+    const fullText = doc.sections.map((s) => s.content.map((b) => b.text).join('\n\n')).join('\n\n');
+    setSelectedTemplateRefText(fullText);
+    setIsDraftGeneratorOpen(true);
+  };
+
+  /* ── Usar Plantilla Existente ──────────────────────────────────────────── */
   const handleUseTemplate = async (template: TemplateItem, version?: TemplateVersion) => {
-    notify('warning', `Cargando estructura de "${template.name}"...`);
+    notify('warning', `Cargando machote "${template.name}"...`);
     try {
       const res = await fetch(`/api/templates/custom/${template.id}`);
       const data = await res.json();
       if (!data.ok || !data.template) throw new Error(data.error || 'No se pudo obtener la plantilla.');
 
-      const refText = data.template.originalText || data.template.content || '';
+      const tpl = data.template;
+      const refText = sanitizeClean(tpl.originalText || tpl.content || '');
       setSelectedTemplate({ ...template, version: version?.version || template.version });
       setSelectedTemplateRefText(refText);
 
-      notify('success', `Machote "${template.name}" cargado como copia de trabajo (${refText.length.toLocaleString()} caracteres). El original no se modifica; Radar adaptará su estructura.`);
+      // Parsear párrafos y páginas del machote real
+      const rawParagraphs = refText.split(/\n\s*\n/).filter((t: string) => t.trim().length > 0);
+      const blocks: ContentBlock[] = (rawParagraphs.length > 0 ? rawParagraphs : [refText || 'Sin texto']).map((parText: string, bIdx: number) => {
+        const trimmed = sanitizeClean(parText);
+        const isAllUpper = trimmed.length > 4 && trimmed === trimmed.toUpperCase() && !/^\d+$/.test(trimmed);
+        const isCenterHeading = isAllUpper || /^(quejoso|autoridad|asunto|hechos|conceptos|petitorios|protesto)/i.test(trimmed);
+
+        return {
+          id: `blk-tpl-${bIdx + 1}`,
+          layer: 'USER_POSITION' as const,
+          trustLevel: 'VERIFIED' as const,
+          text: trimmed,
+          isManuallyEdited: false,
+          style: {
+            fontFamily: 'inherit',
+            fontSize: '13px',
+            fontWeight: isAllUpper ? 'bold' : 'normal',
+            textAlign: isCenterHeading && trimmed.length < 120 ? 'center' : 'justify',
+            lineHeight: '1.6',
+            textTransform: isAllUpper ? 'uppercase' : 'none',
+          },
+        };
+      });
+
+      const loadedDoc: UniversalLegalDocument = createEmptyDocument({
+        id: `doc-${tpl.id}-${Date.now()}`,
+        templateId: tpl.id,
+        title: tpl.title || template.name,
+        documentType: tpl.documentType || 'machote',
+        documentTypeLabel: tpl.category || 'Machote',
+        matter: tpl.practiceArea || template.matterId || 'Amparo',
+        jurisdiction: tpl.jurisdiction || 'Cd. de México',
+        sections: [
+          {
+            id: `sec-tpl-1`,
+            type: 'argument',
+            title: tpl.title || template.name,
+            order: 1,
+            isRepeatable: false,
+            isEditable: true,
+            isGenerated: false,
+            isManuallyEdited: false,
+            variables: [],
+            validationErrors: [],
+            validationWarnings: [],
+            content: blocks,
+          },
+        ],
+        status: 'draft',
+      });
+
+      setUniversalDoc(loadedDoc);
+      setActiveSection(loadedDoc.sections[0]);
       setActiveNavTab('universal');
+      notify('success', `Machote "${tpl.title}" abierto exitosamente.`);
     } catch (err: any) {
       notify('error', `Error al usar plantilla: ${err.message}`);
     }
@@ -328,7 +578,7 @@ export default function MachotesPage() {
     }
   };
 
-  /* ── Generación de Escrito Completo ───────────────────────────────────── */
+  /* ── Generación de Escrito Completo (Con Motor de Reconstrucción de Caso y Teoría Jurídica) ── */
   const handleRunPipeline = async (payload: {
     userInstruction: string;
     intentLabel?: string;
@@ -338,7 +588,7 @@ export default function MachotesPage() {
   }) => {
     setIsUniversalGenerating(true);
     setPipelineStageIndex(0);
-    notify('warning', 'Redactando escrito jurídico completo por apartados...');
+    notify('warning', 'Analizando expediente y redactando escrito judicial adaptado...');
 
     const stageTimer = window.setInterval(() => {
       setPipelineStageIndex((prev) => Math.min(prev + 1, STAGES.length - 1));
@@ -353,8 +603,8 @@ export default function MachotesPage() {
           sourceDocuments: payload.sourceDocs.length > 0 ? payload.sourceDocs : uploadedSourceDocs,
           allowUnvalidatedSource: true,
           referenceDocumentText: payload.templateRefText || selectedTemplateRefText || undefined,
-          referenceDocumentId: payload.selectedTemplate?.id || selectedTemplate?.id,
-          documentTypeLabel: payload.intentLabel || selectedTemplate?.category || undefined,
+          referenceDocumentId: payload.selectedTemplate?.id,
+          documentTypeLabel: payload.intentLabel || payload.selectedTemplate?.category || undefined,
         }),
       });
 
@@ -369,7 +619,7 @@ export default function MachotesPage() {
       if (data.document.sections && data.document.sections.length > 0) {
         setActiveSection(data.document.sections[0]);
       }
-      notify('success', 'Generar Escrito Completo finalizado con éxito.');
+      notify('success', 'Generación jurídica finalizada con éxito.');
     } catch (err: any) {
       notify('error', `Fallo en la generación: ${err.message}`);
     } finally {
@@ -378,11 +628,11 @@ export default function MachotesPage() {
     }
   };
 
-  /* ── Regenerar Apartado o Aplicar Sugerencia Contextual ────────────────── */
+  /* ── Regenerar Apartado ───────────────────────────────────────────────── */
   const handleRegenerateSection = async (sectionId: string, instruction?: string) => {
     if (!universalDoc) return;
     setIsUniversalGenerating(true);
-    notify('warning', 'Actualizando apartado con IA jurídica...');
+    notify('warning', 'Actualizando apartado con IA...');
 
     try {
       const res = await fetch('/api/legal-engine/generate-section', {
@@ -408,9 +658,15 @@ export default function MachotesPage() {
                 id: blockId,
                 layer: 'GENERATED_ARGUMENT' as const,
                 trustLevel: 'VERIFIED' as const,
-                text: data.text,
+                text: sanitizeClean(data.text),
                 sources: data.sources,
                 isManuallyEdited: false,
+                style: sec.content[0]?.style || {
+                  fontFamily: 'inherit',
+                  fontSize: '13px',
+                  textAlign: 'justify',
+                  lineHeight: '1.6',
+                },
               },
             ],
           };
@@ -431,13 +687,7 @@ export default function MachotesPage() {
     }
   };
 
-  const handleApplySuggestion = async (suggestionText: string) => {
-    if (!universalDoc || !activeSection) return;
-    const instruction = `Aplica la siguiente sugerencia contextual al apartado "${activeSection.title}": ${suggestionText}. Desarrolla la argumentación jurídica con rigor, fundamentación y citas legales pertinentes.`;
-    await handleRegenerateSection(activeSection.id, instruction);
-  };
-
-  /* ── Guardar / Reabrir Borrador ───────────────────────────────────────── */
+  /* ── Guardar / Exportar ────────────────────────────────────────────────── */
   const handleSaveDraft = async (): Promise<boolean> => {
     if (!universalDoc) return false;
     try {
@@ -458,7 +708,7 @@ export default function MachotesPage() {
       if (!data.ok) throw new Error(data.error);
       try {
         localStorage.setItem('jr_last_draft_id', data.draft.id);
-      } catch { /* ignorar */ }
+      } catch { /* noop */ }
       notify('success', `Borrador guardado: "${data.draft.title}".`);
       return true;
     } catch (err: any) {
@@ -467,32 +717,6 @@ export default function MachotesPage() {
     }
   };
 
-  const handleLoadLastDraft = async (draftId?: string) => {
-    let idToLoad = draftId;
-    if (!idToLoad) {
-      try {
-        idToLoad = localStorage.getItem('jr_last_draft_id') || undefined;
-      } catch { /* noop */ }
-    }
-    if (!idToLoad) {
-      notify('warning', 'No hay un borrador guardado recientemente.');
-      return;
-    }
-    try {
-      const res = await fetch(`/api/legal-drafts/${idToLoad}`);
-      const data = await res.json();
-      if (!data.ok || !data.draft?.structuredDoc) throw new Error(data.error || 'Borrador no encontrado.');
-      setUniversalDoc(data.draft.structuredDoc);
-      if (data.draft.structuredDoc.sections?.length > 0) {
-        setActiveSection(data.draft.structuredDoc.sections[0]);
-      }
-      notify('success', `Borrador "${data.draft.title}" reabierto.`);
-    } catch (err: any) {
-      notify('error', `Error al reabrir borrador: ${err.message}`);
-    }
-  };
-
-  /* ── Exportar a DOCX y PDF Real ────────────────────────────────────────── */
   const handleExportDocx = async () => {
     if (!universalDoc) return;
     try {
@@ -549,7 +773,7 @@ export default function MachotesPage() {
         a.download = `${universalDoc.title.replace(/[^a-z0-9]/gi, '_')}.pdf`;
         a.click();
         URL.revokeObjectURL(url);
-        notify('success', 'PDF REAL generado en servidor y descargado.');
+        notify('success', 'PDF Real descargado.');
       } else {
         const html = await res.text();
         const win = window.open('', '_blank');
@@ -569,65 +793,45 @@ export default function MachotesPage() {
   const generatingStage = STAGES[pipelineStageIndex];
 
   return (
-    <div className="machotes-shell h-[calc(100dvh-64px)] flex flex-col font-sans select-none overflow-hidden">
-      {/* ── BARRA DE PESTAÑAS (Pill Style idéntica al Mockup) ────────────── */}
-      <div className="shrink-0 border-b" style={{ borderColor: 'var(--mach-border)' }}>
-        <div className="w-full max-w-[1800px] mx-auto px-5 py-2.5 flex items-center justify-between gap-3 min-w-0">
+    <div className="machotes-shell h-[calc(100dvh-64px)] flex flex-col font-sans select-none overflow-hidden bg-[#f5f1e8]">
+      {/* ── BARRA DE PESTAÑAS Y MODOS JURÍDICOS (UI EN INTER) ─────────────── */}
+      <div className="shrink-0 px-4 py-2 bg-[#f5f1e8] border-b border-[#e8e2d5] font-sans">
+        <div className="w-full flex items-center justify-between gap-3 min-w-0">
           <div className="flex items-center gap-2 overflow-x-auto no-scrollbar min-w-0 flex-1">
-            {/* ⚙ Motor Universal (Drafts) */}
+            {/* ⓘ Motor Universal (Drafts) */}
             <button
-              onClick={() => {
-                setActiveNavTab('universal');
-                if (!universalDoc) setIsDraftGeneratorOpen(true);
-              }}
+              onClick={() => handleSwitchMode('universal')}
               className={`mach-tab ${activeNavTab === 'universal' ? 'mach-tab-active' : ''}`}
             >
-              <span>⚙️</span>
+              <span>ⓘ</span>
               <span>Motor Universal (Drafts)</span>
             </button>
 
-            {/* 📝 Escritos Iniciales */}
+            {/* 📄 Escritos Iniciales */}
             <button
-              onClick={() => {
-                setActiveNavTab('initial_writings');
-                setIsDraftGeneratorOpen(true);
-              }}
+              onClick={() => handleSwitchMode('initial_writings')}
               className={`mach-tab ${activeNavTab === 'initial_writings' ? 'mach-tab-active' : ''}`}
             >
-              <span>📝</span>
+              <span>📄</span>
               <span>Escritos Iniciales</span>
             </button>
 
-            {/* ⚖ Contestaciones y Recursos */}
+            {/* ⚖ Contestaciones y Reclamaciones */}
             <button
-              onClick={() => {
-                setActiveNavTab('responses_resources');
-                setIsDraftGeneratorOpen(true);
-              }}
+              onClick={() => handleSwitchMode('responses_resources')}
               className={`mach-tab ${activeNavTab === 'responses_resources' ? 'mach-tab-active' : ''}`}
             >
-              <span>⚖️</span>
-              <span>Contestaciones y Recursos</span>
+              <span>⚖</span>
+              <span>Contestaciones y Reclamaciones</span>
             </button>
 
             {/* 📁 Mis Plantillas */}
             <button
-              onClick={() => setActiveNavTab('my-templates')}
+              onClick={() => handleSwitchMode('my-templates')}
               className={`mach-tab ${activeNavTab === 'my-templates' ? 'mach-tab-active' : ''}`}
             >
               <span>📁</span>
-              <span>Mis Plantillas ({customTemplates.length})</span>
-            </button>
-          </div>
-
-          {/* Botón ➕ Subir Machote */}
-          <div className="flex items-center gap-2 shrink-0">
-            <button
-              onClick={() => setIsSaveCustomOpen(true)}
-              className="mach-button-primary flex items-center gap-1.5"
-            >
-              <span>➕</span>
-              <span>Subir Machote</span>
+              <span>Mis Plantillas</span>
             </button>
           </div>
         </div>
@@ -636,7 +840,7 @@ export default function MachotesPage() {
       {/* ── BANNER DE NOTIFICACIONES / FEEDBACK ────────────────────────────── */}
       {feedback && (
         <div
-          className={`mx-5 mt-2 px-4 py-2 rounded-xl text-xs font-bold flex items-center justify-between border shadow-sm shrink-0 transition-all legal-info-box jr-card ${
+          className={`mx-4 mt-2 px-4 py-2 rounded-xl text-xs font-bold flex items-center justify-between border shadow-sm shrink-0 transition-all font-sans ${
             feedback.tone === 'success'
               ? 'bg-emerald-50 border-emerald-300 text-emerald-800'
               : feedback.tone === 'error'
@@ -651,12 +855,12 @@ export default function MachotesPage() {
         </div>
       )}
 
-      {/* ── CUERPO PRINCIPAL DEL WORKSPACE ─────────────────────────────────── */}
+      {/* ── CUERPO PRINCIPAL DEL WORKSPACE (DOCUMENTO DOMINANTE CON PANEL DE PÁGINAS) ─── */}
       <div className="flex-1 flex overflow-hidden min-h-0 min-w-0">
         {activeNavTab === 'my-templates' ? (
-          /* TAB: MIS PLANTILLAS (Administrador Completo) */
-          <div className="w-full max-w-[1800px] mx-auto px-5 min-h-0">
-            <div className="flex-1 p-6 overflow-y-auto max-w-6xl mx-auto w-full min-h-0">
+          /* TAB: MIS PLANTILLAS */
+          <div className="w-full flex-1 p-6 overflow-y-auto bg-[#ede8dd] min-h-0 font-sans">
+            <div className="max-w-6xl mx-auto w-full">
               <TemplateLibraryManager
                 templates={customTemplates}
                 onUseTemplate={(tpl) => handleUseTemplate(tpl)}
@@ -667,24 +871,8 @@ export default function MachotesPage() {
             </div>
           </div>
         ) : (
-          /* VISTA PRINCIPAL: 3 PANELES RETRÁCTILES (Biblioteca | Hoja Carta | Contextual IA) */
-          <div className="flex w-full max-w-[1800px] mx-auto px-5 min-h-0 min-w-0">
-            {/* PANEL IZQUIERDO: BIBLIOTECA DE DOCUMENTOS */}
-            <WorkspaceLibraryPanel
-              isCollapsed={isLibraryCollapsed}
-              onToggleCollapse={() => setIsLibraryCollapsed(!isLibraryCollapsed)}
-              caseDocuments={caseDocuments}
-              uploadedSources={uploadedSourceDocs}
-              templates={customTemplates}
-              currentDoc={universalDoc}
-              selectedCaseDocId={selectedCaseDoc?.id}
-              onSelectCaseDocument={(doc) => setSelectedCaseDoc(doc)}
-              onUseTemplate={(tpl) => handleUseTemplate(tpl)}
-              onOpenCreateTemplateModal={() => setIsSaveCustomOpen(true)}
-              onDeleteTemplate={(id) => handleDeleteTemplate(id)}
-            />
-
-            {/* PANEL CENTRAL: DOCUMENTO EN HOJA CARTA */}
+          /* VISTA PRINCIPAL: VISOR PAGINADO */
+          <div className="flex w-full min-h-0 min-w-0 overflow-hidden">
             <WorkspaceDocumentEditor
               document={universalDoc}
               onUpdateDocument={(updated) => setUniversalDoc(updated)}
@@ -692,6 +880,8 @@ export default function MachotesPage() {
               onExportDocx={handleExportDocx}
               onExportPdf={handleExportPdf}
               onSaveDraft={handleSaveDraft}
+              onSaveAsTemplate={handleSaveAsTemplate}
+              onGenerateFromMachote={handleGenerateFromMachote}
               activeSectionId={activeSection?.id}
               onSelectSection={(sec) => setActiveSection(sec)}
               onSelectTextHighlight={(text) => setSelectedTextHighlight(text)}
@@ -699,35 +889,22 @@ export default function MachotesPage() {
               pipelineStageLabel={generatingStage ? `Fase: ${generatingStage.label}` : undefined}
               onTriggerNewDraftModal={() => setIsDraftGeneratorOpen(true)}
               onTriggerUpload={() => fileInputHiddenRef.current?.click()}
-              onToggleLibrary={() => setIsLibraryCollapsed((c) => !c)}
-              onToggleAI={() => setIsContextualAiCollapsed((c) => !c)}
-            />
-
-            {/* PANEL DERECHO: CONTEXTUAL IA */}
-            <WorkspaceContextualAIPanel
-              isCollapsed={isContextualAiCollapsed}
-              onToggleCollapse={() => setIsContextualAiCollapsed(!isContextualAiCollapsed)}
-              document={universalDoc}
-              activeSection={activeSection}
-              selectedTextHighlight={selectedTextHighlight}
-              onApplySuggestion={handleApplySuggestion}
-              isGenerating={isUniversalGenerating}
             />
           </div>
         )}
       </div>
 
-      {/* Input oculto para carga de archivos */}
+      {/* Input oculto para carga de archivos PDF / DOCX */}
       <input
         ref={fileInputHiddenRef}
         type="file"
         multiple
-        accept=".pdf,.docx,.doc,.jpg,.jpeg,.png,.txt"
+        accept=".pdf,.docx,.doc,.jpg,.jpeg,.png,.txt,.rtf"
         onChange={handleFileUpload}
         className="hidden"
       />
 
-      {/* MODAL 1: Generador de Borrador y Estrategia */}
+      {/* MODAL 1: Generador de Borrador / Redacción con Machote */}
       {isDraftGeneratorOpen && (
         <WorkspaceDraftGeneratorModal
           isOpen={isDraftGeneratorOpen}
@@ -758,12 +935,12 @@ export default function MachotesPage() {
           onClose={() => setIsSaveCustomOpen(false)}
           onTemplateCreated={() => {
             loadTemplates();
-            notify('success', 'Machote analizado y guardado en tu biblioteca.');
+            notify('success', 'Machote guardado exitosamente en "Mis Plantillas".');
           }}
         />
       )}
 
-      {/* MODAL 3: Editar Plantilla / Crear Versión */}
+      {/* MODAL 3: Editar Plantilla */}
       {isEditCustomOpen && (
         <EditCustomTemplateModal
           template={editTemplateData}
@@ -774,7 +951,7 @@ export default function MachotesPage() {
           }}
           onTemplateUpdated={() => {
             loadTemplates();
-            notify('success', 'Plantilla actualizada (nueva versión creada).');
+            notify('success', 'Plantilla actualizada.');
           }}
         />
       )}

@@ -85,7 +85,7 @@ body {
     radial-gradient(circle at bottom right, rgba(88, 86, 214, 0.05), transparent 35%),
     var(--jr-bg);
   color: var(--jr-text);
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-family: var(--font-inter), 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   line-height: 1.6;
   min-height: 100vh;
   position: relative;
@@ -2627,3 +2627,32 @@ textarea:disabled {
   cursor: pointer;
 }
 .mach-button-primary:hover { background: #f8f7f2; }
+
+/* ============================================================
+   LEGAL DOCUMENT CANVAS ISOLATION
+   Preserves original document typography, spacing and styles
+   without inheriting global UI fonts.
+   ============================================================ */
+.legal-document-canvas {
+  /* Isolated layer for physical document sheets */
+  -webkit-font-smoothing: subpixel-antialiased;
+}
+
+.legal-document-sheet {
+  /* Proporciones exactas de papel Carta (816 x 1056 px) */
+  width: 816px;
+  min-height: 1056px;
+  max-width: 100%;
+  background: #ffffff;
+  box-sizing: border-box;
+  color: #111827;
+  overflow: hidden;
+  box-shadow: 0 12px 36px -8px rgba(15, 23, 42, 0.18), 0 0 1px rgba(15, 23, 42, 0.25);
+}
+
+.legal-document-content {
+  /* Preserva alineaciones, saltos y espaciados originales */
+  word-wrap: break-word;
+  overflow-wrap: anywhere;
+}
+
