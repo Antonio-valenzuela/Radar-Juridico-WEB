@@ -590,50 +590,65 @@ export function WorkspaceDocumentEditor({
       {/* ── CUERPO PRINCIPAL DEL VISOR (Panel Retráctil + Lienzo Paginado Carta) ── */}
       <div className="flex-1 flex overflow-hidden min-h-0 min-w-0">
         {/* Panel Lateral Retráctil de Miniaturas */}
-        {document && showPagesPanel && (
-          <aside className="w-[200px] shrink-0 bg-[#f7f4ec] border-r border-[#ded8c9] flex flex-col p-3 overflow-hidden select-none animate-in slide-in-from-left-2 duration-150 font-sans">
-            <div className="flex items-center justify-between text-[11px] font-extrabold text-[#0B2545] pb-2 border-b border-[#e8e2d5] mb-2 px-1">
-              <span className="tracking-wider uppercase">PÁGINAS ({totalPages})</span>
+        {document && (
+          showPagesPanel ? (
+            <aside className="w-[200px] shrink-0 bg-[#f7f4ec] border-r border-[#ded8c9] flex flex-col p-3 overflow-hidden select-none animate-in slide-in-from-left-2 duration-150 font-sans">
+              <div className="flex items-center justify-between text-[11px] font-extrabold text-[#0B2545] pb-2 border-b border-[#e8e2d5] mb-2 px-1">
+                <span className="tracking-wider uppercase">PÁGINAS ({totalPages})</span>
+                <button
+                  onClick={() => setShowPagesPanel(false)}
+                  className="w-5 h-5 rounded hover:bg-slate-200 text-slate-400 hover:text-slate-700 flex items-center justify-center text-sm font-bold"
+                  title="Ocultar panel de páginas (‹)"
+                >
+                  ‹
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto space-y-2 pr-1">
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNum) => {
+                  const isSelected = currentPage === pageNum;
+
+                  return (
+                    <button
+                      key={`thumb-${pageNum}`}
+                      onClick={() => setCurrentPage(pageNum)}
+                      className={`w-full text-left p-2.5 rounded-xl border transition flex flex-col items-center justify-center space-y-1 ${
+                        isSelected
+                          ? 'bg-white border-[#0B2545] ring-2 ring-[#0B2545]/30 shadow-sm'
+                          : 'bg-white/80 border-[#ded8c9] hover:border-slate-400'
+                      }`}
+                    >
+                      <div className="w-full h-16 bg-white border border-slate-200 rounded p-1.5 flex flex-col justify-between shadow-xs select-none">
+                        <div className="flex items-center justify-between text-[9px] font-bold text-[#0B2545]">
+                          <span>Pág. {pageNum}</span>
+                          <span className="text-[7px] text-slate-400 uppercase">Carta</span>
+                        </div>
+                        <div className="space-y-0.5 opacity-40">
+                          <div className="h-1 bg-slate-400 rounded w-full" />
+                          <div className="h-1 bg-slate-300 rounded w-5/6" />
+                          <div className="h-1 bg-slate-300 rounded w-4/6" />
+                        </div>
+                        <span className="text-[7px] text-slate-300 text-right font-mono">816×1056</span>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </aside>
+          ) : (
+            <div className="shrink-0 bg-[#f7f4ec] border-r border-[#ded8c9] flex flex-col items-center py-3 px-1 select-none">
               <button
-                onClick={() => setShowPagesPanel(false)}
-                className="w-5 h-5 rounded hover:bg-slate-200 text-slate-400 hover:text-slate-700 flex items-center justify-center text-xs font-bold"
-                title="Cerrar panel"
+                onClick={() => setShowPagesPanel(true)}
+                className="w-7 h-7 rounded-lg bg-white border border-[#ded8c9] hover:bg-slate-100 text-[#0B2545] flex items-center justify-center text-sm font-bold shadow-xs transition"
+                title="Mostrar panel de páginas (›)"
               >
-                ✕
+                ›
               </button>
+              <span className="[writing-mode:vertical-lr] rotate-180 text-[10px] font-extrabold text-slate-400 tracking-wider uppercase mt-4">
+                Páginas ({totalPages})
+              </span>
             </div>
-
-            <div className="flex-1 overflow-y-auto space-y-2 pr-1">
-              {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNum) => {
-                const isSelected = currentPage === pageNum;
-
-                return (
-                  <button
-                    key={`thumb-${pageNum}`}
-                    onClick={() => setCurrentPage(pageNum)}
-                    className={`w-full text-left p-2.5 rounded-xl border transition flex flex-col items-center justify-center space-y-1 ${
-                      isSelected
-                        ? 'bg-white border-[#0B2545] ring-2 ring-[#0B2545]/30 shadow-sm'
-                        : 'bg-white/80 border-[#ded8c9] hover:border-slate-400'
-                    }`}
-                  >
-                    <div className="w-full h-16 bg-white border border-slate-200 rounded p-1.5 flex flex-col justify-between shadow-xs select-none">
-                      <div className="flex items-center justify-between text-[9px] font-bold text-[#0B2545]">
-                        <span>Pág. {pageNum}</span>
-                        <span className="text-[7px] text-slate-400 uppercase">Carta</span>
-                      </div>
-                      <div className="space-y-0.5 opacity-40">
-                        <div className="h-1 bg-slate-400 rounded w-full" />
-                        <div className="h-1 bg-slate-300 rounded w-5/6" />
-                        <div className="h-1 bg-slate-300 rounded w-4/6" />
-                      </div>
-                      <span className="text-[7px] text-slate-300 text-right font-mono">816×1056</span>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          </aside>
+          )
         )}
 
         {/* Lienzo Central: MUESTRA UNA SOLA HOJA VISIBLE A LA VEZ */}

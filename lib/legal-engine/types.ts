@@ -8,6 +8,58 @@ export interface SourceReference {
   textSnippet?: string;
 }
 
+export interface BoundingBox {
+  xmin: number;
+  ymin: number;
+  xmax: number;
+  ymax: number;
+}
+
+export type DocumentBlockType =
+  | 'header'
+  | 'section-header'
+  | 'text'
+  | 'paragraph'
+  | 'table'
+  | 'page-footer'
+  | 'page-header'
+  | 'signature'
+  | 'footnote'
+  | 'title'
+  | 'list-item'
+  | 'caption'
+  | string;
+
+export interface DocumentBlock {
+  id: string;
+  documentId?: string;
+  pageNumber: number;
+  type: DocumentBlockType;
+  text: string;
+  bbox?: BoundingBox;
+  confidence?: number;
+  order: number;
+  style?: BlockStyle;
+  tableData?: {
+    headers?: string[];
+    rows?: string[][];
+  };
+}
+
+export interface StructuredDocument {
+  documentId?: string;
+  fileName?: string;
+  pageCount: number;
+  pages: Array<{
+    pageNumber: number;
+    text: string;
+    blocks: DocumentBlock[];
+  }>;
+  blocks: DocumentBlock[];
+  parsedBy: 'nvidia-nemotron-parse' | 'native-extractor' | 'ocr';
+  parsedAt: string;
+}
+
 export interface BlockStyle {
   fontFamily?: string;
   fontSize?: string;

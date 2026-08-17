@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/security/adminAuth';
 import { extractDocument } from '@/lib/pdf/documentExtractor';
+import { parseDocumentWithNemotron } from '@/lib/ai/nemotronParser';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -159,6 +160,22 @@ export async function POST(request: NextRequest) {
     // ── Run universal extraction pipeline ─────────────────────────────────────
     const result = await extractDocument({ buffer, fileName, mimeType });
 
+    // ── Run structural parsing with NVIDIA Nemotron-Parse if configured ───────
+    let structureJson: any = null;
+    try {
+      const nemotronResult = await parseDocumentWithNemotron({
+        buffer,
+        fileName,
+        mimeType,
+        pages: result.pages.map((p) => ({ pageNumber: p.page, text: p.text })),
+      });
+      if (nemotronResult.ok && nemotronResult.structuredDocument) {
+        structureJson = nemotronResult.structuredDocument;
+      }
+    } catch (e: any) {
+      console.warn('[analyze-upload] Nemotron structural parsing fallback:', e?.message || e);
+    }
+
     // ── Classify legal content (only on validated text) ───────────────────────
     const classification = result.text.length > 50
       ? classifyLegalText(result.text)
@@ -193,12 +210,12 @@ export async function POST(request: NextRequest) {
       extractionSteps: result.extractionSteps,
       pages: result.pages,
       classification,
-      structureJson: null,
+      structureJson,
       warnings: result.warnings,
       pipelineStatus: result.status,
     };
 
-    return NextResponse.json(response satisfies AnalyzeResult);
+    return NextResponse.json(response);
   } catch (err: any) {
     console.error('[analyze-upload] Error:', err);
     return NextResponse.json(
