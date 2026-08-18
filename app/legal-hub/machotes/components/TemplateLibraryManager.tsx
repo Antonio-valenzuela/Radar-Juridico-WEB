@@ -102,16 +102,16 @@ export function TemplateLibraryManager({
   return (
     <div className="w-full space-y-5 font-sans">
       {/* ── Barra Superior: Título, Buscador y Botón de Creación ──────────────── */}
-      <div className="bg-white border border-[#ded8c9] rounded-2xl p-5 shadow-xs space-y-4">
+      <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs space-y-4">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div className="space-y-0.5">
-            <h2 className="text-base font-extrabold text-[#0B2545] tracking-tight flex items-center gap-2">
+            <h1 className="text-xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
               <span>📁</span>
               <span>Mis Plantillas y Machotes</span>
-              <span className="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 font-bold border border-slate-200">
-                {templates.length} {templates.length === 1 ? 'registro' : 'registros'}
+              <span className="text-xs px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-600 font-bold border border-slate-200">
+                {templates.length} {templates.length === 1 ? 'plantilla' : 'plantillas'}
               </span>
-            </h2>
+            </h1>
             <p className="text-xs text-slate-500 font-medium">
               Biblioteca de documentos oficiales y plantillas reutilizables para redacción judicial.
             </p>
@@ -119,7 +119,7 @@ export function TemplateLibraryManager({
 
           <button
             onClick={onCreateNewTemplate}
-            className="px-4 py-2.5 rounded-xl bg-[#0B2545] hover:bg-[#081d39] text-white text-xs font-bold shadow-sm transition flex items-center gap-2 shrink-0"
+            className="px-4 py-2.5 rounded-xl bg-[#0B2545] hover:bg-[#081d39] text-white text-xs font-bold shadow-xs transition flex items-center gap-2 shrink-0"
           >
             <span>+</span>
             <span>Crear Machote / Plantilla</span>
@@ -135,7 +135,7 @@ export function TemplateLibraryManager({
               placeholder="Buscar por nombre, materia o palabra clave..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-8 py-2 bg-slate-50 border border-[#ded8c9] rounded-xl text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:bg-white focus:border-[#0B2545] transition"
+              className="w-full pl-9 pr-8 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:bg-white focus:border-[#0B2545] transition"
             />
             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs">🔍</span>
             {searchQuery && (
@@ -153,7 +153,7 @@ export function TemplateLibraryManager({
             <select
               value={selectedMatterId}
               onChange={(e) => setSelectedMatterId(e.target.value)}
-              className="w-full px-3 py-2 bg-slate-50 border border-[#ded8c9] rounded-xl text-xs text-slate-800 font-semibold focus:outline-none focus:bg-white focus:border-[#0B2545] transition"
+              className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 font-semibold focus:outline-none focus:bg-white focus:border-[#0B2545] transition"
             >
               <option value="all">Todas las Materias ({templates.length})</option>
               {availableMatters.map((m) => (
@@ -169,7 +169,7 @@ export function TemplateLibraryManager({
       {/* ── Grid de Tarjetas de Machotes ──────────────────────────────────── */}
       {templates.length === 0 ? (
         /* ESTADO VACÍO GLOBAL (Cuando el usuario no tiene machotes aún) */
-        <div className="bg-white border border-[#ded8c9] rounded-3xl p-12 text-center shadow-xs space-y-4 max-w-xl mx-auto my-8">
+        <div className="bg-white border border-slate-200 rounded-2xl p-14 text-center shadow-xs space-y-4 w-full">
           <div className="w-14 h-14 rounded-2xl bg-blue-50 text-[#0B2545] text-2xl flex items-center justify-center mx-auto border border-blue-100 shadow-inner">
             📁
           </div>
@@ -184,7 +184,7 @@ export function TemplateLibraryManager({
           <div className="pt-2">
             <button
               onClick={onCreateNewTemplate}
-              className="px-5 py-2.5 rounded-xl bg-[#0B2545] hover:bg-[#081d39] text-white text-xs font-bold shadow-sm transition inline-flex items-center gap-2"
+              className="px-5 py-2.5 rounded-xl bg-[#0B2545] hover:bg-[#081d39] text-white text-xs font-bold shadow-xs transition inline-flex items-center gap-2"
             >
               <span>📥</span>
               <span>Subir Mi Primer Machote</span>
@@ -193,7 +193,7 @@ export function TemplateLibraryManager({
         </div>
       ) : filteredTemplates.length === 0 ? (
         /* ESTADO VACÍO POR FILTRO (Hay registros pero no coinciden) */
-        <div className="bg-white border border-[#ded8c9] rounded-2xl p-10 text-center shadow-xs space-y-3">
+        <div className="bg-white border border-slate-200 rounded-2xl p-10 text-center shadow-xs space-y-3">
           <div className="text-2xl">🔍</div>
           <div className="space-y-1">
             <h3 className="text-xs font-extrabold text-[#0B2545]">
@@ -215,7 +215,7 @@ export function TemplateLibraryManager({
         </div>
       ) : (
         /* GRID DE TARJETAS LIMPIAS Y COMPACTAS */
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4.5">
           {filteredTemplates.map((tpl) => {
             const ext = tpl.fileType || (tpl.sourceFileName ? tpl.sourceFileName.split('.').pop()?.toUpperCase() : 'PDF');
             const pages = tpl.pageCount || 1;
@@ -223,7 +223,7 @@ export function TemplateLibraryManager({
             return (
               <div
                 key={tpl.id}
-                className="bg-white border border-[#ded8c9] hover:border-[#0B2545] rounded-2xl p-4.5 flex flex-col justify-between space-y-3 shadow-xs hover:shadow-md transition duration-150 group"
+                className="bg-white border border-slate-200 hover:border-[#0B2545] rounded-2xl p-4.5 flex flex-col justify-between space-y-3 shadow-xs hover:shadow-md transition duration-150 group"
               >
                 <div className="space-y-2.5">
                   {/* Fila Superior: Badges de Materia y Tipo de Archivo */}

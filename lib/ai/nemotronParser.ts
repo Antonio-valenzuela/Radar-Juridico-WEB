@@ -30,18 +30,43 @@ export function getNemotronConfig(): NemotronParserConfig {
     apiKey: process.env.NVIDIA_API_KEY,
     endpointUrl: process.env.NVIDIA_NEMOTRON_PARSE_URL || 'https://integrate.api.nvidia.com/v1/chat/completions',
     model: process.env.NVIDIA_NEMOTRON_PARSE_MODEL || 'nvidia/nemotron-parse-v1.2',
-    timeoutMs: process.env.NVIDIA_TIMEOUT_MS ? Number(process.env.NVIDIA_TIMEOUT_MS) : 15000,
+    timeoutMs: process.env.NVIDIA_TIMEOUT_MS ? Number(process.env.NVIDIA_TIMEOUT_MS) : 25000,
   };
 }
 
 /**
- * Parsea bounding boxes desde diferentes formatos que Nemotron-Parse puede emitir
- * (ej. [ymin, xmin, ymax, xmax], {"box_2d": [...]}, <!-- box: [...] -->, etc.)
+ * Tokens de control documentados oficialmente por NVIDIA para Nemotron-Parse-v1.2
  */
-function extractBoundingBox(raw: any): BoundingBox | undefined {
+export const NEMOTRON_PARSE_PROMPT = '</s><s><predict_bbox><predict_classes><output_markdown><predict_no_text_in_pic>';
+
+/**
+ * Detecta si una línea contiene metadatos técnicos del PJF o firmas digitales
+ * (ej. RSA-SHA256, hashes, certificados, cadenas OCSP, versiones públicas)
+ */
+function isTechnicalMetadata(text: string): boolean {
+  if (!text) return false;
+  const lower = text.toLowerCase();
+  return (
+    lower.includes('rsa-sha256') ||
+    lower.includes('cadena de firma') ||
+    lower.includes('sello digital') ||
+    lower.includes('versión pública') ||
+    lower.includes('pjf - versión pública') ||
+    lower.includes('ocsp') ||
+    lower.includes('tsa') ||
+    /^[0-9a-fA-F]{32,}$/.test(text.replace(/\s+/g, '')) ||
+    /^(sha1|sha256|md5):/i.test(text) ||
+    /^(evidencia criptográfica|certificado digital|firmado por:)/i.test(lower)
+  );
+}
+
+/**
+ * Parsea bounding boxes desde los formatos emitidos por Nemotron-Parse
+ * ([ymin, xmin, ymax, xmax], {"box_2d": [...]}, <!-- box: [...] -->, <box ...>)
+ */
+export function extractBoundingBox(raw: any): BoundingBox | undefined {
   if (!raw) return undefined;
 
-  // Si ya es un objeto con las claves esperadas
   if (
     typeof raw.xmin === 'number' &&
     typeof raw.ymin === 'number' &&
@@ -56,7 +81,6 @@ function extractBoundingBox(raw: any): BoundingBox | undefined {
     };
   }
 
-  // Si es un arreglo [ymin, xmin, ymax, xmax] o [xmin, ymin, xmax, ymax]
   if (Array.isArray(raw) && raw.length === 4 && raw.every((n) => typeof n === 'number')) {
     return {
       ymin: raw[0],
@@ -66,7 +90,6 @@ function extractBoundingBox(raw: any): BoundingBox | undefined {
     };
   }
 
-  // Si viene dentro de box_2d
   if (Array.isArray(raw.box_2d) && raw.box_2d.length === 4) {
     return {
       ymin: raw.box_2d[0],
@@ -80,8 +103,7 @@ function extractBoundingBox(raw: any): BoundingBox | undefined {
 }
 
 /**
- * Normaliza la respuesta textual/markdown_bbox devuelta por Nemotron-Parse
- * a una estructura de bloques tipados (Header, Section-header, Table, Page-footer, Text)
+ * Normaliza la respuesta emitida por Nemotron-Parse convirtiéndola a bloques estructurados
  */
 export function normalizeNemotronOutput(
   content: string,
@@ -113,7 +135,7 @@ export function normalizeNemotronOutput(
     blocks.push({
       id: `blk-p${pageNumber}-${currentOrder++}`,
       pageNumber,
-      type: 'table',
+      type: 'Table',
       text: tableText,
       order: currentOrder,
       style: {
@@ -144,7 +166,7 @@ export function normalizeNemotronOutput(
 
     if (!trimmed) continue;
 
-    // Buscar anotaciones de bounding box en la línea (ej. <!-- box: [0, 0, 100, 100] --> o [ymin, xmin, ymax, xmax])
+    // Buscar anotaciones de bounding box en la línea
     let bbox: BoundingBox | undefined = undefined;
     let cleanText = trimmed;
 
@@ -160,63 +182,61 @@ export function normalizeNemotronOutput(
     }
 
     // Clasificación de Tipo de Bloque
-    let blockType: DocumentBlockType = 'text';
+    let blockType: DocumentBlockType = 'Text';
     let blockStyle: BlockStyle = {
       fontSize: '13px',
       textAlign: 'justify',
       lineHeight: '1.6',
     };
 
-    // Encabezados principales
-    if (/^#\s+/.test(cleanText)) {
-      blockType = 'header';
+    if (isTechnicalMetadata(cleanText)) {
+      blockType = 'Metadata';
+      blockStyle = {
+        fontSize: '9px',
+        textAlign: 'left',
+        fontStyle: 'italic',
+      };
+    } else if (/^#\s+/.test(cleanText)) {
+      blockType = 'Section-header';
       cleanText = cleanText.replace(/^#\s+/, '').trim();
       blockStyle = {
         fontSize: '16px',
         fontWeight: 'bold',
         textAlign: 'center',
       };
-    } else if (/^##\s+/.test(cleanText)) {
-      blockType = 'section-header';
-      cleanText = cleanText.replace(/^##\s+/, '').trim();
+    } else if (/^##\s+/.test(cleanText) || /^###\s+/.test(cleanText)) {
+      blockType = 'Section-header';
+      cleanText = cleanText.replace(/^#{2,3}\s+/, '').trim();
       blockStyle = {
         fontSize: '14px',
         fontWeight: 'bold',
         textAlign: 'left',
       };
-    } else if (/^###\s+/.test(cleanText)) {
-      blockType = 'section-header';
-      cleanText = cleanText.replace(/^###\s+/, '').trim();
-      blockStyle = {
-        fontSize: '13px',
-        fontWeight: 'bold',
-        textAlign: 'left',
-      };
     } else if (
-      /^(quejoso|actor|demandado|autoridad\s+responsable|acto\s+reclamado|expediente|toca|juicio)/i.test(cleanText) &&
+      /^(quejoso|actor|demandado|autoridad\s+responsable|acto\s+reclamado|expediente|toca|juicio|prestaciones|hechos|derecho|petitorios)/i.test(cleanText) &&
       cleanText.length < 120
     ) {
-      blockType = 'section-header';
+      blockType = 'Section-header';
       blockStyle = {
         fontSize: '13px',
         fontWeight: 'bold',
         textAlign: 'left',
       };
     } else if (/^(página|foja|\d+\s*\/\s*\d+|pág\.)/i.test(cleanText) && cleanText.length < 40) {
-      blockType = 'page-footer';
+      blockType = 'Page-footer';
       blockStyle = {
         fontSize: '10px',
         textAlign: 'right',
       };
-    } else if (/^(firma|atentamente|rúbrica|suscribe)/i.test(cleanText) && cleanText.length < 80) {
-      blockType = 'signature';
+    } else if (/^(firma|atentamente|rúbrica|suscribe|protesto\s+lo\s+necesario)/i.test(cleanText) && cleanText.length < 80) {
+      blockType = 'Signature';
       blockStyle = {
         fontSize: '12px',
         fontWeight: 'bold',
         textAlign: 'center',
       };
     } else if (/^[\*\-]\s+/.test(cleanText)) {
-      blockType = 'list-item';
+      blockType = 'List-item';
       cleanText = cleanText.replace(/^[\*\-]\s+/, '').trim();
       blockStyle = {
         fontSize: '13px',
@@ -245,6 +265,67 @@ export function normalizeNemotronOutput(
 }
 
 /**
+ * Ejecuta una llamada real al endpoint de NVIDIA Nemotron-Parse para una imagen de página
+ */
+async function callNemotronApiForPage(
+  imageDataUri: string,
+  config: NemotronParserConfig
+): Promise<string> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), config.timeoutMs);
+
+  try {
+    const response = await fetch(config.endpointUrl!, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${config.apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: config.model,
+        messages: [
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'text',
+                text: NEMOTRON_PARSE_PROMPT,
+              },
+              {
+                type: 'image_url',
+                image_url: { url: imageDataUri },
+              },
+            ],
+          },
+        ],
+        temperature: 0.0,
+        max_tokens: 4096,
+        repetition_penalty: 1.1,
+        extra_body: {
+          repetition_penalty: 1.1,
+          top_k: 1,
+          skip_special_tokens: false,
+        },
+      }),
+      signal: controller.signal,
+    });
+
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      const errText = await response.text().catch(() => '');
+      throw new Error(`NVIDIA API HTTP ${response.status}: ${errText.slice(0, 200)}`);
+    }
+
+    const json = await response.json();
+    return json.choices?.[0]?.message?.content || '';
+  } catch (err: any) {
+    clearTimeout(timeoutId);
+    throw err;
+  }
+}
+
+/**
  * Función principal para analizar documentos con NVIDIA Nemotron-Parse.
  * Ejecuta el parsing estructural en el backend de forma segura y normaliza la salida.
  */
@@ -256,12 +337,12 @@ export async function parseDocumentWithNemotron(input: {
 }): Promise<NemotronParseResult> {
   const config = getNemotronConfig();
 
-  // Si NVIDIA_API_KEY no está configurada, retornar fallo suave (fallback seguro)
+  // Si NVIDIA_API_KEY no está configurada, retornar fallback seguro
   if (!config.apiKey || !config.apiKey.trim()) {
     return {
       ok: false,
       reason: 'not_configured',
-      message: 'NVIDIA Nemotron-Parse no configurado (NVIDIA_API_KEY ausente). Usando extracción nativa estándar.',
+      message: 'NVIDIA Nemotron-Parse no configurado. Usando extracción nativa estándar.',
     };
   }
 
@@ -272,56 +353,11 @@ export async function parseDocumentWithNemotron(input: {
     const structuredPages: StructuredDocument['pages'] = [];
 
     if (isImage) {
-      // Para imágenes, enviar payload multimodal a la API de Nemotron
+      // Para imágenes, enviar la representación visual a Nemotron-Parse
       const base64Data = input.buffer.toString('base64');
       const dataUri = `data:${input.mimeType || 'image/jpeg'};base64,${base64Data}`;
 
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), config.timeoutMs);
-
-      const response = await fetch(config.endpointUrl!, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${config.apiKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: config.model,
-          messages: [
-            {
-              role: 'user',
-              content: [
-                {
-                  type: 'text',
-                  text: 'Extract the document structure, preserve section headers, tables, paragraphs, footers and bounding boxes in structured markdown format.',
-                },
-                {
-                  type: 'image_url',
-                  image_url: { url: dataUri },
-                },
-              ],
-            },
-          ],
-          temperature: 0.0,
-          max_tokens: 4096,
-        }),
-        signal: controller.signal,
-      });
-
-      clearTimeout(timeoutId);
-
-      if (!response.ok) {
-        const errText = await response.text().catch(() => '');
-        console.warn(`[nemotronParser] NVIDIA API respondió con status ${response.status}: ${errText.slice(0, 150)}`);
-        return {
-          ok: false,
-          reason: 'api_error',
-          error: `NVIDIA API error HTTP ${response.status}`,
-        };
-      }
-
-      const json = await response.json();
-      const rawContent = json.choices?.[0]?.message?.content || '';
+      const rawContent = await callNemotronApiForPage(dataUri, config);
       const pageBlocks = normalizeNemotronOutput(rawContent, 1);
 
       allBlocks.push(...pageBlocks);
@@ -331,7 +367,7 @@ export async function parseDocumentWithNemotron(input: {
         blocks: pageBlocks,
       });
     } else {
-      // Para documentos PDF / multipágina, procesar la estructura conservando las páginas
+      // Para documentos multipágina, procesar la estructura preservando fojas y tipos
       for (const p of pages) {
         const pageBlocks = normalizeNemotronOutput(p.text, p.pageNumber);
         allBlocks.push(...pageBlocks);
@@ -359,7 +395,7 @@ export async function parseDocumentWithNemotron(input: {
       extractedText: structuredPages.map((p) => p.text).join('\n\n'),
     };
   } catch (err: any) {
-    console.warn('[nemotronParser] Error durante parsing de Nemotron:', err?.message || err);
+    console.warn('[nemotronParser] Error durante llamada a Nemotron-Parse:', err?.message || err);
     return {
       ok: false,
       reason: 'api_error',

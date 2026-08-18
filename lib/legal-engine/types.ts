@@ -369,8 +369,10 @@ export interface CaseDocument {
   id: string;
   name: string;
   type: string;
+  fileUrl?: string;
   pageCount: number;
-  pages: Array<{ page: number; text: string; chars: number; ocrStatus: string }>;
+  pages: Array<{ page: number; text: string; chars: number; ocrStatus: string; blocks?: DocumentBlock[] }>;
+  structuredDocument?: StructuredDocument | null;
   role: string;
   status: 'READY' | 'NEEDS_MANUAL_REVIEW';
   uploadedAt: string;

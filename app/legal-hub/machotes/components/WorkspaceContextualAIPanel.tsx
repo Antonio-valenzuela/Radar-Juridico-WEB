@@ -52,7 +52,7 @@ export function WorkspaceContextualAIPanel({
   const currentSuggestion = React.useMemo(() => {
     if (customSuggestion) return customSuggestion;
     if (!document) {
-      return 'Sôggencaz os corsuisias con astatuuola suptonda lo coiadedad de cala ais la ecperata del fontas eoz corctaiaste...';
+      return 'No hay una sugerencia contextual disponible todavía.';
     }
 
     if (activeSection) {
@@ -69,46 +69,23 @@ export function WorkspaceContextualAIPanel({
       return `Desarrollar con mayor profundidad jurídica el apartado "${activeSection.title}", citando los precedentes y fundamentos legales específicos del caso.`;
     }
 
-    return 'Sôggencaz os corsuisias con astatuuola suptonda lo coiadedad de cala ais la ecperata del fontas eoz corctaiaste...';
+    return 'No hay una sugerencia contextual disponible todavía.';
   }, [activeSection, document, customSuggestion]);
 
   // Lista de fuentes exactas de la referencia visual
   const legalSources: LegalSourceItem[] = React.useMemo(() => {
-    const list: LegalSourceItem[] = [
-      {
-        id: 'doc-1',
-        type: 'doctrina',
-        title: 'Doctrina: Ley de Amparo Comentada',
-        subtitle: 'Trogal Research Marrdal de Nuset',
-        link: 'https://lasseriencia/rootlastrenchirins.',
-      },
-      {
-        id: 'jur-1',
-        type: 'jurisprudencia',
-        title: 'Jurisprudencia: Tesis Aisladas',
-        subtitle: 'Tiagal Research Masenie dóra Maraderool léc',
-        link: 'https://auvablor7xde11886055:0',
-      },
-      {
-        id: 'mem-1',
-        type: 'memoria',
-        title: 'Legal Research Souro nsi...',
-        subtitle: 'Fansado Sasir Estas',
-      },
-    ];
-
-    if (document?.sourceDocuments && document.sourceDocuments.length > 0) {
+    const list: LegalSourceItem[] = [];
+    if (document?.sourceDocuments?.length) {
       document.sourceDocuments.forEach((s, idx) => {
         list.push({
           id: `exp-${idx}`,
           type: 'expediente',
-          title: `Expediente: ${s.filename || s.name || 'Documento'}`,
+          title: s.filename || s.name || 'Documento fuente',
           subtitle: `${s.pages?.length || 1} pág(s) · Fuente ${s.sourceValidated !== false ? 'Verificada' : 'Parcial'}`,
-          link: s.extractedText ? undefined : undefined,
+          snippet: s.extractedText ? s.extractedText.slice(0, 220) : undefined,
         });
       });
     }
-
     return list;
   }, [document]);
 
@@ -139,31 +116,31 @@ export function WorkspaceContextualAIPanel({
   ────────────────────────────────────────────────────────────────────────── */
   if (isCollapsed) {
     return (
-      <aside className="w-16 shrink-0 min-w-0 bg-[#3a2717] border-l border-[#2e1d10] flex flex-col items-center py-4 space-y-4 select-none z-20">
-        <button
-          onClick={onToggleCollapse}
-          title="Abrir Contextual AI"
-          className="w-10 h-10 rounded-xl bg-white/10 border border-white/15 text-[#f5f2eb] flex items-center justify-center hover:bg-white/20 transition shadow-sm"
-        >
-          <span className="text-sm font-bold">←</span>
-        </button>
-
-        <div className="w-8 h-[1px] bg-white/15 my-1" />
-
-        <button
-          onClick={onToggleCollapse}
-          title="Sugerencias IA"
-          className="w-10 h-10 rounded-xl bg-blue-500/25 border border-blue-400/30 text-[#f5f2eb] flex items-center justify-center hover:bg-blue-500/40 transition shadow-sm"
-        >
-          <span className="text-base">✨</span>
-        </button>
-
-        <div className="mt-auto">
-          <div className="w-10 h-10 rounded-full bg-[#3b82f6] text-white flex items-center justify-center shadow-lg text-sm">
-            ⚖️
-          </div>
-        </div>
-      </aside>
+      <button
+        type="button"
+        onClick={onToggleCollapse}
+        title="Abrir asistente IA"
+        aria-label="Abrir asistente IA"
+        style={{
+          position: 'fixed',
+          right: 24,
+          bottom: 24,
+          width: 58,
+          height: 58,
+          borderRadius: '50%',
+          border: 'none',
+          background: '#2563eb',
+          color: '#fff',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          boxShadow: '0 14px 36px rgba(15,23,42,.25)',
+          zIndex: 80,
+          cursor: 'pointer',
+        }}
+      >
+        ⚖️
+      </button>
     );
   }
 

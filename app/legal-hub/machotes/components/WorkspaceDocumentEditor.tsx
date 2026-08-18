@@ -362,7 +362,7 @@ export function WorkspaceDocumentEditor({
                 : 'bg-white text-slate-700 border-[#ded8c9] hover:bg-[#ede8dd]'
             }`}
           >
-            <span>▤</span>
+            <span>☰</span>
             <span>Páginas</span>
           </button>
 
@@ -635,20 +635,7 @@ export function WorkspaceDocumentEditor({
                 })}
               </div>
             </aside>
-          ) : (
-            <div className="shrink-0 bg-[#f7f4ec] border-r border-[#ded8c9] flex flex-col items-center py-3 px-1 select-none">
-              <button
-                onClick={() => setShowPagesPanel(true)}
-                className="w-7 h-7 rounded-lg bg-white border border-[#ded8c9] hover:bg-slate-100 text-[#0B2545] flex items-center justify-center text-sm font-bold shadow-xs transition"
-                title="Mostrar panel de páginas (›)"
-              >
-                ›
-              </button>
-              <span className="[writing-mode:vertical-lr] rotate-180 text-[10px] font-extrabold text-slate-400 tracking-wider uppercase mt-4">
-                Páginas ({totalPages})
-              </span>
-            </div>
-          )
+          ) : null
         )}
 
         {/* Lienzo Central: MUESTRA UNA SOLA HOJA VISIBLE A LA VEZ */}
