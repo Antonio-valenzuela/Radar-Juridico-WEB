@@ -49,6 +49,7 @@ export interface RenderedDocument {
     title: string;
     content: string | string[];
     numbered?: boolean;
+    blocks?: any[];
   }[];
   footer: string;
   warnings: string[];

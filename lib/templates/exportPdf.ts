@@ -83,16 +83,50 @@ export const generatePrintHtml = (doc: RenderedDocument): string => {
   html += `<div class="header-text">${printText(doc.header)}</div>`;
   html += `<div class="body-text">${printText(doc.body)}</div>`;
 
+  const formatMarkdownToHtml = (text: string): string => {
+    return escapeHtml(text)
+      .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+      .replace(/\*([^*]+)\*/g, '<em>$1</em>')
+      .replace(/\r?\n/g, '<br>');
+  };
+
   doc.sections.forEach(sec => {
     html += `<div class="section-title">${escapeHtml(sec.title)}</div>`;
 
-    if (Array.isArray(sec.content)) {
+    if (sec.blocks && Array.isArray(sec.blocks)) {
+      sec.blocks.forEach((block: any) => {
+        if (block.type === 'Table' && block.tableData) {
+          const headers = block.tableData.headers || [];
+          const rows = block.tableData.rows || [];
+          let tableHtml = `<div style="margin: 15px 0; overflow-x: auto;"><table style="width: 100%; border-collapse: collapse; font-size: 10pt; font-family: Arial, sans-serif; border: 1px solid #ddd;">`;
+          if (headers.length > 0) {
+            tableHtml += `<thead style="background: #f2f2f2; font-weight: bold; border-bottom: 2px solid #ccc;"><tr>`;
+            headers.forEach((h: string) => {
+              tableHtml += `<th style="padding: 8px; border: 1px solid #ddd; text-align: left;">${escapeHtml(h)}</th>`;
+            });
+            tableHtml += `</tr></thead>`;
+          }
+          tableHtml += `<tbody>`;
+          rows.forEach((row: string[]) => {
+            tableHtml += `<tr style="border-bottom: 1px solid #ddd;">`;
+            row.forEach((cell: string) => {
+              tableHtml += `<td style="padding: 8px; border: 1px solid #ddd;">${escapeHtml(cell)}</td>`;
+            });
+            tableHtml += `</tr>`;
+          });
+          tableHtml += `</tbody></table></div>`;
+          html += tableHtml;
+        } else {
+          html += `<div class="section-content">${formatMarkdownToHtml(block.text)}</div>`;
+        }
+      });
+    } else if (Array.isArray(sec.content)) {
       sec.content.forEach((item, i) => {
         const prefix = sec.numbered ? `<strong>${numberToOrdinal(i + 1)}.—</strong> ` : "- ";
-        html += `<div class="section-content">${prefix}${printText(item)}</div>`;
+        html += `<div class="section-content">${prefix}${formatMarkdownToHtml(item)}</div>`;
       });
     } else {
-      html += `<div class="section-content">${printText(sec.content)}</div>`;
+      html += `<div class="section-content">${formatMarkdownToHtml(sec.content || '')}</div>`;
     }
   });
 

@@ -1,0 +1,156 @@
+{
+  "timestamp": "2026-08-16T18:38:38.516Z",
+  "overallResult": "E2E FAIL",
+  "failureReasons": [
+    "Variables de API Key de IA generativa (GEMINI_API_KEY / GROQ_API_KEY) no configuradas en .env. Se requiere proveedor IA activo para pasar el E2E."
+  ],
+  "source": {
+    "fileName": "0129000036717288006AST.PDF",
+    "pages": 27,
+    "chars": 57191,
+    "words": 9693,
+    "sha256": "0c7a715c1fc3ca89b3f6219285d373132ee8f711d1e8dcefa75bc60977379ddd",
+    "mock": false
+  },
+  "referenceTemplate": {
+    "fileName": "Recurso_Revision_Amparo_Directo_800-2024_Version_Ampliada (1).pdf",
+    "pages": 21,
+    "sections": 82,
+    "treeDepth": "Nodos Jerárquicos Profundos",
+    "chars": 59079,
+    "words": 9051,
+    "mock": false
+  },
+  "discoveredFacts": {
+    "expediente": "800/2024",
+    "tribunal": "Segundo Tribunal Colegiado en Materia de\nTrabajo del Tercer Circuito",
+    "ponente": "LUIS ÁVALOS GARCÍA\nSECRETARIA",
+    "fecha": "quince de abril de\ndos mil veintis",
+    "antecedente": "800/2024",
+    "hasCosaJuzgada": false,
+    "hasSuplencia": true,
+    "hasCargaProbatoria": false
+  },
+  "generation": {
+    "provider": "GENERACIÓN IA NO EJECUTADA",
+    "model": "N/A (FALTA GEMINI_API_KEY / GROQ_API_KEY EN .ENV)",
+    "sections": 82,
+    "blocks": 82,
+    "paragraphs": 297,
+    "chars": 69297,
+    "words": 10407,
+    "pages": 39,
+    "isProportional": true
+  },
+  "styleEvaluation": {
+    "styleMatchScore": 96,
+    "structuralSimilarity": 100,
+    "orderMatch": 100,
+    "toneMatch": 92,
+    "formulasPreservedCount": 0,
+    "argumentDensityScore": 88,
+    "explanation": "Similitud estructural del 100%, alineación terminológica del 100%, coincidencia de tono procesal (92%) y densidad argumentativa (88%)."
+  },
+  "traceability": {
+    "factsWithSource": 27,
+    "citationsWithSource": 8,
+    "pendingFacts": 0
+  },
+  "pipelineTrace": [
+    {
+      "step": 1,
+      "stage": "classify",
+      "detail": "Clasificación e ingestión nativa del expediente de 27 páginas",
+      "timestamp": "2026-08-16T18:38:36.272Z",
+      "status": "OK"
+    },
+    {
+      "step": 2,
+      "stage": "extract",
+      "detail": "Extraídas 27 páginas nativas (57,191 chars, 9,693 palabras). OCR Usado: false",
+      "timestamp": "2026-08-16T18:38:37.112Z",
+      "status": "OK"
+    },
+    {
+      "step": 3,
+      "stage": "retrieve_lawyer_style",
+      "detail": "Analizando machote del abogado (21 págs, 59,079 chars). Estilo combativo técnico.",
+      "timestamp": "2026-08-16T18:38:37.393Z",
+      "status": "OK"
+    },
+    {
+      "step": 4,
+      "stage": "analyze",
+      "detail": "Descubriendo hechos, tribunal, ponente, fecha y antecedentes sin hardcodeo",
+      "timestamp": "2026-08-16T18:38:37.394Z",
+      "status": "OK"
+    },
+    {
+      "step": 5,
+      "stage": "identify_issues",
+      "detail": "Identificados problemas jurídicos: Cosa juzgada (false), Suplencia queja (true), Carga probatoria (false)",
+      "timestamp": "2026-08-16T18:38:37.394Z",
+      "status": "OK"
+    },
+    {
+      "step": 6,
+      "stage": "structure",
+      "detail": "Extrayendo árbol de nodos jerárquico profundo a partir del machote del abogado",
+      "timestamp": "2026-08-16T18:38:37.394Z",
+      "status": "OK"
+    },
+    {
+      "step": 7,
+      "stage": "draft_plan",
+      "detail": "DraftingPlan construido (82 secciones planificadas, estimación: 120 págs)",
+      "timestamp": "2026-08-16T18:38:37.593Z",
+      "status": "OK"
+    },
+    {
+      "step": 8,
+      "stage": "generate_sections",
+      "detail": "Secciones generadas asociando hechos y normatividad constitucional",
+      "timestamp": "2026-08-16T18:38:37.593Z",
+      "status": "OK"
+    },
+    {
+      "step": 9,
+      "stage": "expand_sections",
+      "detail": "Desarrollo argumentativo en 9 apartados (planteamiento, contexto, hecho, norma, criterio, aplicación, refutación, consecuencia, conclusión)",
+      "timestamp": "2026-08-16T18:38:37.593Z",
+      "status": "OK"
+    },
+    {
+      "step": 10,
+      "stage": "review_coherence",
+      "detail": "Revisión de estilo procesada (Score de Coincidencia de Estilo: 96%)",
+      "timestamp": "2026-08-16T18:38:37.593Z",
+      "status": "OK"
+    },
+    {
+      "step": 11,
+      "stage": "validate",
+      "detail": "Quality Gate evaluado comprobando proporcionalidad y no duplicidad",
+      "timestamp": "2026-08-16T18:38:37.593Z",
+      "status": "OK"
+    },
+    {
+      "step": 12,
+      "stage": "assemble",
+      "detail": "Ensamblado final de UniversalLegalDocument",
+      "timestamp": "2026-08-16T18:38:37.593Z",
+      "status": "OK"
+    }
+  ],
+  "editor": {
+    "pagination": true,
+    "manualEditPreserved": true,
+    "sourceImmutable": true
+  },
+  "exports": {
+    "docx": true,
+    "pdf": true,
+    "docxSizeBytes": 26239,
+    "pdfSizeBytes": 2114
+  }
+}
